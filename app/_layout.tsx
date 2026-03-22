@@ -1,24 +1,71 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { ThemePreferenceProvider, useThemePreference } from '@/lib/theme-context';
+
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'index',
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function RootNavigator() {
+  const { isReady } = useAuth();
+  const { resolvedColorScheme } = useThemePreference();
+
+  useEffect(() => {
+    if (isReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [isReady]);
+
+  if (!isReady) {
+    return null;
+  }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <>
       <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen
+          name="session/new"
+          options={{ title: 'New Session', presentation: 'modal', headerBackTitle: 'Back' }}
+        />
+        <Stack.Screen name="session/[id]" options={{ title: 'Active Session' }} />
+        <Stack.Screen name="session/cashout/[id]" options={{ title: 'Cash Out' }} />
+        <Stack.Screen
+          name="session/summary/[id]"
+          options={{ title: 'Session Summary', headerBackTitle: 'Back' }}
+        />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style={resolvedColorScheme === 'dark' ? 'light' : 'dark'} />
+    </>
+  );
+}
+
+function ThemedNavigation() {
+  const { resolvedColorScheme } = useThemePreference();
+
+  return (
+    <ThemeProvider value={resolvedColorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemePreferenceProvider>
+      <ThemedNavigation />
+    </ThemePreferenceProvider>
   );
 }

@@ -1,50 +1,22 @@
-# Welcome to your Expo app 👋
+# Nonsense
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Nonsense is an Expo + Firebase mobile app for tracking poker sessions, buy-ins, and end-of-session settlement.
 
-## Get started
+## Current foundation
 
-1. Install dependencies
+- Anonymous Firebase Authentication wired at app startup
+- Onboarding flow for display name (`app/(auth)/name.tsx`)
+- Session creation flow (`app/session/new.tsx`)
+- Active session and cash-out route scaffolding (`app/session/*`)
+- Home tab with recent host sessions and quick stats
 
-   ```bash
-   npm install
-   ```
+## Run locally
 
-2. Start the app
+1. Install dependencies: `npm install`
+2. Copy `.env.example` to `.env`
+3. Fill all `EXPO_PUBLIC_FIREBASE_*` keys in `.env`
+4. Start app: `npx expo start`
 
-   ```bash
-   npx expo start
-   ```
+## Reference docs
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Product spec: `doc/nonsense-app-spec.md`
