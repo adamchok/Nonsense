@@ -38,7 +38,8 @@
             "backgroundColor": "#0F1115"
           }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -50,6 +51,12 @@
         "projectId": "7c701518-57ae-4483-b487-6095b5163e5e"
       }
     },
-    "owner": "adamchok"
+    "owner": "adamchok",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7c701518-57ae-4483-b487-6095b5163e5e"
+    }
   }
 }
