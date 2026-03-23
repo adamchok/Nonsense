@@ -32,27 +32,36 @@ export function formatSignedCurrency(amount: number): string {
   return `${sign}${formatCurrency(Math.abs(amount))}`;
 }
 
-/** Tight compact notation without currency symbol (e.g. 400K, 5.56K, 1.2M). */
-export function formatTightCompactNumber(amount: number): string {
+/** Tight compact notation (e.g. 400K, 5.56K, 1.2M) with optional sign/currency. */
+export function formatTightCompactNumber(
+  amount: number,
+  options?: { signed?: boolean; currency?: boolean }
+): string {
   const abs = Math.abs(amount);
+  const signed = options?.signed ?? false;
+  const currency = options?.currency ?? false;
 
   function trimFixed(value: number, digits: number): string {
     return value.toFixed(digits).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
   }
 
+  let compact: string;
   if (abs >= 1_000_000) {
     const v = abs / 1_000_000;
     const digits = v >= 100 ? 0 : v >= 10 ? 1 : 2;
-    return `${trimFixed(v, digits)}M`;
-  }
-
-  if (abs >= 1_000) {
+    compact = `${trimFixed(v, digits)}M`;
+  } else if (abs >= 1_000) {
     const v = abs / 1_000;
     const digits = v >= 100 ? 0 : v >= 10 ? 1 : 2;
-    return `${trimFixed(v, digits)}K`;
+    compact = `${trimFixed(v, digits)}K`;
+  } else if (abs >= 100) {
+    compact = trimFixed(abs, 0);
+  } else if (abs >= 10) {
+    compact = trimFixed(abs, 1);
+  } else {
+    compact = trimFixed(abs, 2);
   }
 
-  if (abs >= 100) return trimFixed(abs, 0);
-  if (abs >= 10) return trimFixed(abs, 1);
-  return trimFixed(abs, 2);
+  const prefix = `${signed ? (amount >= 0 ? '+' : '-') : ''}${currency ? '$' : ''}`;
+  return `${prefix}${compact}`;
 }

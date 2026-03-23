@@ -59,3 +59,9 @@ export interface GroupMember {
   name: string;
   isRegistered: boolean;
 }
+
+export interface SavedLocation {
+  id: string;
+  name: string;
+  createdAt: Date;
+}

@@ -28,6 +28,7 @@ import type {
     PokerGroup,
     SessionRecord,
     SessionResult,
+    SavedLocation,
 } from '@/types';
 
 function toDate(value: unknown): Date {
@@ -272,6 +273,38 @@ export async function updatePlayerAvatar(uid: string, avatarEmoji: string): Prom
   const ref = doc(getFirestoreDb(), 'players', uid);
   const trimmed = avatarEmoji.trim();
   await updateDoc(ref, { avatarEmoji: trimmed || null });
+}
+
+export async function getSavedLocations(uid: string): Promise<SavedLocation[]> {
+  const colRef = collection(getFirestoreDb(), 'players', uid, 'saved_locations');
+  const q = query(colRef, orderBy('createdAt', 'desc'), limit(10));
+  const snapshots = await getDocs(q);
+  return snapshots.docs.map<SavedLocation>((d) => ({
+    id: d.id,
+    name: String(d.data().name ?? ''),
+    createdAt: toDate(d.data().createdAt),
+  }));
+}
+
+export async function addSavedLocation(uid: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Location name is required.');
+
+  const existing = await getSavedLocations(uid);
+  if (existing.length >= 10) {
+    throw new Error('You can save up to 10 locations.');
+  }
+  if (existing.some((l) => l.name.toLowerCase() === trimmed.toLowerCase())) {
+    throw new Error('This location is already saved.');
+  }
+
+  const colRef = collection(getFirestoreDb(), 'players', uid, 'saved_locations');
+  await addDoc(colRef, { name: trimmed, createdAt: serverTimestamp() });
+}
+
+export async function removeSavedLocation(uid: string, locationId: string): Promise<void> {
+  const ref = doc(getFirestoreDb(), 'players', uid, 'saved_locations', locationId);
+  await deleteDoc(ref);
 }
 
 export async function getSessionDate(sessionId: string): Promise<Date | undefined> {

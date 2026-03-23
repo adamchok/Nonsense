@@ -52,6 +52,10 @@ function RootNavigator() {
           name="group/[id]/members"
           options={{ title: 'Group Members', headerBackTitle: 'Back' }}
         />
+        <Stack.Screen
+          name="locations/index"
+          options={{ title: 'Saved Locations', headerBackTitle: 'Back' }}
+        />
       </Stack>
       <StatusBar style={resolvedColorScheme === 'dark' ? 'light' : 'dark'} />
     </>

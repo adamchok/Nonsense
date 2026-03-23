@@ -15,13 +15,13 @@ import {
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { addBuyIn, createSession, getGroupMembers, subscribeGroups } from '@/lib/firestore';
-import type { GroupMember, PokerGroup } from '@/types';
+import { addBuyIn, createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
+import type { GroupMember, PokerGroup, SavedLocation } from '@/types';
 
 export default function NewSessionScreen() {
   const c = useAppColors();
   const { playerProfile } = useAuth();
-  const [location, setLocation] = useState('');
+  const [otherLocation, setOtherLocation] = useState('');
   const [joinSelf, setJoinSelf] = useState(true);
   const [buyInAmount, setBuyInAmount] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -31,11 +31,48 @@ export default function NewSessionScreen() {
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [groupBuyIn, setGroupBuyIn] = useState('');
   const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+  const [selectedSavedLocationId, setSelectedSavedLocationId] = useState<string | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [locationMode, setLocationMode] = useState<'saved' | 'other'>('saved');
 
   useEffect(() => {
     if (!playerProfile) return;
     return subscribeGroups(playerProfile.id, setGroups, () => {});
   }, [playerProfile]);
+
+  useEffect(() => {
+    if (!playerProfile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getSavedLocations(playerProfile.id);
+        if (!cancelled) setSavedLocations(data);
+      } catch {
+        if (!cancelled) setSavedLocations([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [playerProfile]);
+
+  function onSelectSavedLocation(item: SavedLocation) {
+    setLocationMode('saved');
+    setSelectedSavedLocationId(item.id);
+    setShowLocationPicker(false);
+  }
+
+  function onSelectOtherLocation() {
+    setLocationMode('other');
+    setSelectedSavedLocationId(null);
+    setShowLocationPicker(false);
+  }
+
+  function getSelectedSavedLocationName(): string | undefined {
+    if (!selectedSavedLocationId) return undefined;
+    return savedLocations.find((l) => l.id === selectedSavedLocationId)?.name;
+  }
 
   async function handleSelectGroup(group: PokerGroup) {
     setSelectedGroup(group);
@@ -75,11 +112,14 @@ export default function NewSessionScreen() {
       }
     }
 
+    const selectedLocation =
+      locationMode === 'saved' ? (getSelectedSavedLocationName() ?? '') : otherLocation.trim();
+
     try {
       setIsSaving(true);
       const sessionId = await createSession({
         hostId: playerProfile.id,
-        location,
+        location: selectedLocation,
       });
 
       if (selectedGroup && groupMembers.length > 0) {
@@ -119,16 +159,31 @@ export default function NewSessionScreen() {
       keyboardShouldPersistTaps="handled">
       <Text style={[styles.title, { color: c.text }]}>Start a Session</Text>
 
-      <TextInput
-        value={location}
-        onChangeText={setLocation}
-        placeholder="Location (e.g. Adam's place)"
-        placeholderTextColor={c.placeholder}
-        style={[
-          styles.input,
-          { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
-        ]}
-      />
+      <Text style={[styles.savedLocationsLabel, { color: c.textMuted }]}>Location</Text>
+      <Pressable
+        style={[styles.locationPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+        onPress={() => setShowLocationPicker(true)}>
+        <MaterialIcons name="place" size={18} color={c.textMuted} />
+        <Text style={[styles.locationPickerText, { color: c.text }]}>
+          {locationMode === 'saved'
+            ? getSelectedSavedLocationName() ?? 'Select a saved location'
+            : 'Other'}
+        </Text>
+        <MaterialIcons name="expand-more" size={20} color={c.textMuted} />
+      </Pressable>
+
+      {locationMode === 'other' && (
+        <TextInput
+          value={otherLocation}
+          onChangeText={setOtherLocation}
+          placeholder="Location (e.g. Adam's place)"
+          placeholderTextColor={c.placeholder}
+          style={[
+            styles.input,
+            { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+          ]}
+        />
+      )}
 
       {/* ---- Group picker ---- */}
       {groups.length > 0 && (
@@ -268,6 +323,45 @@ export default function NewSessionScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={showLocationPicker}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowLocationPicker(false)}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            onPress={() => setShowLocationPicker(false)}
+          />
+          <View pointerEvents="box-none" style={styles.modalCenter}>
+            <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[styles.pickerTitle, { color: c.text }]}>Select Location</Text>
+              {savedLocations.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[styles.pickerRow, { borderColor: c.border }]}
+                  onPress={() => onSelectSavedLocation(item)}>
+                  <MaterialIcons name="place" size={18} color={c.textMuted} />
+                  <Text style={[styles.pickerRowText, { color: c.text }]}>{item.name}</Text>
+                </Pressable>
+              ))}
+              <Pressable
+                style={[styles.pickerRow, { borderColor: c.border }]}
+                onPress={onSelectOtherLocation}>
+                <MaterialIcons name="edit-location-alt" size={18} color={c.textMuted} />
+                <Text style={[styles.pickerRowText, { color: c.text }]}>Other</Text>
+              </Pressable>
+              <Pressable
+                style={styles.pickerCancel}
+                onPress={() => setShowLocationPicker(false)}>
+                <Text style={[styles.pickerCancelText, { color: c.lossLight }]}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -291,6 +385,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  savedLocationsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  locationPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  locationPickerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
   },
   joinCard: {
     borderRadius: 10,

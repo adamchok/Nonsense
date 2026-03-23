@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth-context';
 import { useThemePreference } from '@/lib/theme-context';
@@ -19,13 +19,21 @@ export default function SettingsScreen() {
   const isDark = resolvedColorScheme === 'dark';
   const t = isDark ? theme.dark : theme.light;
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  const [pendingAvatarEmoji, setPendingAvatarEmoji] = useState<string | null>(null);
 
   async function onPickAvatar(emoji: string) {
+    if (savingAvatar) return;
     try {
+      setPendingAvatarEmoji(emoji);
+      setSavingAvatar(true);
       await saveAvatarEmoji(emoji);
       setShowAvatarPicker(false);
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save avatar.');
+    } finally {
+      setSavingAvatar(false);
+      setPendingAvatarEmoji(null);
     }
   }
 
@@ -39,9 +47,16 @@ export default function SettingsScreen() {
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
         <Text style={[styles.cardLabel, { color: t.muted }]}>PROFILE</Text>
         <View style={styles.profileRow}>
-          <View style={[styles.avatar, { backgroundColor: t.avatarBg }]}>
+          <Pressable
+            style={[styles.avatar, { backgroundColor: t.avatarBg }]}
+            onPress={() => setShowAvatarPicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Edit avatar emoji">
             <Text style={styles.avatarEmoji}>{playerProfile?.avatarEmoji ?? '🙂'}</Text>
-          </View>
+            <View style={[styles.avatarEditBadge, { backgroundColor: t.accent, borderColor: t.border }]}>
+              <MaterialIcons name="edit" size={13} color="#fff" />
+            </View>
+          </Pressable>
           <View style={styles.profileText}>
             <Text style={[styles.displayName, { color: t.text }]}>
               {playerProfile?.name ?? 'Guest'}
@@ -57,8 +72,8 @@ export default function SettingsScreen() {
         </Pressable>
         <Pressable
           style={[styles.secondaryBtn, { borderColor: t.border }]}
-          onPress={() => setShowAvatarPicker(true)}>
-          <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Choose avatar emoji</Text>
+          onPress={() => router.push('../locations')}>
+          <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Manage saved locations</Text>
         </Pressable>
       </View>
 
@@ -115,10 +130,17 @@ export default function SettingsScreen() {
                     style={[
                       styles.emojiBtn,
                       { borderColor: t.border, backgroundColor: t.chipBg },
-                      playerProfile?.avatarEmoji === emoji && { borderColor: t.accent },
+                      (savingAvatar ? pendingAvatarEmoji : playerProfile?.avatarEmoji) === emoji && {
+                        borderColor: t.accent,
+                      },
                     ]}
-                    onPress={() => onPickAvatar(emoji)}>
-                    <Text style={styles.emojiBtnText}>{emoji}</Text>
+                    onPress={() => onPickAvatar(emoji)}
+                    disabled={savingAvatar}>
+                    {savingAvatar && pendingAvatarEmoji === emoji ? (
+                      <ActivityIndicator size="small" color={t.accent} />
+                    ) : (
+                      <Text style={styles.emojiBtnText}>{emoji}</Text>
+                    )}
                   </Pressable>
                 ))}
               </View>
@@ -238,6 +260,17 @@ const styles = StyleSheet.create({
   avatarEmoji: {
     fontSize: 34,
   },
+  avatarEditBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   profileText: {
     flex: 1,
     gap: 4,
@@ -342,6 +375,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    justifyContent: 'center',
+    alignSelf: 'center',
   },
   emojiBtn: {
     width: 46,
