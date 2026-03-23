@@ -1,54 +1,15 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
-import { useEffect, useLayoutEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
 import { useAppColors } from '@/lib/app-theme';
-import { getEarlyCashOuts, getResults, getSessionLabel } from '@/lib/firestore';
+import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
+import { formatDateTimeDMY } from '@/lib/date-format';
+import { getEarlyCashOuts, getResults, getSessionMeta } from '@/lib/firestore';
+import { computeSettlements } from '@/lib/settlement';
 import type { EarlyCashOut, SessionResult } from '@/types';
-
-interface Settlement {
-  from: string;
-  to: string;
-  amount: number;
-}
-
-function computeSettlements(results: SessionResult[]): Settlement[] {
-  const balances = results.map((r) => ({
-    name: r.playerName,
-    balance: r.profit,
-  }));
-
-  const debtors = balances
-    .filter((b) => b.balance < 0)
-    .map((b) => ({ ...b, balance: Math.abs(b.balance) }))
-    .sort((a, b) => b.balance - a.balance);
-
-  const creditors = balances
-    .filter((b) => b.balance > 0)
-    .sort((a, b) => b.balance - a.balance);
-
-  const settlements: Settlement[] = [];
-  let i = 0;
-  let j = 0;
-
-  while (i < debtors.length && j < creditors.length) {
-    const transfer = Math.min(debtors[i].balance, creditors[j].balance);
-    if (transfer > 0.01) {
-      settlements.push({
-        from: debtors[i].name,
-        to: creditors[j].name,
-        amount: Math.round(transfer * 100) / 100,
-      });
-    }
-    debtors[i].balance -= transfer;
-    creditors[j].balance -= transfer;
-    if (debtors[i].balance < 0.01) i++;
-    if (creditors[j].balance < 0.01) j++;
-  }
-
-  return settlements;
-}
 
 export default function SessionSummaryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -56,28 +17,25 @@ export default function SessionSummaryScreen() {
   const c = useAppColors();
   const [results, setResults] = useState<SessionResult[]>([]);
   const [earlyCashOuts, setEarlyCashOuts] = useState<EarlyCashOut[]>([]);
-  const [sessionLabel, setSessionLabel] = useState<string | undefined>(undefined);
+  const [sessionDate, setSessionDate] = useState<Date | undefined>();
+  const [sessionFinishedAt, setSessionFinishedAt] = useState<Date | undefined>();
+  const [sessionLocation, setSessionLocation] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
-
-  useLayoutEffect(() => {
-    const trimmed = sessionLabel?.trim();
-    navigation.setOptions({
-      title: trimmed && trimmed.length > 0 ? trimmed : 'Session Summary',
-    });
-  }, [navigation, sessionLabel]);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
       try {
-        const [data, early, label] = await Promise.all([
+        const [data, early, meta] = await Promise.all([
           getResults(id),
           getEarlyCashOuts(id),
-          getSessionLabel(id),
+          getSessionMeta(id),
         ]);
         setResults(data.sort((a, b) => b.profit - a.profit));
         setEarlyCashOuts(early);
-        setSessionLabel(label);
+        setSessionDate(meta.date);
+        setSessionFinishedAt(meta.finishedAt);
+        setSessionLocation(meta.location);
       } catch (e) {
         Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load results.');
       } finally {
@@ -89,6 +47,75 @@ export default function SessionSummaryScreen() {
   const earlyPlayerIds = new Set(earlyCashOuts.map((ec) => ec.playerId));
 
   const settlements = computeSettlements(results);
+  const durationMs =
+    sessionDate && sessionFinishedAt
+      ? Math.max(0, sessionFinishedAt.getTime() - sessionDate.getTime())
+      : 0;
+  const durationText = (() => {
+    if (!durationMs) return 'N/A';
+    const totalMinutes = Math.floor(durationMs / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  })();
+
+  const buildSettlementMessage = useCallback((): string => {
+    const title = sessionDate
+      ? `Nonsense - ${formatDateTimeDMY(sessionDate)}`
+      : 'Nonsense Session Summary';
+    const lines: string[] = [title];
+    lines.push(`Location: ${sessionLocation?.trim() ? sessionLocation.trim() : 'N/A'}`);
+    lines.push(`Duration: ${durationText}`);
+    lines.push('', 'Results:');
+
+    for (const item of results) {
+      lines.push(
+        `- ${item.playerName}: In ${formatCurrency(item.totalBuyIn)}, Out ${formatCurrency(item.cashOut)}, P/L ${formatSignedCurrency(item.profit)}`
+      );
+    }
+
+    if (settlements.length > 0) {
+      lines.push('', 'Settlement:');
+      for (const s of settlements) {
+        lines.push(`- ${s.from} pays ${s.to} ${formatCurrency(s.amount)}`);
+      }
+    } else {
+      lines.push('', 'Settlement: No payments needed.');
+    }
+
+    lines.push('', 'Generated by Nonsense');
+    return lines.join('\n');
+  }, [durationText, results, sessionDate, sessionLocation, settlements]);
+
+  const handleShareWhatsApp = useCallback(async () => {
+    const message = buildSettlementMessage();
+    try {
+      const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+        return;
+      }
+      await Share.share({ message });
+    } catch (e) {
+      Alert.alert('Share failed', e instanceof Error ? e.message : 'Could not open share options.');
+    }
+  }, [buildSettlementMessage]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: sessionDate ? formatDateTimeDMY(sessionDate) : 'Session Summary',
+      headerRight: () => (
+        <Pressable
+          onPress={handleShareWhatsApp}
+          style={styles.headerShareBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Share on WhatsApp">
+          <MaterialCommunityIcons name="whatsapp" size={16} color="#fff" />
+        </Pressable>
+      ),
+    });
+  }, [navigation, sessionDate, handleShareWhatsApp]);
 
   if (loading) {
     return (
@@ -114,6 +141,21 @@ export default function SessionSummaryScreen() {
       style={[styles.screen, { backgroundColor: c.bg }]}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled">
+      <View style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={styles.metaRow}>
+          <View style={styles.metaCol}>
+            <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
+            <Text style={[styles.metaValue, { color: c.text }]} numberOfLines={2}>
+              {sessionLocation?.trim() ? sessionLocation.trim() : 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.metaCol}>
+            <Text style={[styles.metaLabel, { color: c.textMuted }]}>Duration</Text>
+            <Text style={[styles.metaValue, { color: c.text }]}>{durationText}</Text>
+          </View>
+        </View>
+      </View>
+
       <View style={styles.resultsBlock}>
         <Text style={[styles.sectionTitle, { color: c.text }]}>Results</Text>
         {results.map((item, index) => (
@@ -134,14 +176,14 @@ export default function SessionSummaryScreen() {
             </View>
             <View style={styles.resultRight}>
               <Text style={[styles.resultDetail, { color: c.textMuted }]}>
-                In: ${item.totalBuyIn.toFixed(2)}  Out: ${item.cashOut.toFixed(2)}
+                In: {formatCurrency(item.totalBuyIn)}  Out: {formatCurrency(item.cashOut)}
               </Text>
               <Text
                 style={[
                   styles.resultProfit,
                   { color: item.profit >= 0 ? c.profit : c.loss },
                 ]}>
-                {item.profit >= 0 ? '+' : ''}${item.profit.toFixed(2)}
+                {formatSignedCurrency(item.profit)}
               </Text>
             </View>
           </View>
@@ -162,17 +204,13 @@ export default function SessionSummaryScreen() {
                   {s.from} pays {s.to}
                 </Text>
                 <Text style={[styles.settlementAmount, { color: c.warning }]}>
-                  ${s.amount.toFixed(2)}
+                  {formatCurrency(s.amount)}
                 </Text>
               </View>
             ))}
           </View>
         </View>
       ) : null}
-
-      <Pressable style={[styles.button, { backgroundColor: c.accent }]} onPress={() => router.replace('/(tabs)')}>
-        <Text style={styles.buttonLabel}>Back to Home</Text>
-      </Pressable>
     </ScrollView>
   );
 }
@@ -257,6 +295,36 @@ const styles = StyleSheet.create({
   },
   settlementAmount: {
     fontWeight: '700',
+  },
+  headerShareBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metaCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  metaCol: {
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  metaValue: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   button: {
     marginTop: 'auto',

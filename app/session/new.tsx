@@ -1,19 +1,58 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { addBuyIn, createSession } from '@/lib/firestore';
+import { addBuyIn, createSession, getGroupMembers, subscribeGroups } from '@/lib/firestore';
+import type { GroupMember, PokerGroup } from '@/types';
 
 export default function NewSessionScreen() {
   const c = useAppColors();
   const { playerProfile } = useAuth();
-  const [label, setLabel] = useState('');
   const [location, setLocation] = useState('');
   const [joinSelf, setJoinSelf] = useState(true);
   const [buyInAmount, setBuyInAmount] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const [groups, setGroups] = useState<PokerGroup[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<PokerGroup | null>(null);
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [groupBuyIn, setGroupBuyIn] = useState('');
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
+
+  useEffect(() => {
+    if (!playerProfile) return;
+    return subscribeGroups(playerProfile.id, setGroups, () => {});
+  }, [playerProfile]);
+
+  async function handleSelectGroup(group: PokerGroup) {
+    setSelectedGroup(group);
+    setShowGroupPicker(false);
+    try {
+      const members = await getGroupMembers(playerProfile!.id, group.id);
+      setGroupMembers(members);
+    } catch {
+      setGroupMembers([]);
+    }
+  }
+
+  function clearGroup() {
+    setSelectedGroup(null);
+    setGroupMembers([]);
+    setGroupBuyIn('');
+  }
 
   async function onCreate() {
     if (!playerProfile) {
@@ -22,7 +61,13 @@ export default function NewSessionScreen() {
       return;
     }
 
-    if (joinSelf) {
+    if (selectedGroup && groupMembers.length > 0) {
+      const parsed = parseFloat(groupBuyIn);
+      if (!groupBuyIn.trim() || isNaN(parsed) || parsed <= 0) {
+        Alert.alert('Invalid buy-in', 'Enter a valid buy-in amount for the group.');
+        return;
+      }
+    } else if (joinSelf) {
       const parsed = parseFloat(buyInAmount);
       if (!buyInAmount.trim() || isNaN(parsed) || parsed <= 0) {
         Alert.alert('Invalid buy-in', 'Enter a valid buy-in amount to join the session.');
@@ -34,11 +79,21 @@ export default function NewSessionScreen() {
       setIsSaving(true);
       const sessionId = await createSession({
         hostId: playerProfile.id,
-        label,
         location,
       });
 
-      if (joinSelf) {
+      if (selectedGroup && groupMembers.length > 0) {
+        const amount = parseFloat(groupBuyIn);
+        await Promise.all(
+          groupMembers.map((member) =>
+            addBuyIn(sessionId, {
+              playerId: member.id,
+              playerName: member.name,
+              amount,
+            })
+          )
+        );
+      } else if (joinSelf) {
         await addBuyIn(sessionId, {
           playerId: playerProfile.id,
           playerName: playerProfile.name,
@@ -46,7 +101,7 @@ export default function NewSessionScreen() {
         });
       }
 
-      router.replace(`../${sessionId}`);
+      router.replace(`/session/${sessionId}`);
     } catch (error) {
       Alert.alert(
         'Unable to create session',
@@ -58,33 +113,12 @@ export default function NewSessionScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: c.bg }]}>
+    <ScrollView
+      style={[styles.screen, { backgroundColor: c.bg }]}
+      contentContainerStyle={styles.screenContent}
+      keyboardShouldPersistTaps="handled">
       <Text style={[styles.title, { color: c.text }]}>Start a Session</Text>
 
-      <View
-        style={[
-          styles.hostCard,
-          { backgroundColor: c.card, borderColor: c.borderAccent },
-        ]}>
-        <Text style={[styles.hostLabel, { backgroundColor: c.badge.host, color: '#fff' }]}>
-          HOST
-        </Text>
-        <Text style={[styles.hostName, { color: c.text }]}>
-          {playerProfile?.name ?? 'Unknown'}
-        </Text>
-        <Text style={[styles.hostHint, { color: c.textMuted }]}>You are the host for this session.</Text>
-      </View>
-
-      <TextInput
-        value={label}
-        onChangeText={setLabel}
-        placeholder="Session name (e.g. Friday Night Poker)"
-        placeholderTextColor={c.placeholder}
-        style={[
-          styles.input,
-          { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
-        ]}
-      />
       <TextInput
         value={location}
         onChangeText={setLocation}
@@ -96,38 +130,98 @@ export default function NewSessionScreen() {
         ]}
       />
 
-      <View style={[styles.joinCard, { backgroundColor: c.card, borderColor: c.border }]}>
-        <View style={styles.joinRow}>
-          <View style={styles.joinTextCol}>
-            <Text style={[styles.joinTitle, { color: c.text }]}>Join as player</Text>
-            <Text style={[styles.joinHint, { color: c.textMuted }]}>
-              Add yourself with an initial buy-in
-            </Text>
-          </View>
-          <Switch
-            value={joinSelf}
-            onValueChange={setJoinSelf}
-            trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
-            thumbColor={c.switchThumb}
-          />
+      {/* ---- Group picker ---- */}
+      {groups.length > 0 && (
+        <View style={[styles.groupSection, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Text style={[styles.groupSectionTitle, { color: c.text }]}>Play with a group</Text>
+          <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
+            Select a group to auto-add all members with a uniform buy-in.
+          </Text>
+
+          {selectedGroup ? (
+            <View style={styles.selectedGroupRow}>
+              <View style={styles.selectedGroupInfo}>
+                <MaterialIcons name="group" size={20} color={c.profit} />
+                <Text style={[styles.selectedGroupName, { color: c.text }]}>
+                  {selectedGroup.name}
+                </Text>
+                <Text style={[styles.selectedGroupCount, { color: c.textHint }]}>
+                  ({groupMembers.length} {groupMembers.length === 1 ? 'player' : 'players'})
+                </Text>
+              </View>
+              <Pressable hitSlop={8} onPress={clearGroup}>
+                <MaterialIcons name="close" size={20} color={c.textHint} />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              style={[styles.groupPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+              onPress={() => setShowGroupPicker(true)}>
+              <MaterialIcons name="group" size={18} color={c.textMuted} />
+              <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
+            </Pressable>
+          )}
+
+          {selectedGroup && groupMembers.length > 0 && (
+            <>
+              <View style={styles.groupMemberList}>
+                {groupMembers.map((m) => (
+                  <View key={m.id} style={[styles.groupMemberChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}>
+                    <Text style={[styles.groupMemberChipText, { color: c.chipText }]}>{m.name}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.buyInRow}>
+                <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                <TextInput
+                  value={groupBuyIn}
+                  onChangeText={setGroupBuyIn}
+                  placeholder="Buy-in per player"
+                  placeholderTextColor={c.placeholder}
+                  keyboardType="numeric"
+                  style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                />
+              </View>
+            </>
+          )}
         </View>
-        {joinSelf && (
-          <View style={styles.buyInRow}>
-            <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
-            <TextInput
-              value={buyInAmount}
-              onChangeText={setBuyInAmount}
-              placeholder="0.00"
-              placeholderTextColor={c.placeholder}
-              keyboardType="numeric"
-              style={[
-                styles.buyInInput,
-                { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
-              ]}
+      )}
+
+      {/* ---- Solo join (hidden when group is selected) ---- */}
+      {!selectedGroup && (
+        <View style={[styles.joinCard, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={styles.joinRow}>
+            <View style={styles.joinTextCol}>
+              <Text style={[styles.joinTitle, { color: c.text }]}>Join as player</Text>
+              <Text style={[styles.joinHint, { color: c.textMuted }]}>
+                Add yourself with an initial buy-in
+              </Text>
+            </View>
+            <Switch
+              value={joinSelf}
+              onValueChange={setJoinSelf}
+              trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
+              thumbColor={c.switchThumb}
             />
           </View>
-        )}
-      </View>
+          {joinSelf && (
+            <View style={styles.buyInRow}>
+              <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+              <TextInput
+                value={buyInAmount}
+                onChangeText={setBuyInAmount}
+                placeholder="0.00"
+                placeholderTextColor={c.placeholder}
+                keyboardType="numeric"
+                style={[
+                  styles.buyInInput,
+                  { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+                ]}
+              />
+            </View>
+          )}
+        </View>
+      )}
 
       <Pressable
         onPress={onCreate}
@@ -140,44 +234,57 @@ export default function NewSessionScreen() {
         ]}>
         <Text style={styles.buttonLabel}>{isSaving ? 'Creating...' : 'Create Session'}</Text>
       </Pressable>
-    </View>
+
+      {/* ---- Group picker modal ---- */}
+      <Modal
+        visible={showGroupPicker}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowGroupPicker(false)}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            onPress={() => setShowGroupPicker(false)}
+          />
+          <View pointerEvents="box-none" style={styles.modalCenter}>
+            <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[styles.pickerTitle, { color: c.text }]}>Select Group</Text>
+              {groups.map((g) => (
+                <Pressable
+                  key={g.id}
+                  style={[styles.pickerRow, { borderColor: c.border }]}
+                  onPress={() => handleSelectGroup(g)}>
+                  <MaterialIcons name="group" size={20} color={c.textMuted} />
+                  <Text style={[styles.pickerRowText, { color: c.text }]}>{g.name}</Text>
+                </Pressable>
+              ))}
+              <Pressable
+                style={styles.pickerCancel}
+                onPress={() => setShowGroupPicker(false)}>
+                <Text style={[styles.pickerCancelText, { color: c.lossLight }]}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  screenContent: {
     padding: 16,
     paddingTop: 12,
+    paddingBottom: 32,
     gap: 12,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-  },
-  hostCard: {
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 14,
-    gap: 2,
-  },
-  hostLabel: {
-    alignSelf: 'flex-start',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  hostName: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  hostHint: {
-    fontSize: 12,
-    marginTop: 2,
   },
   input: {
     borderRadius: 8,
@@ -221,7 +328,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 16,
   },
   button: {
     marginTop: 8,
@@ -238,5 +344,103 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  groupSection: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  groupSectionTitle: {
+    fontWeight: '600',
+  },
+  groupSectionHint: {
+    fontSize: 12,
+  },
+  groupPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  groupPickerLabel: {
+    fontSize: 14,
+  },
+  selectedGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedGroupInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  selectedGroupName: {
+    fontWeight: '600',
+  },
+  selectedGroupCount: {
+    fontSize: 12,
+  },
+  groupMemberList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  groupMemberChip: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  groupMemberChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalRoot: {
+    flex: 1,
+  },
+  modalCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  pickerCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    gap: 4,
+  },
+  pickerTitle: {
+    fontWeight: '700',
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  pickerRowText: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  pickerCancel: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  pickerCancelText: {
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

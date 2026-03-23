@@ -1,31 +1,33 @@
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc,
-  where,
-  writeBatch,
-  type Unsubscribe,
+    addDoc,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    limit,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    setDoc,
+    Timestamp,
+    updateDoc,
+    where,
+    writeBatch,
+    type Unsubscribe,
 } from 'firebase/firestore';
 
 import { getFirestoreDb } from '@/lib/firebase';
 import type {
-  BuyIn,
-  EarlyCashOut,
-  FriendRecord,
-  PlayerProfile,
-  SessionRecord,
-  SessionResult,
+    BuyIn,
+    EarlyCashOut,
+    FriendRecord,
+    GroupMember,
+    PlayerProfile,
+    PokerGroup,
+    SessionRecord,
+    SessionResult,
 } from '@/types';
 
 function toDate(value: unknown): Date {
@@ -36,6 +38,12 @@ function toDate(value: unknown): Date {
     return value;
   }
   return new Date();
+}
+
+function normalizeAvatarEmoji(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 export async function getPlayerProfile(uid: string): Promise<PlayerProfile | null> {
@@ -52,6 +60,7 @@ export async function getPlayerProfile(uid: string): Promise<PlayerProfile | nul
     name: String(data.name ?? ''),
     anonymousUid: String(data.anonymousUid ?? uid),
     refCode: data.refCode ? String(data.refCode) : undefined,
+    avatarEmoji: normalizeAvatarEmoji(data.avatarEmoji),
   };
 }
 
@@ -75,7 +84,13 @@ export async function upsertPlayerProfile(uid: string, name: string): Promise<Pl
     await setDoc(doc(db, 'refCodes', refCode), { playerId: uid });
   }
 
-  return { id: uid, name, anonymousUid: uid, refCode };
+  return {
+    id: uid,
+    name,
+    anonymousUid: uid,
+    refCode,
+    avatarEmoji: snapshot.exists() ? normalizeAvatarEmoji(snapshot.data().avatarEmoji) : undefined,
+  };
 }
 
 function generateRefCode(): string {
@@ -124,10 +139,12 @@ export async function addFriend(myUid: string, friendProfile: PlayerProfile): Pr
 
   await setDoc(myFriendRef, {
     name: friendProfile.name,
+    avatarEmoji: friendProfile.avatarEmoji ?? null,
     addedAt: serverTimestamp(),
   });
   await setDoc(theirFriendRef, {
     name: myProfile.name,
+    avatarEmoji: myProfile.avatarEmoji ?? null,
     addedAt: serverTimestamp(),
   });
 }
@@ -151,6 +168,7 @@ export function subscribeFriends(
         playerId: d.id,
         name: String(d.data().name ?? ''),
         addedAt: toDate(d.data().addedAt),
+        avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
       }));
       onNext(friends.sort((a, b) => a.name.localeCompare(b.name)));
     },
@@ -160,13 +178,13 @@ export function subscribeFriends(
 
 export async function getFriendLeaderboard(
   uid: string
-): Promise<{ playerId: string; name: string; totalProfit: number }[]> {
+): Promise<{ playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[]> {
   const db = getFirestoreDb();
   const friendsSnap = await getDocs(collection(db, 'players', uid, 'friends'));
   const friendIds = friendsSnap.docs.map((d) => d.id);
   const allIds = [uid, ...friendIds];
 
-  const leaderboard: { playerId: string; name: string; totalProfit: number }[] = [];
+  const leaderboard: { playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[] = [];
 
   for (const pid of allIds) {
     const profile = await getPlayerProfile(pid);
@@ -181,7 +199,12 @@ export async function getFriendLeaderboard(
         totalProfit += Number(resultSnap.data().profit ?? 0);
       }
     }
-    leaderboard.push({ playerId: pid, name: profile.name, totalProfit });
+    leaderboard.push({
+      playerId: pid,
+      name: profile.name,
+      avatarEmoji: profile.avatarEmoji,
+      totalProfit,
+    });
   }
 
   return leaderboard.sort((a, b) => b.totalProfit - a.totalProfit);
@@ -189,7 +212,6 @@ export async function getFriendLeaderboard(
 
 export async function createSession(input: {
   hostId: string;
-  label?: string;
   location?: string;
 }): Promise<string> {
   const db = getFirestoreDb();
@@ -199,10 +221,8 @@ export async function createSession(input: {
   await setDoc(sessionRef, {
     hostId: input.hostId,
     date: serverTimestamp(),
-    label: input.label?.trim() || null,
     location: input.location?.trim() || null,
     status: 'active',
-    createdAt: serverTimestamp(),
   });
 
   return sessionRef.id;
@@ -220,15 +240,13 @@ export async function getRecentSessionsForHost(hostId: string): Promise<SessionR
       return {
         id: snapshot.id,
         hostId: String(data.hostId ?? ''),
-        label: data.label ? String(data.label) : undefined,
         location: data.location ? String(data.location) : undefined,
         status: data.status === 'finished' ? 'finished' : 'active',
-        date: toDate(data.date),
-        createdAt: toDate(data.createdAt),
+        date: toDate(data.date ?? data.createdAt),
         finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
       };
     })
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
     .slice(0, 20);
 }
 
@@ -241,15 +259,43 @@ export async function finishSession(sessionId: string): Promise<void> {
   await updateDoc(ref, { status: 'finished', finishedAt: serverTimestamp() });
 }
 
-/** Session label for headers (e.g. summary screen). Returns undefined if missing or blank. */
-export async function getSessionLabel(sessionId: string): Promise<string | undefined> {
+export async function updateSessionLocation(
+  sessionId: string,
+  location: string | null
+): Promise<void> {
+  const ref = doc(getFirestoreDb(), 'sessions', sessionId);
+  const trimmed = location?.trim();
+  await updateDoc(ref, { location: trimmed ? trimmed : null });
+}
+
+export async function updatePlayerAvatar(uid: string, avatarEmoji: string): Promise<void> {
+  const ref = doc(getFirestoreDb(), 'players', uid);
+  const trimmed = avatarEmoji.trim();
+  await updateDoc(ref, { avatarEmoji: trimmed || null });
+}
+
+export async function getSessionDate(sessionId: string): Promise<Date | undefined> {
   const ref = doc(getFirestoreDb(), 'sessions', sessionId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return undefined;
-  const raw = snap.data().label;
-  if (raw == null) return undefined;
-  const s = String(raw).trim();
-  return s.length > 0 ? s : undefined;
+  const data = snap.data();
+  return toDate(data.date ?? data.createdAt);
+}
+
+export async function getSessionMeta(sessionId: string): Promise<{
+  date?: Date;
+  finishedAt?: Date;
+  location?: string;
+}> {
+  const ref = doc(getFirestoreDb(), 'sessions', sessionId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return {};
+  const data = snap.data();
+  return {
+    date: toDate(data.date ?? data.createdAt),
+    finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
+    location: data.location ? String(data.location) : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -445,6 +491,101 @@ export async function getResults(sessionId: string): Promise<SessionResult[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Groups  (subcollection: players/{uid}/groups/{groupId})
+//         members:         players/{uid}/groups/{groupId}/members/{memberId}
+// ---------------------------------------------------------------------------
+
+export async function createGroup(uid: string, name: string): Promise<string> {
+  const colRef = collection(getFirestoreDb(), 'players', uid, 'groups');
+  const ref = await addDoc(colRef, { name: name.trim(), createdAt: serverTimestamp() });
+  return ref.id;
+}
+
+export async function renameGroup(uid: string, groupId: string, name: string): Promise<void> {
+  const ref = doc(getFirestoreDb(), 'players', uid, 'groups', groupId);
+  await updateDoc(ref, { name: name.trim() });
+}
+
+export async function deleteGroup(uid: string, groupId: string): Promise<void> {
+  const db = getFirestoreDb();
+  const membersSnap = await getDocs(collection(db, 'players', uid, 'groups', groupId, 'members'));
+  const batch = writeBatch(db);
+  membersSnap.docs.forEach((d) => batch.delete(d.ref));
+  batch.delete(doc(db, 'players', uid, 'groups', groupId));
+  await batch.commit();
+}
+
+export function subscribeGroups(
+  uid: string,
+  onNext: (groups: PokerGroup[]) => void,
+  onError: (err: Error) => void
+): Unsubscribe {
+  const colRef = collection(getFirestoreDb(), 'players', uid, 'groups');
+  const q = query(colRef, orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const groups = snapshot.docs.map<PokerGroup>((d) => ({
+        id: d.id,
+        name: String(d.data().name ?? ''),
+        createdAt: toDate(d.data().createdAt),
+      }));
+      onNext(groups);
+    },
+    onError
+  );
+}
+
+export async function addGroupMember(
+  uid: string,
+  groupId: string,
+  member: GroupMember
+): Promise<void> {
+  const ref = doc(getFirestoreDb(), 'players', uid, 'groups', groupId, 'members', member.id);
+  await setDoc(ref, { name: member.name, isRegistered: member.isRegistered });
+}
+
+export async function removeGroupMember(
+  uid: string,
+  groupId: string,
+  memberId: string
+): Promise<void> {
+  const ref = doc(getFirestoreDb(), 'players', uid, 'groups', groupId, 'members', memberId);
+  await deleteDoc(ref);
+}
+
+export async function getGroupMembers(uid: string, groupId: string): Promise<GroupMember[]> {
+  const colRef = collection(getFirestoreDb(), 'players', uid, 'groups', groupId, 'members');
+  const snap = await getDocs(colRef);
+  return snap.docs.map<GroupMember>((d) => ({
+    id: d.id,
+    name: String(d.data().name ?? ''),
+    isRegistered: Boolean(d.data().isRegistered),
+  }));
+}
+
+export function subscribeGroupMembers(
+  uid: string,
+  groupId: string,
+  onNext: (members: GroupMember[]) => void,
+  onError: (err: Error) => void
+): Unsubscribe {
+  const colRef = collection(getFirestoreDb(), 'players', uid, 'groups', groupId, 'members');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const members = snapshot.docs.map<GroupMember>((d) => ({
+        id: d.id,
+        name: String(d.data().name ?? ''),
+        isRegistered: Boolean(d.data().isRegistered),
+      }));
+      onNext(members.sort((a, b) => a.name.localeCompare(b.name)));
+    },
+    onError
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Player history (all sessions a player participated in via buy-ins)
 // ---------------------------------------------------------------------------
 
@@ -470,11 +611,9 @@ export async function getSessionHistoryForPlayer(
       records.push({
         id: sessionDoc.id,
         hostId: String(data.hostId ?? ''),
-        label: data.label ? String(data.label) : undefined,
         location: data.location ? String(data.location) : undefined,
         status: 'finished',
-        date: toDate(data.date),
-        createdAt: toDate(data.createdAt),
+        date: toDate(data.date ?? data.createdAt),
         finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
         totalBuyIn: Number(r.totalBuyIn ?? 0),
         cashOut: Number(r.cashOut ?? 0),
@@ -483,5 +622,5 @@ export async function getSessionHistoryForPlayer(
     })
   );
 
-  return records.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return records.sort((a, b) => b.date.getTime() - a.date.getTime());
 }

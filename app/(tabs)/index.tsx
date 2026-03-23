@@ -4,7 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatDateDMY } from '@/lib/date-format';
+import { formatDateTimeDMY } from '@/lib/date-format';
 import { getRecentSessionsForHost } from '@/lib/firestore';
 import { useResolvedColorScheme } from '@/lib/theme-context';
 import type { SessionRecord } from '@/types';
@@ -124,15 +124,14 @@ export default function HomeScreen() {
               ]}>
               <View style={styles.sessionTop}>
                 <Text style={[styles.sessionTitle, { color: c.text }]} numberOfLines={1}>
-                  {session.label || 'Untitled Session'}
+                  {formatDateTimeDMY(session.date)}
                 </Text>
                 <View style={[styles.liveBadge, { backgroundColor: c.badge.live }]}>
-                  <Text style={[styles.liveBadgeText, { color: c.profit }]}>LIVE</Text>
+                  <Text style={styles.liveBadgeText}>LIVE</Text>
                 </View>
               </View>
               <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
-                {formatDateDMY(session.date)}
-                {session.location ? ` · ${session.location}` : ''}
+                {session.location ? session.location : 'No location'}
               </Text>
             </Pressable>
           ))
@@ -242,6 +241,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
+    color: '#fff',
   },
   sessionMeta: {
     fontSize: 12,

@@ -5,12 +5,14 @@ export interface PlayerProfile {
   name: string;
   anonymousUid: string;
   refCode?: string;
+  avatarEmoji?: string;
 }
 
 export interface FriendRecord {
   playerId: string;
   name: string;
   addedAt: Date;
+  avatarEmoji?: string;
 }
 
 export interface SessionRecord {
@@ -18,9 +20,7 @@ export interface SessionRecord {
   hostId: string;
   date: Date;
   location?: string;
-  label?: string;
   status: SessionStatus;
-  createdAt: Date;
   finishedAt?: Date;
 }
 
@@ -46,4 +46,16 @@ export interface EarlyCashOut {
   playerName: string;
   amount: number;
   cashedOutAt: Date;
+}
+
+export interface PokerGroup {
+  id: string;
+  name: string;
+  createdAt: Date;
+}
+
+export interface GroupMember {
+  id: string;
+  name: string;
+  isRegistered: boolean;
 }

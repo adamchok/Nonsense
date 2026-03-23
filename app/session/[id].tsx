@@ -18,6 +18,7 @@ import {
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
+import { formatCompactCurrency } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getFirestoreDb } from '@/lib/firebase';
 import {
@@ -29,33 +30,21 @@ import {
   subscribeBuyIns,
   subscribeEarlyCashOuts,
   subscribeFriends,
+  updateSessionLocation,
 } from '@/lib/firestore';
 import type { BuyIn, EarlyCashOut, FriendRecord } from '@/types';
 
 type SessionView = {
   hostId?: string;
-  label?: string;
+  date?: Date;
   location?: string;
   status: 'active' | 'finished';
-  createdAt?: Date;
 };
 
 function toDate(value: unknown): Date | undefined {
   if (value instanceof Timestamp) return value.toDate();
+  if (value instanceof Date) return value;
   return undefined;
-}
-
-/** Full dollars until > 9999.99, then K; above 999.99K use M (no B). */
-function formatPotDisplay(amount: number): string {
-  if (amount <= 9999.99) {
-    return `$${amount.toFixed(2)}`;
-  }
-  if (amount > 999_990) {
-    const m = amount / 1_000_000;
-    return `$${Number(m.toFixed(2)).toString()}M`;
-  }
-  const k = amount / 1000;
-  return `$${Number(k.toFixed(2)).toString()}K`;
 }
 
 /** USD with commas for ledger amounts (e.g. $12,345.67). */
@@ -77,6 +66,7 @@ function formatCashOutTimestamp(d: Date): string {
 /** Max rows visible before the buy-in ledger scrolls (approx row height incl. margin). */
 const LEDGER_MAX_VISIBLE_ROWS = 4;
 const LEDGER_ROW_APPROX_PX = 68;
+const GUEST_AVATARS = ['🤠', '😎', '🦈', '🐯', '🦁', '🐸', '🐻', '🎯', '🔥', '⚡', '🍀', '🎲'];
 
 export default function ActiveSessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -103,6 +93,9 @@ export default function ActiveSessionScreen() {
   const amountInputRef = useRef<TextInput>(null);
   /** Ledger row tap → early cash-out detail modal (buy back in lives in modal). */
   const [cashedOutDetailPlayerId, setCashedOutDetailPlayerId] = useState<string | null>(null);
+  const [locationEditorVisible, setLocationEditorVisible] = useState(false);
+  const [locationDraft, setLocationDraft] = useState('');
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -118,10 +111,9 @@ export default function ActiveSessionScreen() {
         const data = snapshot.data();
         setSession({
           hostId: data.hostId ? String(data.hostId) : undefined,
-          label: data.label ? String(data.label) : undefined,
+          date: toDate(data.date ?? data.createdAt),
           location: data.location ? String(data.location) : undefined,
           status: data.status === 'finished' ? 'finished' : 'active',
-          createdAt: toDate(data.createdAt),
         });
         setError(null);
       },
@@ -151,6 +143,7 @@ export default function ActiveSessionScreen() {
   }, [cashedOutDetailPlayerId, earlyCashOuts]);
 
   const earlyCashOutMap = new Map(earlyCashOuts.map((ec) => [ec.playerId, ec]));
+  const friendAvatarMap = new Map(friends.map((f) => [f.playerId, f.avatarEmoji]));
 
   const playerTotals = buyIns.reduce<Record<string, { name: string; total: number }>>(
     (acc, b) => {
@@ -174,6 +167,24 @@ export default function ActiveSessionScreen() {
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
   const totalPot = players.reduce((sum, p) => sum + p.total, 0);
+
+  function pickGuestAvatar(seed: string): string {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    return GUEST_AVATARS[hash % GUEST_AVATARS.length];
+  }
+
+  function getAvatarEmoji(playerId: string): string {
+    if (playerProfile && playerId === playerProfile.id) {
+      return playerProfile.avatarEmoji ?? '🙂';
+    }
+    if (friendAvatarMap.has(playerId)) {
+      return friendAvatarMap.get(playerId) ?? '🙂';
+    }
+    return pickGuestAvatar(playerId);
+  }
 
   const cashedOutDetailModal = useMemo(() => {
     if (!cashedOutDetailPlayerId) return null;
@@ -341,6 +352,30 @@ export default function ActiveSessionScreen() {
     setCashOutAmount('');
   }
 
+  function openLocationEditor() {
+    setLocationDraft(session?.location ?? '');
+    setLocationEditorVisible(true);
+  }
+
+  function closeLocationEditor() {
+    Keyboard.dismiss();
+    setLocationEditorVisible(false);
+    setLocationDraft('');
+  }
+
+  async function saveLocation() {
+    if (!id) return;
+    try {
+      setIsSavingLocation(true);
+      await updateSessionLocation(id, locationDraft);
+      closeLocationEditor();
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to update location.');
+    } finally {
+      setIsSavingLocation(false);
+    }
+  }
+
   return (
     <>
     <ScrollView
@@ -348,9 +383,24 @@ export default function ActiveSessionScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled>
-      <Text style={[styles.title, { color: c.text }]}>{session?.label || 'Active Session'}</Text>
+      <Text style={[styles.title, { color: c.text }]}>
+        {session?.date ? formatDateTimeDMY(session.date) : 'Active Session'}
+      </Text>
       <View style={styles.metaRow}>
-        {session?.location ? (
+        {viewerIsHost ? (
+          <Pressable
+            onPress={openLocationEditor}
+            style={[styles.locationCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            <MaterialIcons name="place" size={20} color={c.textHint} style={styles.locationIcon} />
+            <View style={styles.locationTextBlock}>
+              <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
+              <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={2}>
+                {session?.location ? session.location : 'Tap to add location'}
+              </Text>
+            </View>
+            <MaterialIcons name="edit" size={18} color={c.textHint} />
+          </Pressable>
+        ) : session?.location ? (
           <View style={[styles.locationCard, { backgroundColor: c.card, borderColor: c.border }]}>
             <MaterialIcons name="place" size={20} color={c.textHint} style={styles.locationIcon} />
             <View style={styles.locationTextBlock}>
@@ -365,7 +415,7 @@ export default function ActiveSessionScreen() {
         )}
         <View style={[styles.potBadge, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
           <Text style={[styles.potLabel, { color: c.profit }]}>POT</Text>
-          <Text style={[styles.potValue, { color: c.profit }]}>{formatPotDisplay(totalPot)}</Text>
+          <Text style={[styles.potValue, { color: c.profit }]}>{formatCompactCurrency(totalPot)}</Text>
         </View>
       </View>
       {error ? <Text style={[styles.error, { color: c.loss }]}>{error}</Text> : null}
@@ -489,7 +539,7 @@ export default function ActiveSessionScreen() {
                         <Text
                           style={[styles.playerName, styles.playerNameInline, { color: c.text }]}
                           numberOfLines={1}>
-                          {item.name}
+                          {getAvatarEmoji(item.playerId)} {item.name}
                         </Text>
                         {rowIsHost && (
                           <View style={[styles.hostBadge, { backgroundColor: c.badge.host }]}>
@@ -507,7 +557,7 @@ export default function ActiveSessionScreen() {
                         <Text
                           style={[styles.playerName, { color: c.textMuted }]}
                           numberOfLines={1}>
-                          {item.name}
+                          {getAvatarEmoji(item.playerId)} {item.name}
                         </Text>
                         <View style={styles.badges}>
                           <View style={[styles.cashedOutBadge, { backgroundColor: c.badge.cashedOut }]}>
@@ -738,6 +788,57 @@ export default function ActiveSessionScreen() {
           </View>
         </View>
       ) : null}
+    </Modal>
+
+    <Modal
+      visible={locationEditorVisible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={closeLocationEditor}>
+      <View style={styles.modalRoot}>
+        <Pressable
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+          onPress={closeLocationEditor}
+          accessibilityLabel="Dismiss"
+          accessibilityRole="button"
+        />
+        <View pointerEvents="box-none" style={styles.modalCenterWrap}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+            style={styles.modalKeyboard}>
+            <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[styles.cashOutFormTitle, { color: c.text }]}>Edit location</Text>
+              <TextInput
+                value={locationDraft}
+                onChangeText={setLocationDraft}
+                placeholder="Location"
+                placeholderTextColor={c.placeholder}
+                style={[
+                  styles.input,
+                  { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+                ]}
+              />
+              <View style={styles.cashOutModalActions}>
+                <Pressable style={styles.cashOutCancelBtn} onPress={closeLocationEditor}>
+                  <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.cashOutConfirmBtn,
+                    { backgroundColor: c.accent },
+                    isSavingLocation && styles.disabled,
+                  ]}
+                  onPress={saveLocation}
+                  disabled={isSavingLocation}>
+                  <Text style={styles.addButtonLabel}>{isSavingLocation ? 'Saving...' : 'Save'}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
     </Modal>
     </>
   );

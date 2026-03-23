@@ -1,16 +1,33 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth-context';
 import { useThemePreference } from '@/lib/theme-context';
 
+const AVATAR_EMOJIS = [
+  '🙂', '😀', '😎', '🤠', '🧠', '🦈', '🐯', '🦁', '🐸', '🐻',
+  '🃏', '♠️', '♥️', '♦️', '♣️', '🎲', '🎯', '🏆', '🔥', '⚡',
+  '🍀', '🌙', '⭐', '☀️', '🌊', '🍕', '🍔', '🍩', '🎧', '🎮',
+];
+
 export default function SettingsScreen() {
   const router = useRouter();
-  const { playerProfile } = useAuth();
+  const { playerProfile, saveAvatarEmoji } = useAuth();
   const { preference, resolvedColorScheme, setPreference } = useThemePreference();
   const isDark = resolvedColorScheme === 'dark';
   const t = isDark ? theme.dark : theme.light;
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+
+  async function onPickAvatar(emoji: string) {
+    try {
+      await saveAvatarEmoji(emoji);
+      setShowAvatarPicker(false);
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save avatar.');
+    }
+  }
 
   return (
     <ScrollView
@@ -23,7 +40,7 @@ export default function SettingsScreen() {
         <Text style={[styles.cardLabel, { color: t.muted }]}>PROFILE</Text>
         <View style={styles.profileRow}>
           <View style={[styles.avatar, { backgroundColor: t.avatarBg }]}>
-            <MaterialIcons name="person" size={36} color={t.avatarIcon} />
+            <Text style={styles.avatarEmoji}>{playerProfile?.avatarEmoji ?? '🙂'}</Text>
           </View>
           <View style={styles.profileText}>
             <Text style={[styles.displayName, { color: t.text }]}>
@@ -37,6 +54,11 @@ export default function SettingsScreen() {
           onPress={() => router.push('../(auth)/name')}>
           <MaterialIcons name="edit" size={18} color="#fff" />
           <Text style={styles.primaryBtnLabel}>Edit display name</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.secondaryBtn, { borderColor: t.border }]}
+          onPress={() => setShowAvatarPicker(true)}>
+          <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Choose avatar emoji</Text>
         </Pressable>
       </View>
 
@@ -71,6 +93,39 @@ export default function SettingsScreen() {
           t={t}
         />
       </View>
+
+      <Modal
+        visible={showAvatarPicker}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowAvatarPicker(false)}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+            onPress={() => setShowAvatarPicker(false)}
+          />
+          <View pointerEvents="box-none" style={styles.modalCenter}>
+            <View style={[styles.pickerCard, { backgroundColor: t.card, borderColor: t.border }]}>
+              <Text style={[styles.pickerTitle, { color: t.text }]}>Pick an avatar</Text>
+              <View style={styles.emojiGrid}>
+                {AVATAR_EMOJIS.map((emoji) => (
+                  <Pressable
+                    key={emoji}
+                    style={[
+                      styles.emojiBtn,
+                      { borderColor: t.border, backgroundColor: t.chipBg },
+                      playerProfile?.avatarEmoji === emoji && { borderColor: t.accent },
+                    ]}
+                    onPress={() => onPickAvatar(emoji)}>
+                    <Text style={styles.emojiBtnText}>{emoji}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -180,6 +235,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarEmoji: {
+    fontSize: 34,
+  },
   profileText: {
     flex: 1,
     gap: 4,
@@ -203,6 +261,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  secondaryBtnLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   appearanceHint: {
     fontSize: 13,
@@ -248,5 +316,42 @@ const styles = StyleSheet.create({
   radioInner: {
     width: 0,
     height: 0,
+  },
+  modalRoot: {
+    flex: 1,
+  },
+  modalCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  pickerCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+  },
+  pickerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  emojiBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiBtnText: {
+    fontSize: 24,
   },
 });

@@ -1,14 +1,35 @@
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatDateDMY } from '@/lib/date-format';
+import {
+  formatCurrency,
+  formatSignedCurrency,
+  formatTightCompactNumber,
+} from '@/lib/currency-format';
+import { formatDateTimeDMY } from '@/lib/date-format';
 import { getSessionHistoryForPlayer } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
+
+function getSessionDurationMs(entry: HistoryEntry): number {
+  if (!entry.finishedAt) return 0;
+  const start = entry.date.getTime();
+  const end = entry.finishedAt.getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  return end - start;
+}
+
+function formatDuration(ms: number): string {
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+}
 
 export default function HistoryScreen() {
   const c = useAppColors();
@@ -43,27 +64,44 @@ export default function HistoryScreen() {
   );
 
   const totalProfit = history.reduce((s, h) => s + h.profit, 0);
+  const totalDurationMs = history.reduce((sum, h) => sum + getSessionDurationMs(h), 0);
+  const totalHoursPlayed = totalDurationMs / 3_600_000;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <Text style={[styles.title, { color: c.text }]}>My Winnings</Text>
 
-      <View
-        style={[
-          styles.summaryCard,
-          { backgroundColor: c.card, borderColor: c.borderAccent },
-        ]}>
-        <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Lifetime Profit/Loss</Text>
-        <Text
+      <View style={styles.summaryRow}>
+        <View
           style={[
-            styles.summaryValue,
-            { color: totalProfit >= 0 ? c.profit : c.loss },
+            styles.summaryCard,
+            styles.summaryCardHalf,
+            { backgroundColor: c.card, borderColor: c.borderAccent },
           ]}>
-          {totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}
-        </Text>
-        <Text style={[styles.summaryMeta, { color: c.textHint }]}>
-          {history.length} session{history.length !== 1 ? 's' : ''}
-        </Text>
+          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Lifetime Profit/Loss</Text>
+          <Text
+            style={[
+              styles.summaryValue,
+              { color: totalProfit >= 0 ? c.profit : c.loss },
+            ]}>
+            {formatTightCompactNumber(totalProfit)}
+          </Text>
+          <Text style={[styles.summaryMeta, { color: c.textHint }]}>
+            {history.length} session{history.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.summaryCard,
+            styles.summaryCardHalf,
+            { backgroundColor: c.card, borderColor: c.border },
+          ]}>
+          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Total Played</Text>
+          <Text style={[styles.summaryValue, { color: c.text }]}>
+            {totalHoursPlayed.toFixed(1)}h
+          </Text>
+          <Text style={[styles.summaryMeta, { color: c.textHint }]}>Across all sessions</Text>
+        </View>
       </View>
 
       {error ? <Text style={{ color: c.loss }}>{error}</Text> : null}
@@ -88,22 +126,21 @@ export default function HistoryScreen() {
               onPress={() => router.push(`../session/summary/${item.id}`)}>
               <View style={styles.historyTop}>
                 <Text style={[styles.historyLabel, { color: c.text }]}>
-                  {item.label || 'Untitled Session'}
+                  {formatDateTimeDMY(item.date)}
                 </Text>
                 <Text
                   style={[
                     styles.historyProfit,
                     { color: item.profit >= 0 ? c.profit : c.loss },
                   ]}>
-                  {item.profit >= 0 ? '+' : ''}${item.profit.toFixed(2)}
+                  {formatSignedCurrency(item.profit)}
                 </Text>
               </View>
               <Text style={[styles.historyMeta, { color: c.textMuted }]}>
-                {formatDateDMY(item.date)}
-                {item.location ? ` • ${item.location}` : ''}
+                {item.location ? item.location : 'No location'} • {formatDuration(getSessionDurationMs(item))}
               </Text>
               <Text style={[styles.historyDetail, { color: c.textHint }]}>
-                Buy-in: ${item.totalBuyIn.toFixed(2)}  Cash-out: ${item.cashOut.toFixed(2)}
+                Buy-in: {formatCurrency(item.totalBuyIn)}  Cash-out: {formatCurrency(item.cashOut)}
               </Text>
             </Pressable>
           )}
@@ -132,6 +169,13 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     gap: 4,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  summaryCardHalf: {
+    flex: 1,
   },
   summaryLabel: {
     fontSize: 13,

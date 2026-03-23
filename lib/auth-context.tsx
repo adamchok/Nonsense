@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { type User, onAuthStateChanged, signInAnonymously, signOut } from 'firebase/auth';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
-import { ensureRefCode, getPlayerProfile, upsertPlayerProfile } from '@/lib/firestore';
+import { ensureRefCode, getPlayerProfile, updatePlayerAvatar, upsertPlayerProfile } from '@/lib/firestore';
 import type { PlayerProfile } from '@/types';
 
 interface AuthContextValue {
@@ -9,6 +9,7 @@ interface AuthContextValue {
   playerProfile: PlayerProfile | null;
   isReady: boolean;
   saveDisplayName: (name: string) => Promise<void>;
+  saveAvatarEmoji: (emoji: string) => Promise<void>;
   signOutUser: () => Promise<void>;
 }
 
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextValue>({
   playerProfile: null,
   isReady: false,
   saveDisplayName: async () => {},
+  saveAvatarEmoji: async () => {},
   signOutUser: async () => {},
 });
 
@@ -77,6 +79,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           const nextProfile = await upsertPlayerProfile(user.uid, name);
           setPlayerProfile(nextProfile);
+        },
+        saveAvatarEmoji: async (emoji: string) => {
+          if (!user) {
+            throw new Error('You need to be signed in before saving your avatar.');
+          }
+          await updatePlayerAvatar(user.uid, emoji);
+          setPlayerProfile((prev) => (prev ? { ...prev, avatarEmoji: emoji.trim() } : prev));
         },
         signOutUser: async () => {
           const auth = getFirebaseAuth();

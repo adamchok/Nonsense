@@ -15,6 +15,8 @@ import { finishSession, getBuyIns, getEarlyCashOuts, saveResults } from '@/lib/f
 import type { SessionResult } from '@/types';
 
 const CHIP_AMOUNTS = [5, 10, 25, 50];
+const NEGATIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => b - a);
+const POSITIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => a - b);
 
 type PlayerEntry = {
   playerId: string;
@@ -253,19 +255,21 @@ export default function CashOutScreen() {
 
               {!item.locked && (
                 <View style={styles.chipRow}>
-                  {CHIP_AMOUNTS.map((chip) => (
-                    <View key={chip} style={styles.chipPair}>
-                      <Pressable
-                        style={[styles.chipMinus, { backgroundColor: c.chipMinusBg }]}
-                        onPress={() => adjustCashOut(item.playerId, -chip)}>
-                        <Text style={[styles.chipLabel, { color: c.chipValueText }]}>-{chip}</Text>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.chipPlus, { backgroundColor: c.chipPlusBg }]}
-                        onPress={() => adjustCashOut(item.playerId, chip)}>
-                        <Text style={[styles.chipLabel, { color: c.chipValueText }]}>+{chip}</Text>
-                      </Pressable>
-                    </View>
+                  {NEGATIVE_CHIP_AMOUNTS.map((chip) => (
+                    <Pressable
+                      key={`minus-${chip}`}
+                      style={[styles.chipMinus, { backgroundColor: c.chipMinusBg }]}
+                      onPress={() => adjustCashOut(item.playerId, -chip)}>
+                      <Text style={[styles.chipLabel, { color: c.chipValueText }]}>-{chip}</Text>
+                    </Pressable>
+                  ))}
+                  {POSITIVE_CHIP_AMOUNTS.map((chip) => (
+                    <Pressable
+                      key={`plus-${chip}`}
+                      style={[styles.chipPlus, { backgroundColor: c.chipPlusBg }]}
+                      onPress={() => adjustCashOut(item.playerId, chip)}>
+                      <Text style={[styles.chipLabel, { color: c.chipValueText }]}>+{chip}</Text>
+                    </Pressable>
                   ))}
                 </View>
               )}
@@ -414,10 +418,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     justifyContent: 'center',
-  },
-  chipPair: {
-    flexDirection: 'row',
-    gap: 2,
   },
   chipMinus: {
     borderRadius: 6,
