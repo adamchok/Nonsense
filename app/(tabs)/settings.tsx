@@ -57,23 +57,38 @@ export default function SettingsScreen() {
               <MaterialIcons name="edit" size={13} color="#fff" />
             </View>
           </Pressable>
-          <View style={styles.profileText}>
-            <Text style={[styles.displayName, { color: t.text }]}>
-              {playerProfile?.name ?? 'Guest'}
-            </Text>
+          <Pressable
+            style={styles.profileText}
+            onPress={() => router.push('../(auth)/name')}
+            accessibilityRole="button"
+            accessibilityLabel="Edit display name">
+            <View style={styles.displayNameRow}>
+              <Text
+                style={[styles.displayName, styles.displayNameText, { color: t.text }]}
+                numberOfLines={1}
+                ellipsizeMode="tail">
+                {playerProfile?.name ?? 'Guest'}
+              </Text>
+              <MaterialIcons name="edit" size={16} color={t.muted} />
+            </View>
             <Text style={[styles.displayHint, { color: t.muted }]}>Display name</Text>
-          </View>
+          </Pressable>
         </View>
         <Pressable
           style={[styles.primaryBtn, { backgroundColor: t.accent }]}
-          onPress={() => router.push('../(auth)/name')}>
-          <MaterialIcons name="edit" size={18} color="#fff" />
-          <Text style={styles.primaryBtnLabel}>Edit display name</Text>
+          onPress={() => router.push('../qr-code')}
+          accessibilityRole="button"
+          accessibilityLabel="Open QR code">
+          <MaterialIcons name="qr-code" size={18} color="#fff" />
+          <Text style={styles.primaryBtnLabel}>QR Code</Text>
         </Pressable>
         <Pressable
-          style={[styles.secondaryBtn, { borderColor: t.border }]}
+          style={[styles.secondaryBtn, { borderColor: t.card, backgroundColor: t.avatarBg }]}
           onPress={() => router.push('../locations')}>
-          <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Manage saved locations</Text>
+          <View style={styles.secondaryBtnContent}>
+            <MaterialIcons name="location-on" size={18} color={t.text} />
+            <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
+          </View>
         </Pressable>
       </View>
 
@@ -275,6 +290,14 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  displayNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  displayNameText: {
+    flex: 1,
+  },
   displayName: {
     fontSize: 20,
     fontWeight: '700',
@@ -298,8 +321,14 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     borderWidth: 1,
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
+  },
+  secondaryBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   secondaryBtnLabel: {
     fontSize: 14,

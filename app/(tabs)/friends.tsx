@@ -1,8 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -13,7 +11,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -22,6 +19,7 @@ import {
   addFriend,
   deleteGroup,
   getFriendLeaderboard,
+  getGroupLeaderboard,
   lookupPlayerByRefCode,
   removeFriend,
   subscribeFriends,
@@ -41,16 +39,16 @@ export default function FriendsScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [refCodeInput, setRefCodeInput] = useState('');
   const [adding, setAdding] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
-  const scanLock = useRef(false);
 
   const [groups, setGroups] = useState<PokerGroup[]>([]);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [groupLeaderboard, setGroupLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [groupLbLoading, setGroupLbLoading] = useState(false);
+  const [groupLeaderboardModalGroup, setGroupLeaderboardModalGroup] = useState<PokerGroup | null>(null);
+  const [showGroupLeaderboardModal, setShowGroupLeaderboardModal] = useState(false);
   const [activeTab, setActiveTab] = useState<FriendsSectionTab>('friends');
 
   useEffect(() => {
@@ -100,6 +98,30 @@ export default function FriendsScreen() {
     );
   }, [user, expandedGroupId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!user || !expandedGroupId) {
+        setGroupLeaderboard([]);
+        setGroupLbLoading(false);
+        return;
+      }
+      setGroupLbLoading(true);
+      try {
+        const lb = await getGroupLeaderboard(user.uid, expandedGroupId);
+        if (!cancelled) setGroupLeaderboard(lb);
+      } catch {
+        if (!cancelled) setGroupLeaderboard([]);
+      } finally {
+        if (!cancelled) setGroupLbLoading(false);
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, expandedGroupId]);
+
   function handleDeleteGroup(groupId: string, groupName: string) {
     if (!user) return;
     Alert.alert(`Delete "${groupName}"?`, 'This group and all its members will be removed.', [
@@ -117,13 +139,6 @@ export default function FriendsScreen() {
         },
       },
     ]);
-  }
-
-  async function handleCopyCode() {
-    if (!playerProfile?.refCode) return;
-    await Clipboard.setStringAsync(playerProfile.refCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleAddFriend() {
@@ -165,58 +180,6 @@ export default function FriendsScreen() {
     }
   }
 
-  async function openScanner() {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) {
-        Alert.alert('Permission needed', 'Camera access is required to scan QR codes.');
-        return;
-      }
-    }
-    scanLock.current = false;
-    setShowScanner(true);
-  }
-
-  async function handleBarCodeScanned({ data }: { data: string }) {
-    if (scanLock.current || !user) return;
-    scanLock.current = true;
-
-    const code = data.trim().toUpperCase();
-    if (code.length !== 6) {
-      Alert.alert('Invalid QR', 'This QR code does not contain a valid ref code.', [
-        { text: 'OK', onPress: () => { scanLock.current = false; } },
-      ]);
-      return;
-    }
-
-    if (code === playerProfile?.refCode) {
-      Alert.alert('Oops', "That's your own code!", [
-        { text: 'OK', onPress: () => { scanLock.current = false; } },
-      ]);
-      return;
-    }
-
-    try {
-      setShowScanner(false);
-      setAdding(true);
-      const found = await lookupPlayerByRefCode(code);
-      if (!found) {
-        Alert.alert('Not found', 'No player found with that code.');
-        return;
-      }
-      if (friends.some((f) => f.playerId === found.id)) {
-        Alert.alert('Already friends', `You're already friends with ${found.name}.`);
-        return;
-      }
-      await addFriend(user.uid, found);
-      Alert.alert('Added!', `${found.name} has been added to your friends.`);
-    } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add friend.');
-    } finally {
-      setAdding(false);
-    }
-  }
-
   function handleRemoveFriend(friendId: string, friendName: string) {
     if (!user) return;
     Alert.alert(`Remove ${friendName}?`, 'They will also be removed from your friends list.', [
@@ -235,51 +198,14 @@ export default function FriendsScreen() {
     ]);
   }
 
-  const refCode = playerProfile?.refCode ?? '------';
-
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
       contentContainerStyle={styles.content}>
       <Text style={[styles.title, { color: c.text }]}>Friends</Text>
 
-      <View
-        style={[
-          styles.codeCard,
-          { backgroundColor: c.card, borderColor: c.border },
-        ]}>
-        <Text style={[styles.codeLabel, { color: c.textHint }]}>YOUR REF CODE</Text>
-        <View style={styles.codeRow}>
-          <Text style={[styles.codeValue, { color: c.text }]}>{refCode}</Text>
-          <Pressable style={styles.copyBtn} onPress={handleCopyCode}>
-            <MaterialIcons
-              name={copied ? 'check' : 'content-copy'}
-              size={20}
-              color={copied ? c.profit : c.textMuted}
-            />
-          </Pressable>
-        </View>
-        <View style={[styles.qrWrap, { backgroundColor: c.card }]}>
-          {playerProfile?.refCode ? (
-            <QRCode
-              value={playerProfile.refCode}
-              size={160}
-              backgroundColor={c.qrBg}
-              color={c.qrFg}
-            />
-          ) : (
-            <Text style={[styles.qrPlaceholder, { color: c.textHint }]}>
-              Set your display name first
-            </Text>
-          )}
-        </View>
-        <Text style={[styles.qrHint, { color: c.textHint }]}>
-          Share your code or QR to add friends
-        </Text>
-      </View>
-
       <View style={styles.tabsRow}>
-        {(['friends', 'leaderboard', 'groups'] as const).map((tab) => (
+        {(['friends', 'groups', 'leaderboard'] as const).map((tab) => (
           <Pressable
             key={tab}
             style={[
@@ -309,7 +235,7 @@ export default function FriendsScreen() {
             <View style={styles.addBtnGroup}>
               <Pressable
                 style={[styles.scanBtn, { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder }]}
-                onPress={openScanner}>
+                onPress={() => router.push('../qr-code?tab=scan')}>
                 <MaterialIcons name="qr-code-scanner" size={20} color={c.blue} />
               </Pressable>
               <Pressable
@@ -339,40 +265,6 @@ export default function FriendsScreen() {
                 </Pressable>
               </View>
             ))
-          )}
-        </>
-      )}
-
-      {/* ---- Leaderboard tab ---- */}
-      {activeTab === 'leaderboard' && (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>
-          </View>
-          {lbLoading ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>Calculating...</Text>
-          ) : leaderboard.length === 0 ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>No session results yet.</Text>
-          ) : (
-            leaderboard.map((entry, idx) => {
-              const isMe = entry.playerId === user?.uid;
-              return (
-                <View
-                  key={entry.playerId}
-                  style={[styles.lbRow, { backgroundColor: c.card, borderColor: isMe ? c.borderAccent : c.border }]}>
-                  <View style={styles.lbLeft}>
-                    <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
-                    <Text style={styles.lbAvatar}>{entry.avatarEmoji ?? '🙂'}</Text>
-                    <Text style={[styles.lbName, { color: isMe ? c.text : c.textSecondary }]}>
-                      {entry.name}{isMe ? ' (You)' : ''}
-                    </Text>
-                  </View>
-                  <Text style={[styles.lbProfit, { color: entry.totalProfit >= 0 ? c.profit : c.loss }]}>
-                    {formatSignedCurrency(entry.totalProfit)}
-                  </Text>
-                </View>
-              );
-            })
           )}
         </>
       )}
@@ -435,34 +327,95 @@ export default function FriendsScreen() {
                           No members yet. Tap below to add players.
                         </Text>
                       ) : (
-                        groupMembers.map((member) => (
-                          <View key={member.id} style={[styles.memberRow, { borderColor: c.border }]}>
-                            <View style={styles.memberInfo}>
-                              <MaterialIcons
-                                name={member.isRegistered ? 'person' : 'person-outline'}
-                                size={18}
-                                color={c.textMuted}
-                              />
-                              <Text style={[styles.memberName, { color: c.textSecondary }]}>
-                                {member.name}
-                                {member.id === playerProfile?.id ? ' (You)' : ''}
-                              </Text>
-                              {!member.isRegistered && (
-                                <Text style={[styles.guestBadge, { color: c.textHint }]}>Guest</Text>
-                              )}
+                        <ScrollView
+                          style={styles.groupMembersScroll}
+                          showsVerticalScrollIndicator={false}
+                          nestedScrollEnabled
+                          keyboardShouldPersistTaps="handled">
+                          {groupMembers.map((member) => (
+                            <View
+                              key={member.id}
+                              style={[styles.memberRow, { borderColor: c.border }]}>
+                              <View style={styles.memberInfo}>
+                                <MaterialIcons
+                                  name={member.isRegistered ? 'person' : 'person-outline'}
+                                  size={18}
+                                  color={c.textMuted}
+                                />
+                                <Text style={[styles.memberName, { color: c.textSecondary }]}>
+                                  {member.id === playerProfile?.id
+                                    ? (playerProfile?.name ?? member.name)
+                                    : member.name}
+                                  {member.id === playerProfile?.id ? ' (You)' : ''}
+                                </Text>
+                                {!member.isRegistered && (
+                                  <Text style={[styles.guestBadge, { color: c.textHint }]}>Guest</Text>
+                                )}
+                              </View>
                             </View>
-                          </View>
-                        ))
+                          ))}
+                        </ScrollView>
                       )}
+                      <View style={styles.groupActionsRow}>
+                        <Pressable
+                          style={[
+                            styles.manageBtn,
+                            { backgroundColor: c.accentBg, borderColor: c.accentBorder },
+                          ]}
+                          onPress={() => router.push(`../group/${group.id}/members`)}>
+                          <MaterialIcons name="edit" size={16} color={c.profit} />
+                          <Text style={[styles.manageBtnLabel, { color: c.profit }]}>Manage Members</Text>
+                        </Pressable>
 
-                      <Pressable
-                        style={[styles.manageBtn, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
-                        onPress={() => router.push(`../group/${group.id}/members`)}>
-                        <MaterialIcons name="edit" size={16} color={c.profit} />
-                        <Text style={[styles.manageBtnLabel, { color: c.profit }]}>Manage Members</Text>
-                      </Pressable>
+                        <Pressable
+                          style={[
+                            styles.manageBtn,
+                            { backgroundColor: c.blueBg, borderColor: c.blueBorder },
+                          ]}
+                          onPress={() => {
+                            setGroupLeaderboardModalGroup(group);
+                            setShowGroupLeaderboardModal(true);
+                          }}>
+                          <MaterialIcons name="leaderboard" size={16} color={c.blue} />
+                          <Text style={[styles.manageBtnLabel, { color: c.blue }]}>Leaderboard</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   )}
+                </View>
+              );
+            })
+          )}
+        </>
+      )}
+
+            {/* ---- Leaderboard tab ---- */}
+            {activeTab === 'leaderboard' && (
+        <>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>
+          </View>
+          {lbLoading ? (
+            <Text style={[styles.emptyText, { color: c.textMuted }]}>Calculating...</Text>
+          ) : leaderboard.length === 0 ? (
+            <Text style={[styles.emptyText, { color: c.textMuted }]}>No session results yet.</Text>
+          ) : (
+            leaderboard.map((entry, idx) => {
+              const isMe = entry.playerId === user?.uid;
+              return (
+                <View
+                  key={entry.playerId}
+                  style={[styles.lbRow, { backgroundColor: c.card, borderColor: isMe ? c.borderAccent : c.border }]}>
+                  <View style={styles.lbLeft}>
+                    <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
+                    <Text style={styles.lbAvatar}>{entry.avatarEmoji ?? '🙂'}</Text>
+                    <Text style={[styles.lbName, { color: isMe ? c.text : c.textSecondary }]}>
+                      {entry.name}{isMe ? ' (You)' : ''}
+                    </Text>
+                  </View>
+                  <Text style={[styles.lbProfit, { color: entry.totalProfit >= 0 ? c.profit : c.loss }]}>
+                    {formatSignedCurrency(entry.totalProfit)}
+                  </Text>
                 </View>
               );
             })
@@ -522,33 +475,70 @@ export default function FriendsScreen() {
         </View>
       </Modal>
 
-      {/* ---- QR Scanner Modal ---- */}
+      {/* ---- Group Leaderboard Modal ---- */}
       <Modal
-        visible={showScanner}
-        animationType="slide"
+        visible={showGroupLeaderboardModal}
+        transparent
+        animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => setShowScanner(false)}>
-        <View style={styles.scannerScreen}>
-          <View style={[styles.scannerHeader, { backgroundColor: c.bg }]}>
-            <Text style={[styles.scannerTitle, { color: c.text }]}>Scan QR Code</Text>
-            <Pressable style={styles.scannerCloseBtn} onPress={() => setShowScanner(false)} hitSlop={12}>
-              <MaterialIcons name="close" size={26} color={c.text} />
-            </Pressable>
-          </View>
-          <View style={styles.scannerBody}>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={handleBarCodeScanned}
-            />
-            <View style={styles.scannerOverlay}>
-              <View style={styles.scannerFrame} />
+        onRequestClose={() => setShowGroupLeaderboardModal(false)}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            onPress={() => setShowGroupLeaderboardModal(false)}
+          />
+          <View pointerEvents="box-none" style={styles.modalCenter}>
+            <View
+              style={[
+                styles.leaderboardCard,
+                { backgroundColor: c.card, borderColor: c.border },
+              ]}>
+              <View style={styles.leaderboardHeaderRow}>
+                <Text style={[styles.leaderboardTitle, { color: c.text }]}>
+                  {groupLeaderboardModalGroup?.name ? `${groupLeaderboardModalGroup.name} Leaderboard` : 'Leaderboard'}
+                </Text>
+                <Pressable
+                  onPress={() => setShowGroupLeaderboardModal(false)}
+                  hitSlop={10}>
+                  <MaterialIcons name="close" size={20} color={c.textHint} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.leaderboardBody}>
+                {groupLbLoading ? (
+                  <Text style={{ color: c.textMuted }}>Calculating...</Text>
+                ) : groupLeaderboard.length === 0 ? (
+                  <Text style={{ color: c.textMuted }}>No results yet.</Text>
+                ) : (
+                  groupLeaderboard.map((entry, idx) => {
+                    const isMe = entry.playerId === user?.uid;
+                    return (
+                      <View
+                        key={entry.playerId}
+                        style={[
+                          styles.lbRow,
+                          { backgroundColor: c.card, borderColor: isMe ? c.borderAccent : c.border },
+                        ]}>
+                        <View style={styles.lbLeft}>
+                          <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
+                          <Text style={styles.lbAvatar}>{entry.avatarEmoji ?? '🙂'}</Text>
+                          <Text style={[styles.lbName, { color: isMe ? c.text : c.textSecondary }]}>
+                            {entry.name}
+                            {isMe ? ' (You)' : ''}
+                          </Text>
+                        </View>
+                        <Text style={[styles.lbProfit, { color: entry.totalProfit >= 0 ? c.profit : c.loss }]}>
+                          {formatSignedCurrency(entry.totalProfit)}
+                        </Text>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
             </View>
           </View>
-          <Text style={[styles.scannerHint, { color: c.textMuted, backgroundColor: c.bg }]}>
-            Point your camera at a friend&apos;s QR code
-          </Text>
         </View>
       </Modal>
     </ScrollView>
@@ -569,43 +559,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.5,
-  },
-  codeCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
-    alignItems: 'center',
-    gap: 10,
-  },
-  codeLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  codeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  codeValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 6,
-  },
-  copyBtn: {
-    padding: 6,
-  },
-  qrWrap: {
-    marginTop: 4,
-    padding: 12,
-    borderRadius: 10,
-  },
-  qrPlaceholder: {
-    fontSize: 13,
-  },
-  qrHint: {
-    fontSize: 12,
-    marginTop: 2,
   },
   tabsRow: {
     flexDirection: 'row',
@@ -757,11 +710,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 4,
   },
+  groupLeaderboardSection: {
+    gap: 8,
+    marginTop: 8,
+  },
+  groupSectionTitleSmall: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   memberInfo: {
@@ -788,10 +750,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 6,
+    flex: 1,
   },
   manageBtnLabel: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  groupActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  groupMembersScroll: {
+    maxHeight: 200,
   },
   modalRoot: {
     flex: 1,
@@ -896,5 +866,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingVertical: 20,
+  },
+  leaderboardCard: {
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '80%',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+  },
+  leaderboardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  leaderboardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 12,
+  },
+  leaderboardBody: {
+    gap: 8,
+    paddingBottom: 6,
   },
 });

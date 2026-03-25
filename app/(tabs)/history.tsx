@@ -1,8 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -110,6 +110,7 @@ export default function HistoryScreen() {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
+  const filterScrollRef = useRef<ScrollView>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -320,7 +321,12 @@ export default function HistoryScreen() {
             onPress={() => setShowFilterModal(false)}
           />
 
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <KeyboardAvoidingView
+            pointerEvents="box-none"
+            style={styles.modalCenter}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : -60}
+          >
             <View style={[styles.filterCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={styles.filterHeaderRow}>
                 <Text style={[styles.filterTitle, { color: c.text }]}>Filter History</Text>
@@ -329,7 +335,11 @@ export default function HistoryScreen() {
                 </Pressable>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.filterBody}>
+              <ScrollView
+                ref={filterScrollRef}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.filterBody}
+                keyboardShouldPersistTaps="handled">
                 <View style={styles.filterSection}>
                   <Text style={[styles.filterLabel, { color: c.textMuted }]}>Location</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
@@ -462,6 +472,7 @@ export default function HistoryScreen() {
                       value={draftFilters.buyInMin}
                       onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMin: value }))}
                       keyboardType="decimal-pad"
+                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
                     <TextInput
                       style={[
@@ -473,6 +484,7 @@ export default function HistoryScreen() {
                       value={draftFilters.buyInMax}
                       onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMax: value }))}
                       keyboardType="decimal-pad"
+                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
                   </View>
                 </View>
@@ -490,6 +502,7 @@ export default function HistoryScreen() {
                       value={draftFilters.profitMin}
                       onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMin: value }))}
                       keyboardType="decimal-pad"
+                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
                     <TextInput
                       style={[
@@ -501,6 +514,7 @@ export default function HistoryScreen() {
                       value={draftFilters.profitMax}
                       onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMax: value }))}
                       keyboardType="decimal-pad"
+                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
                   </View>
                 </View>
@@ -521,7 +535,7 @@ export default function HistoryScreen() {
                 </Pressable>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>

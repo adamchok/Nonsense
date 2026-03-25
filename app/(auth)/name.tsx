@@ -13,14 +13,19 @@ export default function NameScreen() {
   const [isSaving, setIsSaving] = useState(false);
 
   const isEditing = !!playerProfile?.name;
+  const MAX_NAME_LEN = 15;
 
   useEffect(() => {
     if (playerProfile?.name) {
-      setName(playerProfile.name);
+      setName(playerProfile.name.slice(0, MAX_NAME_LEN));
     }
   }, [playerProfile?.name]);
 
-  const canSubmit = useMemo(() => name.trim().length >= 2 && !isSaving, [name, isSaving]);
+  const trimmed = name.trim();
+  const canSubmit = useMemo(() => {
+    if (isSaving) return false;
+    return trimmed.length >= 2 && trimmed.length <= MAX_NAME_LEN;
+  }, [trimmed, isSaving]);
 
   if (!isReady) {
     return (
@@ -38,10 +43,14 @@ export default function NameScreen() {
     if (!canSubmit) {
       return;
     }
+    if (trimmed.length > MAX_NAME_LEN) {
+      Alert.alert('Name too long', `Please keep your display name within ${MAX_NAME_LEN} characters.`);
+      return;
+    }
 
     try {
       setIsSaving(true);
-      await saveDisplayName(name.trim());
+      await saveDisplayName(trimmed);
 
       if (isEditing && navigation.canGoBack()) {
         router.back();
@@ -74,6 +83,7 @@ export default function NameScreen() {
           placeholderTextColor={c.placeholder}
           autoCapitalize="words"
           autoCorrect={false}
+          maxLength={MAX_NAME_LEN}
           style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.border, color: c.text }]}
           editable={!isSaving}
         />

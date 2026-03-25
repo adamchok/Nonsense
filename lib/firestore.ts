@@ -211,6 +211,47 @@ export async function getFriendLeaderboard(
   return leaderboard.sort((a, b) => b.totalProfit - a.totalProfit);
 }
 
+export async function getGroupLeaderboard(
+  uid: string,
+  groupId: string
+): Promise<{ playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[]> {
+  const db = getFirestoreDb();
+  const members = await getGroupMembers(uid, groupId);
+
+  const memberById = new Map<string, { name: string }>();
+  for (const m of members) memberById.set(m.id, { name: m.name });
+
+  const playerIds = [...new Set(members.map((m) => m.id))];
+  if (playerIds.length === 0) return [];
+
+  // Fetch all sessions once; then sum each player's profit from session results.
+  const sessionsSnap = await getDocs(collection(db, 'sessions'));
+
+  const leaderboard: { playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[] = [];
+
+  for (const pid of playerIds) {
+    const profile = await getPlayerProfile(pid);
+    let totalProfit = 0;
+
+    for (const sDoc of sessionsSnap.docs) {
+      const resultRef = doc(db, 'sessions', sDoc.id, 'results', pid);
+      const resultSnap = await getDoc(resultRef);
+      if (resultSnap.exists()) {
+        totalProfit += Number(resultSnap.data().profit ?? 0);
+      }
+    }
+
+    leaderboard.push({
+      playerId: pid,
+      name: profile?.name ?? memberById.get(pid)?.name ?? pid,
+      avatarEmoji: profile?.avatarEmoji,
+      totalProfit,
+    });
+  }
+
+  return leaderboard.sort((a, b) => b.totalProfit - a.totalProfit);
+}
+
 export async function createSession(input: {
   hostId: string;
   location?: string;

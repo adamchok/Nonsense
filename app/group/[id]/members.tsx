@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -18,9 +18,10 @@ import {
   addGroupMember,
   removeGroupMember,
   subscribeFriends,
+  subscribeGroups,
   subscribeGroupMembers,
 } from '@/lib/firestore';
-import type { FriendRecord, GroupMember } from '@/types';
+import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
 
 export default function GroupMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,11 +30,24 @@ export default function GroupMembersScreen() {
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [friends, setFriends] = useState<FriendRecord[]>([]);
   const [guestName, setGuestName] = useState('');
+  const [groupName, setGroupName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || !id) return;
     return subscribeGroupMembers(user.uid, id, setMembers, (e) =>
       console.error('Group members error:', e)
+    );
+  }, [user, id]);
+
+  useEffect(() => {
+    if (!user || !id) return;
+    return subscribeGroups(
+      user.uid,
+      (groups: PokerGroup[]) => {
+        const match = groups.find((g) => g.id === id);
+        setGroupName(match?.name ?? null);
+      },
+      (e) => console.error('Groups error:', e)
     );
   }, [user, id]);
 
@@ -101,9 +115,14 @@ export default function GroupMembersScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: c.bg }]}
-    >
+    <KeyboardAvoidingView style={[styles.screen, { backgroundColor: c.bg }]}>
+      <Stack.Screen
+        options={{
+          title: groupName ?? 'Group Members',
+          headerBackTitle: 'Back',
+        }}
+      />
+
       <View style={styles.content}>
         <Text style={[styles.heading, { color: c.text }]}>Add members</Text>
         <Text style={[styles.hint, { color: c.textMuted }]}>
@@ -188,7 +207,9 @@ export default function GroupMembersScreen() {
                       color={c.textMuted}
                     />
                     <Text style={[styles.memberName, { color: c.text }]}>
-                      {member.name}
+                      {member.id === playerProfile?.id
+                        ? (playerProfile?.name ?? member.name)
+                        : member.name}
                       {member.id === playerProfile?.id ? ' (You)' : ''}
                     </Text>
                     {!member.isRegistered && (

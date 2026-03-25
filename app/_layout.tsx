@@ -56,6 +56,10 @@ function RootNavigator() {
           name="locations/index"
           options={{ title: 'Saved Locations', headerBackTitle: 'Back' }}
         />
+        <Stack.Screen
+          name="qr-code"
+          options={{ title: 'QR code', headerBackTitle: 'Back' }}
+        />
       </Stack>
       <StatusBar style={resolvedColorScheme === 'dark' ? 'light' : 'dark'} />
     </>

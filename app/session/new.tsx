@@ -36,6 +36,12 @@ export default function NewSessionScreen() {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationMode, setLocationMode] = useState<'saved' | 'other'>('saved');
 
+  const userInSelectedGroup =
+    Boolean(selectedGroup && playerProfile) &&
+    groupMembers.some((m) => m.id === playerProfile?.id);
+
+  const shouldShowJoinAsPlayer = !selectedGroup || !userInSelectedGroup;
+
   useEffect(() => {
     if (!playerProfile) return;
     return subscribeGroups(playerProfile.id, setGroups, () => {});
@@ -98,13 +104,23 @@ export default function NewSessionScreen() {
       return;
     }
 
-    if (selectedGroup && groupMembers.length > 0) {
+    const shouldAddGroupMembers = Boolean(selectedGroup && groupMembers.length > 0);
+    const shouldAddSelf = joinSelf && (!selectedGroup || !userInSelectedGroup);
+
+    if (!shouldAddGroupMembers && !shouldAddSelf) {
+      Alert.alert('Nothing to add', 'Enable "Join as player" or choose a group with members.');
+      return;
+    }
+
+    if (shouldAddGroupMembers) {
       const parsed = parseFloat(groupBuyIn);
       if (!groupBuyIn.trim() || isNaN(parsed) || parsed <= 0) {
         Alert.alert('Invalid buy-in', 'Enter a valid buy-in amount for the group.');
         return;
       }
-    } else if (joinSelf) {
+    }
+
+    if (shouldAddSelf) {
       const parsed = parseFloat(buyInAmount);
       if (!buyInAmount.trim() || isNaN(parsed) || parsed <= 0) {
         Alert.alert('Invalid buy-in', 'Enter a valid buy-in amount to join the session.');
@@ -122,7 +138,7 @@ export default function NewSessionScreen() {
         location: selectedLocation,
       });
 
-      if (selectedGroup && groupMembers.length > 0) {
+      if (shouldAddGroupMembers) {
         const amount = parseFloat(groupBuyIn);
         await Promise.all(
           groupMembers.map((member) =>
@@ -133,7 +149,9 @@ export default function NewSessionScreen() {
             })
           )
         );
-      } else if (joinSelf) {
+      }
+
+      if (shouldAddSelf) {
         await addBuyIn(sessionId, {
           playerId: playerProfile.id,
           playerName: playerProfile.name,
@@ -242,8 +260,8 @@ export default function NewSessionScreen() {
         </View>
       )}
 
-      {/* ---- Solo join (hidden when group is selected) ---- */}
-      {!selectedGroup && (
+      {/* ---- Solo join (hidden only when user is already in the selected group) ---- */}
+      {shouldShowJoinAsPlayer && (
         <View style={[styles.joinCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <View style={styles.joinRow}>
             <View style={styles.joinTextCol}>
