@@ -220,7 +220,7 @@ export default function SessionSummaryScreen() {
           <View style={styles.metaGridRow}>
             <View style={styles.metaGridCell}>
               <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
-                <MaterialCommunityIcons name="map-marker-outline" size={16} color={"#279c68"} />
+                <MaterialCommunityIcons name="map-marker-outline" size={16} color={c.green} />
               </View>
               <View style={styles.metaItemText}>
                 <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
@@ -230,8 +230,8 @@ export default function SessionSummaryScreen() {
               </View>
             </View>
             <View style={styles.metaGridCell}>
-              <View style={[styles.metaIconWrapSmall, { backgroundColor: c.borderAmber }]}>
-                <MaterialCommunityIcons name="crown-outline" size={16} color={"#c7a306"} />
+              <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
+                <MaterialCommunityIcons name="crown-outline" size={16} color={c.yellow} />
               </View>
               <View style={styles.metaItemText}>
                 <Text style={[styles.metaLabel, { color: c.textMuted }]}>Host</Text>
@@ -342,7 +342,7 @@ export default function SessionSummaryScreen() {
 
       <View style={styles.settlementBlock}>
         <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="bank-transfer" size={26} color={"#279c68"} />
+          <MaterialCommunityIcons name="bank-transfer" size={26} color={c.green} />
           <Text style={[styles.sectionTitle, { color: c.text }]}>Settlement</Text>
         </View>
         {settlements.length > 0 ? (

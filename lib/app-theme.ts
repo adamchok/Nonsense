@@ -26,9 +26,16 @@ export interface AppColors {
   loss: string;
   lossLight: string;
   warning: string;
+
   blue: string;
   blueBg: string;
   blueBorder: string;
+
+  yellow: string;
+  yellowBg: string;
+  yellowBorder: string;
+
+  green: string;
 
   badge: {
     host: string;
@@ -93,9 +100,16 @@ const dark: AppColors = {
   loss: '#ef4444',
   lossLight: '#f87171',
   warning: '#f59e0b',
+
   blue: '#60a5fa',
   blueBg: '#1e3a5f',
   blueBorder: '#1e3a5f',
+
+  yellow: '#c7a306',
+  yellowBg: '#473504',
+  yellowBorder: '#473504',
+
+  green: '#279c68',
 
   badge: {
     host: '#2d6a4f',
@@ -160,9 +174,16 @@ const light: AppColors = {
   loss: '#dc2626',
   lossLight: '#ef4444',
   warning: '#d97706',
+
   blue: '#2563eb',
   blueBg: '#dbeafe',
   blueBorder: '#93c5fd',
+
+  yellow: '#d97706',
+  yellowBg: '#fef3c7',
+  yellowBorder: '#fef3c7',
+
+  green: '#279c68',
 
   badge: {
     host: '#15803d',
