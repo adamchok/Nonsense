@@ -1,13 +1,14 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
+import { formatBlinds } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
-import { getRecentSessionsForHost } from '@/lib/firestore';
+import { getBuyIns, getRecentSessionsForPlayer } from '@/lib/firestore';
 import { useResolvedColorScheme } from '@/lib/theme-context';
 import type { SessionRecord } from '@/types';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, AppState, type AppStateStatus, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function HomeScreen() {
   const c = useAppColors();
@@ -15,40 +16,105 @@ export default function HomeScreen() {
   const router = useRouter();
   const { playerProfile } = useAuth();
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
+  const [sessionMetaById, setSessionMetaById] = useState<Record<string, { playerCount: number; totalBuyIns: number }>>({});
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshSpin = useRef(new Animated.Value(0)).current;
+
+  const loadSessions = useCallback(
+    async (opts?: { signal?: AbortSignal }) => {
+      if (!playerProfile) {
+        return;
+      }
+
+      try {
+        setError(null);
+        const nextSessions = await getRecentSessionsForPlayer(playerProfile.id);
+        if (opts?.signal?.aborted) {
+          return;
+        }
+        setSessions(nextSessions);
+        const active = nextSessions.filter((s) => s.status === 'active');
+        const metaEntries = await Promise.all(
+          active.map(async (session) => {
+            const buyIns = await getBuyIns(session.id);
+            const playerIds = new Set(buyIns.map((b) => b.playerId));
+            const totalBuyIns = buyIns.reduce((sum, b) => sum + b.amount, 0);
+            return [session.id, { playerCount: playerIds.size, totalBuyIns }] as const;
+          })
+        );
+        if (opts?.signal?.aborted) {
+          return;
+        }
+        setSessionMetaById(Object.fromEntries(metaEntries));
+      } catch (e) {
+        if (opts?.signal?.aborted) {
+          return;
+        }
+        setError(e instanceof Error ? e.message : 'Failed to load sessions.');
+      }
+    },
+    [playerProfile]
+  );
 
   useFocusEffect(
     useCallback(() => {
-      let isMounted = true;
-      async function load() {
-        if (!playerProfile) {
-          return;
-        }
-
-        try {
-          setError(null);
-          const nextSessions = await getRecentSessionsForHost(playerProfile.id);
-          if (isMounted) {
-            setSessions(nextSessions);
-          }
-        } catch (e) {
-          if (isMounted) {
-            setError(e instanceof Error ? e.message : 'Failed to load sessions.');
-          }
-        }
-      }
-
-      void load();
-      return () => {
-        isMounted = false;
-      };
-    }, [playerProfile])
+      const ac = new AbortController();
+      void loadSessions({ signal: ac.signal });
+      return () => ac.abort();
+    }, [loadSessions])
   );
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active' && playerProfile) {
+        void loadSessions();
+      }
+    });
+    return () => sub.remove();
+  }, [playerProfile, loadSessions]);
 
   const activeSessions = useMemo(
     () => sessions.filter((s) => s.status === 'active'),
     [sessions]
   );
+  const refreshRotate = refreshSpin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  useEffect(() => {
+    if (!isRefreshing) {
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.timing(refreshSpin, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isRefreshing, refreshSpin]);
+
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    let loaded = false;
+    try {
+      await loadSessions();
+      loaded = true;
+    } finally {
+      setIsRefreshing(false);
+      if (loaded) {
+        refreshSpin.stopAnimation(() => {
+          refreshSpin.setValue(0);
+        });
+      }
+    }
+  }, [isRefreshing, loadSessions, refreshSpin]);
 
   return (
     <ScrollView
@@ -108,13 +174,27 @@ export default function HomeScreen() {
       {error ? <Text style={{ color: c.loss }}>{error}</Text> : null}
 
       <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-        <Text style={[styles.cardLabel, { color: c.textMuted }]}>ACTIVE SESSIONS</Text>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardLabel, { color: c.textMuted }]}>ACTIVE SESSIONS</Text>
+          <Pressable
+            style={[styles.refreshBtn, { borderColor: c.border, backgroundColor: c.cardAlt }]}
+            onPress={() => void handleRefresh()}
+            disabled={isRefreshing}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh active sessions">
+            <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
+              <MaterialIcons name="refresh" size={16} color={c.textMuted} />
+            </Animated.View>
+          </Pressable>
+        </View>
         {activeSessions.length === 0 ? (
           <Text style={[styles.empty, { color: c.textHint }]}>
             No active sessions. Start a new game above.
           </Text>
         ) : (
-          activeSessions.map((session) => (
+          activeSessions.map((session) => {
+            const blindsText = formatBlinds(session.smallBlind, session.bigBlind);
+            return (
             <Pressable
               key={session.id}
               onPress={() => router.push(`../session/${session.id}`)}
@@ -130,11 +210,24 @@ export default function HomeScreen() {
                   <Text style={styles.liveBadgeText}>LIVE</Text>
                 </View>
               </View>
-              <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
-                {session.location ? session.location : 'No location'}
-              </Text>
+              <View style={styles.sessionMetaRow}>
+                <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
+                  {session.location ? session.location : 'No location'}
+                </Text>
+                <Text style={[styles.sessionMeta, { color: c.textMuted }]}> • </Text>
+                <View style={styles.sessionMetaWithIcon}>
+                  <MaterialIcons name="person" size={14} color={c.textMuted} />
+                  <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
+                    {sessionMetaById[session.id]?.playerCount ?? 0}
+                  </Text>
+                </View>
+                {blindsText ? (
+                  <Text style={[styles.sessionMeta, { color: c.textMuted }]}>{` • ${blindsText}`}</Text>
+                ) : null}
+              </View>
             </Pressable>
-          ))
+            );
+          })
         )}
       </View>
     </ScrollView>
@@ -205,12 +298,30 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     padding: 18,
+    paddingTop: 14,
     gap: 14,
+  },
+  cardHeader: {
+    position: 'relative',
+    minHeight: 28,
+    justifyContent: 'center',
   },
   cardLabel: {
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1.2,
+    paddingRight: 36,
+  },
+  refreshBtn: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    borderRadius: 8,
+    borderWidth: 1,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   empty: {
     fontSize: 14,
@@ -242,6 +353,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
     color: '#fff',
+  },
+  sessionMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 2,
+  },
+  sessionMetaWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   sessionMeta: {
     fontSize: 12,

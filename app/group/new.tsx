@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -53,7 +53,11 @@ export default function NewGroupScreen() {
           !canSubmit && styles.disabled,
           pressed && canSubmit && styles.pressed,
         ]}>
-        <Text style={styles.nextLabel}>{isSaving ? 'Creating...' : 'Next'}</Text>
+        {isSaving ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.nextLabel}>Next</Text>
+        )}
       </Pressable>
     </View>
   );

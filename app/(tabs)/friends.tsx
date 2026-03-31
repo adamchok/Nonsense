@@ -1,9 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,29 +18,41 @@ import {
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatSignedCurrency } from '@/lib/currency-format';
+import { formatDateDMY } from '@/lib/date-format';
 import {
-  addFriend,
+  acceptFriendRequest,
+  cancelOutgoingFriendRequest,
+  declineFriendRequest,
   deleteGroup,
   getFriendLeaderboard,
   getGroupLeaderboard,
   lookupPlayerByRefCode,
   removeFriend,
+  sendFriendRequest,
   subscribeFriends,
   subscribeGroupMembers,
   subscribeGroups,
+  subscribeIncomingFriendRequests,
+  subscribeOutgoingFriendRequests,
 } from '@/lib/firestore';
-import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
+import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
+import type { FriendRecord, FriendRequestRecord, GroupMember, PokerGroup } from '@/types';
 
 type LeaderboardEntry = { playerId: string; name: string; avatarEmoji?: string; totalProfit: number };
 type FriendsSectionTab = 'friends' | 'leaderboard' | 'groups';
+type LeaderboardSortKey = 'profit' | 'name';
+type SortDirection = 'desc' | 'asc';
 
 export default function FriendsScreen() {
   const c = useAppColors();
   const router = useRouter();
   const { user, playerProfile } = useAuth();
   const [friends, setFriends] = useState<FriendRecord[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequestRecord[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestRecord[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [refCodeInput, setRefCodeInput] = useState('');
+  const addFriendScrollRef = useRef<ScrollView>(null);
   const [adding, setAdding] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
@@ -50,11 +65,53 @@ export default function FriendsScreen() {
   const [groupLeaderboardModalGroup, setGroupLeaderboardModalGroup] = useState<PokerGroup | null>(null);
   const [showGroupLeaderboardModal, setShowGroupLeaderboardModal] = useState(false);
   const [activeTab, setActiveTab] = useState<FriendsSectionTab>('friends');
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
+  const [showLeaderboardSortDropdown, setShowLeaderboardSortDropdown] = useState(false);
+  const [leaderboardSortBy, setLeaderboardSortBy] = useState<LeaderboardSortKey>('profit');
+  const [leaderboardSortDirection, setLeaderboardSortDirection] = useState<SortDirection>('desc');
+
+  const sortedLeaderboard = useMemo(() => {
+    const next = [...leaderboard];
+    const direction = leaderboardSortDirection === 'asc' ? 1 : -1;
+    next.sort((a, b) => {
+      if (leaderboardSortBy === 'name') {
+        return a.name.localeCompare(b.name) * direction;
+      }
+      return (a.totalProfit - b.totalProfit) * direction;
+    });
+    return next;
+  }, [leaderboard, leaderboardSortBy, leaderboardSortDirection]);
+  const filteredFriends = useMemo(() => {
+    const query = friendSearchQuery.trim().toLowerCase();
+    if (!query) return friends;
+    return friends.filter((friend) => friend.name.toLowerCase().includes(query));
+  }, [friends, friendSearchQuery]);
+  const filteredGroups = useMemo(() => {
+    const query = groupSearchQuery.trim().toLowerCase();
+    if (!query) return groups;
+    return groups.filter((group) => group.name.toLowerCase().includes(query));
+  }, [groups, groupSearchQuery]);
+  const canCreateGroup = groups.length < 10;
 
   useEffect(() => {
     if (!user) return;
     return subscribeFriends(user.uid, setFriends, (e) =>
       console.error('Friends subscription error:', e)
+    );
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeIncomingFriendRequests(user.uid, setIncomingRequests, (e) =>
+      console.error('Incoming friend requests error:', e)
+    );
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeOutgoingFriendRequests(user.uid, setOutgoingRequests, (e) =>
+      console.error('Outgoing friend requests error:', e)
     );
   }, [user]);
 
@@ -169,12 +226,53 @@ export default function FriendsScreen() {
         Alert.alert('Already friends', `You're already friends with ${found.name}.`);
         return;
       }
-      await addFriend(user.uid, found);
+
+      const incoming = incomingRequests.find((r) => r.playerId === found.id);
+      if (incoming) {
+        Alert.alert(
+          'Friend request',
+          `${found.name} already sent you a request.`,
+          [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Accept',
+              onPress: async () => {
+                try {
+                  await acceptFriendRequest(user.uid, found.id);
+                  setRefCodeInput('');
+                  setShowAddModal(false);
+                  Alert.alert('Added!', `${found.name} is now your friend.`);
+                } catch (e) {
+                  Alert.alert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      const result = await sendFriendRequest(user.uid, found);
+      if (!result.ok) {
+        if (result.reason === 'already_friends') {
+          Alert.alert('Already friends', `You're already friends with ${found.name}.`);
+        } else if (result.reason === 'already_sent') {
+          Alert.alert('Request pending', `You already sent a request to ${found.name}.`);
+        } else {
+          Alert.alert('Oops', "That's your own code!");
+        }
+        return;
+      }
+
       setRefCodeInput('');
       setShowAddModal(false);
-      Alert.alert('Added!', `${found.name} has been added to your friends.`);
+      if (result.outcome === 'now_friends') {
+        Alert.alert('Added!', `You and ${found.name} are now friends.`);
+      } else {
+        Alert.alert('Request sent', `${found.name} will see your request.`);
+      }
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add friend.');
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to send request.');
     } finally {
       setAdding(false);
     }
@@ -213,7 +311,10 @@ export default function FriendsScreen() {
               { backgroundColor: c.card, borderColor: c.border },
               activeTab === tab && [styles.tabBtnActive, { borderColor: c.borderAccent }],
             ]}
-            onPress={() => setActiveTab(tab)}>
+            onPress={() => {
+              setActiveTab(tab);
+              setShowLeaderboardSortDropdown(false);
+            }}>
             <Text
               style={[
                 styles.tabBtnText,
@@ -246,19 +347,119 @@ export default function FriendsScreen() {
               </Pressable>
             </View>
           </View>
+          <TextInput
+            style={[
+              styles.friendSearchInput,
+              { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+            ]}
+            placeholder="Search friend name"
+            placeholderTextColor={c.placeholder}
+            value={friendSearchQuery}
+            onChangeText={setFriendSearchQuery}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          {incomingRequests.length > 0 ? (
+            <View style={styles.requestBlock}>
+              <Text style={[styles.requestBlockTitle, { color: c.textMuted }]}>Incoming requests</Text>
+              {incomingRequests.map((req) => (
+                <View
+                  key={req.playerId}
+                  style={[styles.requestRow, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
+                  <View style={styles.friendInfo}>
+                    <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                    <Text style={[styles.friendName, { color: c.textSecondary }]}>{req.name}</Text>
+                  </View>
+                  <View style={styles.requestActions}>
+                    <Pressable
+                      style={[styles.requestAcceptBtn, { backgroundColor: c.accent }]}
+                      onPress={async () => {
+                        try {
+                          await acceptFriendRequest(user!.uid, req.playerId);
+                        } catch (e) {
+                          Alert.alert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                        }
+                      }}>
+                      <Text style={styles.requestAcceptLabel}>Accept</Text>
+                    </Pressable>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={async () => {
+                        try {
+                          await declineFriendRequest(user!.uid, req.playerId);
+                        } catch (e) {
+                          Alert.alert('Error', e instanceof Error ? e.message : 'Failed to decline.');
+                        }
+                      }}>
+                      <MaterialIcons name="close" size={22} color={c.textHint} />
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {outgoingRequests.length > 0 ? (
+            <View style={styles.requestBlock}>
+              <Text style={[styles.requestBlockTitle, { color: c.textMuted }]}>Sent requests</Text>
+              {outgoingRequests.map((req) => (
+                <View
+                  key={req.playerId}
+                  style={[styles.requestRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <View style={styles.friendInfo}>
+                    <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                    <View>
+                      <Text style={[styles.friendName, { color: c.textSecondary }]}>{req.name}</Text>
+                      <Text style={[styles.pendingHint, { color: c.textHint }]}>Pending</Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => {
+                      Alert.alert('Cancel request?', `Stop waiting for ${req.name} to accept?`, [
+                        { text: 'No', style: 'cancel' },
+                        {
+                          text: 'Cancel request',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await cancelOutgoingFriendRequest(user!.uid, req.playerId);
+                            } catch (e) {
+                              Alert.alert('Error', e instanceof Error ? e.message : 'Failed to cancel.');
+                            }
+                          },
+                        },
+                      ]);
+                    }}>
+                    <Text style={[styles.cancelRequestLabel, { color: c.lossLight }]}>Cancel</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           {friends.length === 0 ? (
             <Text style={[styles.emptyText, { color: c.textMuted }]}>
               No friends yet. Share your code or add someone with theirs!
             </Text>
+          ) : filteredFriends.length === 0 ? (
+            <Text style={[styles.emptyText, { color: c.textMuted }]}>
+              No friend matches: {friendSearchQuery.trim()}.
+            </Text>
           ) : (
-            friends.map((item) => (
+            filteredFriends.map((item) => (
               <View
                 key={item.playerId}
                 style={[styles.friendRow, { backgroundColor: c.card, borderColor: c.border }]}>
                 <View style={styles.friendInfo}>
                   <Text style={styles.friendAvatar}>{item.avatarEmoji ?? '🙂'}</Text>
-                  <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
+                  <View style={styles.friendTextBlock}>
+                    <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
+                    <Text style={[styles.friendMeta, { color: c.textHint }]}>
+                      Friends since {formatDateDMY(item.addedAt)}
+                    </Text>
+                  </View>
                 </View>
                 <Pressable hitSlop={8} onPress={() => handleRemoveFriend(item.playerId, item.name)}>
                   <MaterialIcons name="close" size={20} color={c.textHint} />
@@ -274,22 +475,43 @@ export default function FriendsScreen() {
         <>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>
-              My Groups ({groups.length})
+              My Groups ({groups.length}/10)
             </Text>
             <Pressable
-              style={[styles.addBtn, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
-              onPress={() => router.push('../group/new')}>
+              style={[
+                styles.addBtn,
+                { backgroundColor: c.accentBg, borderColor: c.accentBorder },
+                !canCreateGroup && styles.disabled,
+              ]}
+              onPress={() => router.push('../group/new')}
+              disabled={!canCreateGroup}>
               <MaterialIcons name="group-add" size={20} color={c.profit} />
               <Text style={[styles.addBtnLabel, { color: c.profit }]}>New</Text>
             </Pressable>
           </View>
+          <TextInput
+            style={[
+              styles.friendSearchInput,
+              { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+            ]}
+            placeholder="Search group name"
+            placeholderTextColor={c.placeholder}
+            value={groupSearchQuery}
+            onChangeText={setGroupSearchQuery}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
 
           {groups.length === 0 ? (
             <Text style={[styles.emptyText, { color: c.textMuted }]}>
               Create a group to quickly start sessions with your regular players.
             </Text>
+          ) : filteredGroups.length === 0 ? (
+            <Text style={[styles.emptyText, { color: c.textMuted }]}>
+              No group matches: {groupSearchQuery.trim()}.
+            </Text>
           ) : (
-            groups.map((group) => {
+            filteredGroups.map((group) => {
               const isExpanded = expandedGroupId === group.id;
 
               return (
@@ -302,11 +524,9 @@ export default function FriendsScreen() {
                     <View style={styles.groupHeaderLeft}>
                       <MaterialIcons name="group" size={20} color={c.textMuted} />
                       <Text style={[styles.groupName, { color: c.text }]}>{group.name}</Text>
-                      {isExpanded && (
-                        <Text style={[styles.groupCount, { color: c.textHint }]}>
-                          {groupMembers.length} {groupMembers.length === 1 ? 'player' : 'players'}
-                        </Text>
-                      )}
+                      <Text style={[styles.groupCount, { color: c.textHint }]}>
+                        {group.memberCount ?? 0} {(group.memberCount ?? 0) === 1 ? 'player' : 'players'}
+                      </Text>
                     </View>
                     <View style={styles.groupHeaderRight}>
                       <Pressable hitSlop={8} onPress={() => handleDeleteGroup(group.id, group.name)}>
@@ -394,13 +614,68 @@ export default function FriendsScreen() {
         <>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>
+            <View style={styles.lbSortWrap}>
+              <Pressable
+                style={[styles.lbSortBtnLabeled, { backgroundColor: c.cardAlt, borderColor: c.border }]}
+                onPress={() => setShowLeaderboardSortDropdown((prev) => !prev)}>
+                <MaterialIcons name="sort" size={20} color={c.textMuted} />
+                <Text style={[styles.lbSortBtnText, { color: c.textMuted }]}>
+                  {leaderboardSortBy === 'profit' ? 'Profit' : 'Name'} ({leaderboardSortDirection === 'asc' ? 'Asc' : 'Desc'})
+                </Text>
+              </Pressable>
+              {showLeaderboardSortDropdown ? (
+                <View style={[styles.lbSortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Sort by</Text>
+                  <Pressable
+                    style={[styles.lbSortOption, leaderboardSortBy === 'profit' && { backgroundColor: c.accentBg }]}
+                    onPress={() => {
+                      setLeaderboardSortBy('profit');
+                      setShowLeaderboardSortDropdown(false);
+                    }}>
+                    <Text style={[styles.lbSortOptionText, { color: c.text }]}>Profit</Text>
+                    {leaderboardSortBy === 'profit' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.lbSortOption, leaderboardSortBy === 'name' && { backgroundColor: c.accentBg }]}
+                    onPress={() => {
+                      setLeaderboardSortBy('name');
+                      setShowLeaderboardSortDropdown(false);
+                    }}>
+                    <Text style={[styles.lbSortOptionText, { color: c.text }]}>Name</Text>
+                    {leaderboardSortBy === 'name' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  </Pressable>
+                  <View style={[styles.lbSortDivider, { backgroundColor: c.border }]} />
+                  <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Direction</Text>
+                  <Pressable
+                    style={[styles.lbSortOption, leaderboardSortDirection === 'desc' && { backgroundColor: c.accentBg }]}
+                    onPress={() => {
+                      setLeaderboardSortDirection('desc');
+                      setShowLeaderboardSortDropdown(false);
+                    }}>
+                    <Text style={[styles.lbSortOptionText, { color: c.text }]}>Descending</Text>
+                    {leaderboardSortDirection === 'desc' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.lbSortOption, leaderboardSortDirection === 'asc' && { backgroundColor: c.accentBg }]}
+                    onPress={() => {
+                      setLeaderboardSortDirection('asc');
+                      setShowLeaderboardSortDropdown(false);
+                    }}>
+                    <Text style={[styles.lbSortOptionText, { color: c.text }]}>Ascending</Text>
+                    {leaderboardSortDirection === 'asc' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
           </View>
           {lbLoading ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>Calculating...</Text>
+            <View style={styles.lbLoadingWrap}>
+              <ActivityIndicator size="large" color={c.textMuted} />
+            </View>
           ) : leaderboard.length === 0 ? (
             <Text style={[styles.emptyText, { color: c.textMuted }]}>No session results yet.</Text>
           ) : (
-            leaderboard.map((entry, idx) => {
+            sortedLeaderboard.map((entry, idx) => {
               const isMe = entry.playerId === user?.uid;
               return (
                 <View
@@ -436,41 +711,56 @@ export default function FriendsScreen() {
             onPress={() => setShowAddModal(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
-            <View style={[styles.addCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={[styles.addCardTitle, { color: c.text }]}>Add Friend</Text>
-              <Text style={[styles.addCardSub, { color: c.textMuted }]}>
-                Enter their 6-character ref code
-              </Text>
-              <TextInput
-                value={refCodeInput}
-                onChangeText={(t) => setRefCodeInput(t.toUpperCase())}
-                placeholder="e.g. A3X7KP"
-                placeholderTextColor={c.placeholder}
-                maxLength={6}
-                autoCapitalize="characters"
-                autoFocus
-                style={[styles.codeInput, { backgroundColor: c.inputBg, borderColor: c.border, color: c.text }]}
-              />
-              <View style={styles.addCardActions}>
-                <Pressable
-                  style={styles.cancelBtn}
-                  onPress={() => { setShowAddModal(false); setRefCodeInput(''); }}>
-                  <Text style={[styles.cancelLabel, { color: c.lossLight }]}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.confirmBtn,
-                    { backgroundColor: c.accent },
-                    (adding || refCodeInput.trim().length < 6) && styles.disabled,
-                  ]}
-                  onPress={handleAddFriend}
-                  disabled={adding || refCodeInput.trim().length < 6}>
-                  <Text style={[styles.confirmLabel, { color: '#fff' }]}>
-                    {adding ? 'Adding...' : 'Add Friend'}
-                  </Text>
-                </Pressable>
+            <KeyboardAvoidingView
+              behavior="padding"
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+              style={styles.addFriendModalKav}>
+              <View style={[styles.addCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                <Text style={[styles.addCardTitle, { color: c.text }]}>Send friend request</Text>
+                <Text style={[styles.addCardSub, { color: c.textMuted }]}>
+                  Enter their 6-character ref code
+                </Text>
+                <ScrollView
+                  ref={addFriendScrollRef}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  style={styles.addFriendModalFieldsScroll}
+                  contentContainerStyle={styles.addFriendModalFieldsScrollContent}>
+                  <TextInput
+                    value={refCodeInput}
+                    onChangeText={(t) => setRefCodeInput(t.toUpperCase())}
+                    placeholder="e.g. A3X7KP"
+                    placeholderTextColor={c.placeholder}
+                    maxLength={6}
+                    autoCapitalize="characters"
+                    autoFocus
+                    onFocus={() => scrollModalFieldToTop(addFriendScrollRef)}
+                    style={[styles.codeInput, { backgroundColor: c.inputBg, borderColor: c.border, color: c.text }]}
+                  />
+                </ScrollView>
+                <View style={styles.addCardActions}>
+                  <Pressable
+                    style={styles.cancelBtn}
+                    onPress={() => { setShowAddModal(false); setRefCodeInput(''); }}>
+                    <Text style={[styles.cancelLabel, { color: c.lossLight }]}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.confirmBtn,
+                      { backgroundColor: c.accent },
+                      (adding || refCodeInput.trim().length < 6) && styles.disabled,
+                    ]}
+                    onPress={handleAddFriend}
+                    disabled={adding || refCodeInput.trim().length < 6}>
+                    {adding ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={[styles.confirmLabel, { color: '#fff' }]}>Send request</Text>
+                    )}
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </View>
         </View>
       </Modal>
@@ -508,7 +798,9 @@ export default function FriendsScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.leaderboardBody}>
                 {groupLbLoading ? (
-                  <Text style={{ color: c.textMuted }}>Calculating...</Text>
+                  <View style={styles.lbLoadingWrap}>
+                    <ActivityIndicator size="large" color={c.textMuted} />
+                  </View>
                 ) : groupLeaderboard.length === 0 ? (
                   <Text style={{ color: c.textMuted }}>No results yet.</Text>
                 ) : (
@@ -584,14 +876,89 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+  lbSortWrap: {
+    position: 'relative',
+    zIndex: 20,
+  },
+  lbSortBtn: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 35,
+  },
+  lbSortBtnLabeled: {
+    borderWidth: 1,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    height: 35,
+  },
+  lbSortBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  lbSortDropdown: {
+    position: 'absolute',
+    top: 40,
+    right: 0,
+    minWidth: 180,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    elevation: 8,
+  },
+  lbSortSectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    paddingHorizontal: 12,
+    paddingTop: 2,
+    paddingBottom: 4,
+  },
+  lbSortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginHorizontal: 6,
+    borderRadius: 8,
+  },
+  lbSortOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  lbSortDivider: {
+    height: 1,
+    marginHorizontal: 8,
+    marginVertical: 4,
+  },
+  lbLoadingWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
   sectionTitle: {
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 16,
   },
   addBtnGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  friendSearchInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
   },
   scanBtn: {
     padding: 6,
@@ -605,7 +972,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    minHeight: 35,
+    height: 35,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -617,6 +984,49 @@ const styles = StyleSheet.create({
   emptyText: {
     textAlign: 'center',
     marginTop: 16,
+  },
+  requestBlock: {
+    gap: 8,
+  },
+  requestBlockTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  requestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requestAcceptBtn: {
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  requestAcceptLabel: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  pendingHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  cancelRequestLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   friendRow: {
     flexDirection: 'row',
@@ -636,6 +1046,13 @@ const styles = StyleSheet.create({
   friendName: {
     fontWeight: '600',
     fontSize: 15,
+  },
+  friendTextBlock: {
+    minWidth: 0,
+  },
+  friendMeta: {
+    marginTop: 2,
+    fontSize: 12,
   },
   friendAvatar: {
     fontSize: 20,
@@ -771,6 +1188,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
+  },
+  addFriendModalKav: {
+    flex: 1,
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 340,
+  },
+  addFriendModalFieldsScroll: {
+    width: '100%',
+  },
+  addFriendModalFieldsScrollContent: {
+    paddingBottom: 4,
   },
   addCard: {
     width: '100%',

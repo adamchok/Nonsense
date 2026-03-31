@@ -39,7 +39,7 @@ function RootNavigator() {
           options={{ title: 'New Session', presentation: 'modal', headerBackTitle: 'Back' }}
         />
         <Stack.Screen name="session/[id]" options={{ title: 'Active Session' }} />
-        <Stack.Screen name="session/cashout/[id]" options={{ title: 'Cash Out' }} />
+        <Stack.Screen name="session/cashout/[id]" options={{ title: 'End Session' }} />
         <Stack.Screen
           name="session/summary/[id]"
           options={{ title: 'Session Summary', headerBackTitle: 'Back' }}

@@ -1,9 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  Keyboard,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,14 +15,20 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { addBuyIn, createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
 import type { GroupMember, PokerGroup, SavedLocation } from '@/types';
 
+const SCREEN_CONTENT_PADDING_BOTTOM = 32;
+
 export default function NewSessionScreen() {
   const c = useAppColors();
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const { playerProfile } = useAuth();
   const [otherLocation, setOtherLocation] = useState('');
   const [joinSelf, setJoinSelf] = useState(true);
@@ -35,6 +44,9 @@ export default function NewSessionScreen() {
   const [selectedSavedLocationId, setSelectedSavedLocationId] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationMode, setLocationMode] = useState<'saved' | 'other'>('saved');
+  const [smallBlindStr, setSmallBlindStr] = useState('');
+  const [bigBlindStr, setBigBlindStr] = useState('');
+  const hasSavedLocations = savedLocations.length > 0;
 
   const userInSelectedGroup =
     Boolean(selectedGroup && playerProfile) &&
@@ -62,6 +74,35 @@ export default function NewSessionScreen() {
       cancelled = true;
     };
   }, [playerProfile]);
+
+  useEffect(() => {
+    if (!hasSavedLocations) {
+      setLocationMode('saved');
+      setSelectedSavedLocationId(null);
+    }
+  }, [hasSavedLocations]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = (e: { endCoordinates: { height: number } }) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    };
+    const onHide = () => setKeyboardHeight(0);
+    const subShow = Keyboard.addListener(showEvent, onShow);
+    const subHide = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
+
+  /** KeyboardAvoidingView does not change ScrollView scroll offset — only pads/shrinks. Extra bottom inset + scroll lets lower fields stay reachable. */
+  function scrollLowerFormIntoView() {
+    requestAnimationFrame(() => {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+    });
+  }
 
   function onSelectSavedLocation(item: SavedLocation) {
     setLocationMode('saved');
@@ -104,13 +145,22 @@ export default function NewSessionScreen() {
       return;
     }
 
-    const shouldAddGroupMembers = Boolean(selectedGroup && groupMembers.length > 0);
-    const shouldAddSelf = joinSelf && (!selectedGroup || !userInSelectedGroup);
-
-    if (!shouldAddGroupMembers && !shouldAddSelf) {
-      Alert.alert('Nothing to add', 'Enable "Join as player" or choose a group with members.');
-      return;
+    let membersForCreate = groupMembers;
+    if (selectedGroup && playerProfile) {
+      try {
+        membersForCreate = await getGroupMembers(playerProfile.id, selectedGroup.id);
+        setGroupMembers(membersForCreate);
+      } catch {
+        /* keep previous membersForCreate */
+      }
     }
+
+    const userInGroupForCreate =
+      Boolean(selectedGroup && playerProfile) &&
+      membersForCreate.some((m) => m.id === playerProfile.id);
+
+    const shouldAddGroupMembers = Boolean(selectedGroup && membersForCreate.length > 0);
+    const shouldAddSelf = joinSelf && (!selectedGroup || !userInGroupForCreate);
 
     if (shouldAddGroupMembers) {
       const parsed = parseFloat(groupBuyIn);
@@ -129,19 +179,36 @@ export default function NewSessionScreen() {
     }
 
     const selectedLocation =
-      locationMode === 'saved' ? (getSelectedSavedLocationName() ?? '') : otherLocation.trim();
+      hasSavedLocations && locationMode === 'saved'
+        ? (getSelectedSavedLocationName() ?? '')
+        : otherLocation.trim();
+
+    const sbTrim = smallBlindStr.trim();
+    const bbTrim = bigBlindStr.trim();
+    const sb = parseFloat(sbTrim);
+    const bb = parseFloat(bbTrim);
+    if (!sbTrim || !bbTrim || Number.isNaN(sb) || Number.isNaN(bb) || sb <= 0 || bb < sb) {
+      Alert.alert(
+        'Blinds required',
+        'Enter small and big blind amounts, with big blind at least equal to the small blind.'
+      );
+      return;
+    }
 
     try {
       setIsSaving(true);
       const sessionId = await createSession({
         hostId: playerProfile.id,
+        hostName: playerProfile.name,
         location: selectedLocation,
+        smallBlind: sb,
+        bigBlind: bb,
       });
 
       if (shouldAddGroupMembers) {
         const amount = parseFloat(groupBuyIn);
         await Promise.all(
-          groupMembers.map((member) =>
+          membersForCreate.map((member) =>
             addBuyIn(sessionId, {
               playerId: member.id,
               playerName: member.name,
@@ -171,142 +238,219 @@ export default function NewSessionScreen() {
   }
 
   return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={styles.screenContent}
-      keyboardShouldPersistTaps="handled">
-      <Text style={[styles.title, { color: c.text }]}>Start a Session</Text>
-
-      <Text style={[styles.savedLocationsLabel, { color: c.textMuted }]}>Location</Text>
-      <Pressable
-        style={[styles.locationPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
-        onPress={() => setShowLocationPicker(true)}>
-        <MaterialIcons name="place" size={18} color={c.textMuted} />
-        <Text style={[styles.locationPickerText, { color: c.text }]}>
-          {locationMode === 'saved'
-            ? getSelectedSavedLocationName() ?? 'Select a saved location'
-            : 'Other'}
-        </Text>
-        <MaterialIcons name="expand-more" size={20} color={c.textMuted} />
-      </Pressable>
-
-      {locationMode === 'other' && (
-        <TextInput
-          value={otherLocation}
-          onChangeText={setOtherLocation}
-          placeholder="Location (e.g. Adam's place)"
-          placeholderTextColor={c.placeholder}
-          style={[
-            styles.input,
-            { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+    <>
+        <ScrollView
+          ref={scrollRef}
+          style={[styles.screen, { backgroundColor: c.bg }]}
+          contentContainerStyle={[
+            styles.screenContent,
+            {
+              paddingBottom: SCREEN_CONTENT_PADDING_BOTTOM + keyboardHeight + insets.bottom,
+            },
           ]}
-        />
-      )}
-
-      {/* ---- Group picker ---- */}
-      {groups.length > 0 && (
-        <View style={[styles.groupSection, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.groupSectionTitle, { color: c.text }]}>Play with a group</Text>
-          <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
-            Select a group to auto-add all members with a uniform buy-in.
-          </Text>
-
-          {selectedGroup ? (
-            <View style={styles.selectedGroupRow}>
-              <View style={styles.selectedGroupInfo}>
-                <MaterialIcons name="group" size={20} color={c.profit} />
-                <Text style={[styles.selectedGroupName, { color: c.text }]}>
-                  {selectedGroup.name}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag">
+            <View style={styles.locationSection}>
+              <MaterialIcons name="place" size={20} color={c.textMuted} style={styles.icons} />
+              <Text style={[styles.locationSectionTitle, { color: c.textMuted }]}>Location (Optional)</Text>
+            </View>
+            {hasSavedLocations ? (
+              <Pressable
+                style={[styles.locationPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+                onPress={() => setShowLocationPicker(true)}>
+                <MaterialIcons name="place" size={18} color={c.textMuted} />
+                <Text style={[styles.locationPickerText, { color: c.text }]}>
+                  {locationMode === 'saved'
+                    ? getSelectedSavedLocationName() ?? 'Select a saved location'
+                    : 'Other'}
                 </Text>
-                <Text style={[styles.selectedGroupCount, { color: c.textHint }]}>
-                  ({groupMembers.length} {groupMembers.length === 1 ? 'player' : 'players'})
-                </Text>
-              </View>
-              <Pressable hitSlop={8} onPress={clearGroup}>
-                <MaterialIcons name="close" size={20} color={c.textHint} />
+                <MaterialIcons name="expand-more" size={20} color={c.textMuted} />
               </Pressable>
-            </View>
-          ) : (
-            <Pressable
-              style={[styles.groupPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
-              onPress={() => setShowGroupPicker(true)}>
-              <MaterialIcons name="group" size={18} color={c.textMuted} />
-              <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
-            </Pressable>
-          )}
+            ) : null}
 
-          {selectedGroup && groupMembers.length > 0 && (
-            <>
-              <View style={styles.groupMemberList}>
-                {groupMembers.map((m) => (
-                  <View key={m.id} style={[styles.groupMemberChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}>
-                    <Text style={[styles.groupMemberChipText, { color: c.chipText }]}>{m.name}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.buyInRow}>
-                <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+            {(locationMode === 'other' || !hasSavedLocations) && (
+              <View style={styles.locationInputGroup}>
                 <TextInput
-                  value={groupBuyIn}
-                  onChangeText={setGroupBuyIn}
-                  placeholder="Buy-in per player"
+                  value={otherLocation}
+                  onChangeText={setOtherLocation}
+                  placeholder="Location (e.g. Adam's place)"
                   placeholderTextColor={c.placeholder}
-                  keyboardType="numeric"
-                  style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                  style={[
+                    styles.input,
+                    { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+                  ]}
                 />
+                {!hasSavedLocations ? (
+                  <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
+                    No saved locations yet. Enter the session location above.
+                  </Text>
+                ) : null}
               </View>
-            </>
-          )}
-        </View>
-      )}
+            )}
 
-      {/* ---- Solo join (hidden only when user is already in the selected group) ---- */}
-      {shouldShowJoinAsPlayer && (
-        <View style={[styles.joinCard, { backgroundColor: c.card, borderColor: c.border }]}>
-          <View style={styles.joinRow}>
-            <View style={styles.joinTextCol}>
-              <Text style={[styles.joinTitle, { color: c.text }]}>Join as player</Text>
-              <Text style={[styles.joinHint, { color: c.textMuted }]}>
-                Add yourself with an initial buy-in
-              </Text>
+            <View style={styles.blindsSection}>
+              <MaterialIcons name="payments" size={20} color={c.textMuted} style={styles.icons} />
+              <View style={styles.labelWithRequired}>
+                <Text style={[styles.blindsSectionTitle, { color: c.textMuted }]}>Blinds</Text>
+              </View>
             </View>
-            <Switch
-              value={joinSelf}
-              onValueChange={setJoinSelf}
-              trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
-              thumbColor={c.switchThumb}
-            />
-          </View>
-          {joinSelf && (
-            <View style={styles.buyInRow}>
-              <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
-              <TextInput
-                value={buyInAmount}
-                onChangeText={setBuyInAmount}
-                placeholder="0.00"
-                placeholderTextColor={c.placeholder}
-                keyboardType="numeric"
-                style={[
-                  styles.buyInInput,
-                  { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
-                ]}
-              />
+            <View style={styles.blindsRow}>
+              <View style={styles.blindField}>
+                <View style={styles.labelWithRequired}>
+                  <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Small</Text>
+                  <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
+                </View>
+                <View style={styles.buyInRow}>
+                  <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                  <TextInput
+                    value={smallBlindStr}
+                    onChangeText={setSmallBlindStr}
+                    placeholder="0"
+                    placeholderTextColor={c.placeholder}
+                    keyboardType="decimal-pad"
+                    style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                  />
+                </View>
+              </View>
+              <View style={styles.blindField}>
+                <View style={styles.labelWithRequired}>
+                  <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Big</Text>
+                  <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
+                </View>
+                <View style={styles.buyInRow}>
+                  <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                  <TextInput
+                    value={bigBlindStr}
+                    onChangeText={setBigBlindStr}
+                    placeholder="0"
+                    placeholderTextColor={c.placeholder}
+                    keyboardType="decimal-pad"
+                    style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                  />
+                </View>
+              </View>
             </View>
-          )}
-        </View>
-      )}
 
-      <Pressable
-        onPress={onCreate}
-        disabled={isSaving}
-        style={({ pressed }) => [
-          styles.button,
-          { backgroundColor: c.accent },
-          isSaving && styles.disabled,
-          pressed && !isSaving && styles.pressed,
-        ]}>
-        <Text style={styles.buttonLabel}>{isSaving ? 'Creating...' : 'Create Session'}</Text>
-      </Pressable>
+            {/* ---- Group picker ---- */}
+            {groups.length > 0 && (
+              <View style={[styles.groupSection, { backgroundColor: c.card, borderColor: c.border }]}>
+                <View style={styles.groupSectionHeader}>
+                  <MaterialIcons name="group" size={20} color={c.textMuted} style={styles.icons} />
+                  <Text style={[styles.groupSectionTitle, { color: c.textMuted }]}>Play with a group (Optional)</Text>
+                </View>
+                <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
+                  Select a group to auto-add all members with a uniform buy-in.
+                </Text>
+
+                {selectedGroup ? (
+                  <View style={styles.selectedGroupRow}>
+                    <View style={styles.selectedGroupInfo}>
+                      <MaterialIcons name="group" size={20} color={c.profit} />
+                      <Text style={[styles.selectedGroupName, { color: c.text }]}>
+                        {selectedGroup.name}
+                      </Text>
+                      <Text style={[styles.selectedGroupCount, { color: c.textHint }]}>
+                        ({groupMembers.length} {groupMembers.length === 1 ? 'player' : 'players'})
+                      </Text>
+                    </View>
+                    <Pressable hitSlop={8} onPress={clearGroup}>
+                      <MaterialIcons name="close" size={20} color={c.textHint} />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={[styles.groupPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+                    onPress={() => setShowGroupPicker(true)}>
+                    <MaterialIcons name="group" size={18} color={c.textMuted} />
+                    <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
+                  </Pressable>
+                )}
+
+                {selectedGroup && groupMembers.length > 0 && (
+                  <>
+                    <View style={styles.groupMemberList}>
+                      {groupMembers.map((m) => (
+                        <View key={m.id} style={[styles.groupMemberChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}>
+                          <Text style={[styles.groupMemberChipText, { color: c.chipText }]}>{m.name}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={styles.buyInRow}>
+                      <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                      <TextInput
+                        value={groupBuyIn}
+                        onChangeText={setGroupBuyIn}
+                        placeholder="Buy-in per player"
+                        placeholderTextColor={c.placeholder}
+                        keyboardType="numeric"
+                        onFocus={scrollLowerFormIntoView}
+                        style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* ---- Solo join (hidden only when user is already in the selected group) ---- */}
+            {shouldShowJoinAsPlayer && (
+              <View style={[styles.joinCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                <View style={styles.joinRow}>
+                  <View style={styles.joinTextCol}>
+                    <View style={styles.joinTextRow}>
+                      <MaterialIcons name="person" size={20} color={c.textMuted} style={styles.icons} />
+                      <Text style={[styles.joinTitle, { color: c.textMuted }]}>Join as player</Text>
+                      {joinSelf ? (
+                        <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.joinHint, { color: c.textMuted }]}>
+                      Add yourself with an initial buy-in
+                    </Text>
+                  </View>
+                  <Switch
+                    value={joinSelf}
+                    onValueChange={setJoinSelf}
+                    trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
+                    thumbColor={c.switchThumb}
+                  />
+                </View>
+                {joinSelf && (
+                  <View style={styles.buyInRow}>
+                    <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                    <TextInput
+                      value={buyInAmount}
+                      onChangeText={setBuyInAmount}
+                      placeholder="0.00"
+                      placeholderTextColor={c.placeholder}
+                      keyboardType="numeric"
+                      onFocus={scrollLowerFormIntoView}
+                      style={[
+                        styles.buyInInput,
+                        { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+                      ]}
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+
+            <Pressable
+              onPress={onCreate}
+              disabled={isSaving}
+              style={({ pressed }) => [
+                styles.button,
+                { backgroundColor: c.accent },
+                isSaving && styles.disabled,
+                pressed && !isSaving && styles.pressed,
+              ]}>
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.buttonLabel}>Start Session</Text>
+                )}
+            </Pressable>
+        </ScrollView>
 
       {/* ---- Group picker modal ---- */}
       <Modal
@@ -380,7 +524,7 @@ export default function NewSessionScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </>
   );
 }
 
@@ -391,7 +535,6 @@ const styles = StyleSheet.create({
   screenContent: {
     padding: 16,
     paddingTop: 12,
-    paddingBottom: 32,
     gap: 12,
   },
   title: {
@@ -404,9 +547,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  locationInputGroup: {
+    gap: 4,
+    paddingBottom: 6,
+  },
   savedLocationsLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
+  },
+  locationSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locationSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  blindsSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  blindsSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  icons: {
+    marginTop: 1,
   },
   locationPickerBtn: {
     flexDirection: 'row',
@@ -437,11 +606,39 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  joinTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   joinTitle: {
+    fontSize: 14,
     fontWeight: '600',
   },
   joinHint: {
     fontSize: 12,
+  },
+  blindsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  blindField: {
+    flex: 1,
+    gap: 4,
+  },
+  blindFieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  labelWithRequired: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  requiredMark: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 12,
   },
   buyInRow: {
     flexDirection: 'row',
@@ -481,7 +678,13 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
   },
+  groupSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   groupSectionTitle: {
+    fontSize: 14,
     fontWeight: '600',
   },
   groupSectionHint: {

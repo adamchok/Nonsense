@@ -1,17 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
 
 import { useAppColors } from '@/lib/app-theme';
-import { finishSession, getBuyIns, getEarlyCashOuts, saveResults } from '@/lib/firestore';
+import { useAuth } from '@/lib/auth-context';
+import { finishSession, getBuyIns, getEarlyCashOuts, getSessionMeta, saveResults } from '@/lib/firestore';
 import type { SessionResult } from '@/types';
 
 const CHIP_AMOUNTS = [5, 10, 25, 50];
@@ -29,18 +32,23 @@ type PlayerEntry = {
 export default function CashOutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
+  const { playerProfile } = useAuth();
   const [players, setPlayers] = useState<PlayerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  const listRef = useRef<FlatList<PlayerEntry>>(null);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
       try {
-        const [buyIns, earlyCashOuts] = await Promise.all([
+        const [buyIns, earlyCashOuts, sessionMeta] = await Promise.all([
           getBuyIns(id),
           getEarlyCashOuts(id),
+          getSessionMeta(id),
         ]);
+        setCanEdit(Boolean(playerProfile?.id && sessionMeta.hostId === playerProfile.id));
         const earlyMap = new Map(earlyCashOuts.map((c) => [c.playerId, c]));
         const totals: Record<string, { name: string; total: number }> = {};
         for (const b of buyIns) {
@@ -65,7 +73,7 @@ export default function CashOutScreen() {
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, [id, playerProfile?.id]);
 
   function updateCashOut(playerId: string, value: string) {
     setPlayers((prev) =>
@@ -84,6 +92,16 @@ export default function CashOutScreen() {
     );
   }
 
+  function focusPlayerRow(index: number) {
+    setTimeout(() => {
+      listRef.current?.scrollToIndex({
+        index,
+        animated: true,
+        viewPosition: 0.65,
+      });
+    }, 120);
+  }
+
   const totalBuyIn = useMemo(() => players.reduce((s, p) => s + p.totalBuyIn, 0), [players]);
   const totalCashOut = useMemo(
     () => players.reduce((s, p) => s + (parseFloat(p.cashOutInput) || 0), 0),
@@ -94,6 +112,10 @@ export default function CashOutScreen() {
   const allFilled = players.every((p) => p.cashOutInput.trim().length > 0);
 
   async function handleConfirm() {
+    if (!canEdit) {
+      Alert.alert('Host only', 'Only the host can complete cash-out.');
+      return;
+    }
     if (!id) return;
 
     for (const p of players) {
@@ -157,8 +179,25 @@ export default function CashOutScreen() {
     );
   }
 
+  if (!canEdit) {
+    return (
+      <View style={[styles.screen, { backgroundColor: c.bg }]}>
+        <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
+        <Text style={[styles.meta, { color: c.textMuted }]}>
+          View-only mode. Only the session host can complete cash-out.
+        </Text>
+        <Pressable style={[styles.backButton, { backgroundColor: c.chipBg }]} onPress={() => router.back()}>
+          <Text style={[styles.buttonLabel, { color: '#fff' }]}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.screen, { backgroundColor: c.bg }]}>
+    <KeyboardAvoidingView
+      style={[styles.screen, { backgroundColor: c.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 20}>
       <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
       <Text style={[styles.meta, { color: c.textMuted }]}>
         Count each remaining player&apos;s chips and enter the amount below.
@@ -202,10 +241,14 @@ export default function CashOutScreen() {
       </View>
 
       <FlatList
+        ref={listRef}
         data={players}
         keyExtractor={(item) => item.playerId}
         style={styles.list}
-        renderItem={({ item }) => {
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.listContent}
+        onScrollToIndexFailed={() => listRef.current?.scrollToEnd({ animated: true })}
+        renderItem={({ item, index }) => {
           const cashOut = parseFloat(item.cashOutInput) || 0;
           const profit = cashOut - item.totalBuyIn;
           return (
@@ -240,6 +283,7 @@ export default function CashOutScreen() {
                 <TextInput
                   value={item.cashOutInput}
                   onChangeText={(v) => updateCashOut(item.playerId, v)}
+                  onFocus={() => focusPlayerRow(index)}
                   placeholder="0.00"
                   placeholderTextColor={c.placeholder}
                   keyboardType="numeric"
@@ -301,7 +345,7 @@ export default function CashOutScreen() {
           {saving ? 'Saving...' : 'Confirm & View Summary'}
         </Text>
       </Pressable>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -357,6 +401,9 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  listContent: {
+    paddingBottom: 8,
   },
   playerCard: {
     borderRadius: 10,
@@ -452,6 +499,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     paddingVertical: 12,
+    marginBottom: 14,
   },
   backButton: {
     borderRadius: 8,

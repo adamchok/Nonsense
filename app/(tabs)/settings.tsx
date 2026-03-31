@@ -1,9 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
+import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
+import { formatDateDMY } from '@/lib/date-format';
+import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
 
 const AVATAR_EMOJIS = [
@@ -12,15 +16,60 @@ const AVATAR_EMOJIS = [
   '🍀', '🌙', '⭐', '☀️', '🌊', '🍕', '🍔', '🍩', '🎧', '🎮',
 ];
 
+function formatPlayTime(ms: number): string {
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+}
+
+function signedMetricColor(
+  c: { profit: string; loss: string },
+  n: number | null | undefined
+): string | undefined {
+  if (n === null || n === undefined || Number.isNaN(n)) return undefined;
+  if (n > 0) return c.profit;
+  if (n < 0) return c.loss;
+  return undefined;
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
-  const { playerProfile, saveAvatarEmoji } = useAuth();
+  const { user, playerProfile, saveAvatarEmoji } = useAuth();
+  const c = useAppColors();
   const { preference, resolvedColorScheme, setPreference } = useThemePreference();
   const isDark = resolvedColorScheme === 'dark';
   const t = isDark ? theme.dark : theme.light;
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [pendingAvatarEmoji, setPendingAvatarEmoji] = useState<string | null>(null);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [stats, setStats] = useState<PlayerAppStatistics | null>(null);
+
+  useEffect(() => {
+    if (!showStatsModal || !user) return;
+    let cancelled = false;
+    setStatsLoading(true);
+    setStatsError(null);
+    void getPlayerAppStatistics(user.uid)
+      .then((data) => {
+        if (!cancelled) setStats(data);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setStatsError(e instanceof Error ? e.message : 'Failed to load statistics.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showStatsModal, user]);
 
   async function onPickAvatar(emoji: string) {
     if (savingAvatar) return;
@@ -82,14 +131,34 @@ export default function SettingsScreen() {
           <MaterialIcons name="qr-code" size={18} color="#fff" />
           <Text style={styles.primaryBtnLabel}>QR Code</Text>
         </Pressable>
-        <Pressable
-          style={[styles.secondaryBtn, { borderColor: t.card, backgroundColor: t.avatarBg }]}
-          onPress={() => router.push('../locations')}>
-          <View style={styles.secondaryBtnContent}>
-            <MaterialIcons name="location-on" size={18} color={t.text} />
-            <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
-          </View>
-        </Pressable>
+        <View style={styles.secondaryBtnRow}>
+          <Pressable
+            style={[
+              styles.secondaryBtn,
+              styles.secondaryBtnHalf,
+              { borderColor: t.card, backgroundColor: t.avatarBg },
+            ]}
+            onPress={() => router.push('../locations')}>
+            <View style={styles.secondaryBtnContent}>
+              <MaterialIcons name="location-on" size={18} color={t.text} />
+              <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
+            </View>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.secondaryBtn,
+              styles.secondaryBtnHalf,
+              { borderColor: t.card, backgroundColor: t.avatarBg },
+            ]}
+            onPress={() => setShowStatsModal(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Open statistics">
+            <View style={styles.secondaryBtnContent}>
+              <MaterialIcons name="bar-chart" size={18} color={t.text} />
+              <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Statistics</Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
@@ -123,6 +192,174 @@ export default function SettingsScreen() {
           t={t}
         />
       </View>
+
+      <Modal
+        visible={showStatsModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowStatsModal(false)}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+            onPress={() => setShowStatsModal(false)}
+          />
+          <View pointerEvents="box-none" style={styles.statsModalCenter}>
+            <View style={[styles.statsCard, { backgroundColor: t.card, borderColor: t.border }]}>
+              <View style={styles.statsHeaderRow}>
+                <Text style={[styles.statsTitle, { color: t.text }]}>Your statistics</Text>
+                <Pressable onPress={() => setShowStatsModal(false)} hitSlop={10}>
+                  <MaterialIcons name="close" size={22} color={t.muted} />
+                </Pressable>
+              </View>
+              {!user ? (
+                <Text style={[styles.statsFootnote, { color: t.muted }]}>
+                  Sign in to see statistics.
+                </Text>
+              ) : statsLoading ? (
+                <View style={styles.statsLoadingWrap}>
+                  <ActivityIndicator size="large" color={t.accent} />
+                </View>
+              ) : statsError ? (
+                <Text style={[styles.statsError, { color: '#b91c1c' }]}>{statsError}</Text>
+              ) : stats ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.statsScrollContent}>
+                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Sessions</Text>
+                  <StatRow t={t} label="Finished sessions" value={String(stats.finishedSessions)} />
+                  <StatRow
+                    t={t}
+                    label="First session"
+                    value={stats.firstSessionDate ? formatDateDMY(stats.firstSessionDate) : '—'}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Latest session"
+                    value={stats.lastSessionDate ? formatDateDMY(stats.lastSessionDate) : '—'}
+                  />
+                  <StatRow t={t} label="As host" value={String(stats.sessionsAsHost)} />
+                  <StatRow t={t} label="As participant" value={String(stats.sessionsAsParticipant)} />
+
+                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Results & money</Text>
+                  <StatRow
+                    t={t}
+                    label="Lifetime profit / loss"
+                    value={formatSignedCurrency(stats.totalProfit)}
+                    emphasize
+                    valueColor={signedMetricColor(c, stats.totalProfit)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Average per finished session"
+                    value={
+                      stats.avgProfitPerSession !== null
+                        ? formatSignedCurrency(stats.avgProfitPerSession)
+                        : '—'
+                    }
+                    valueColor={signedMetricColor(c, stats.avgProfitPerSession ?? undefined)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="P/L per hour"
+                    value={
+                      stats.profitPerHour !== null
+                        ? formatSignedCurrency(stats.profitPerHour)
+                        : '—'
+                    }
+                    hint="Lifetime P/L divided by recorded time played."
+                    valueColor={signedMetricColor(c, stats.profitPerHour ?? undefined)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Best session"
+                    value={
+                      stats.bestSessionProfit !== null
+                        ? formatSignedCurrency(stats.bestSessionProfit)
+                        : '—'
+                    }
+                    valueColor={signedMetricColor(c, stats.bestSessionProfit ?? undefined)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Worst session"
+                    value={
+                      stats.worstSessionProfit !== null
+                        ? formatSignedCurrency(stats.worstSessionProfit)
+                        : '—'
+                    }
+                    valueColor={signedMetricColor(c, stats.worstSessionProfit ?? undefined)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Win rate"
+                    value={
+                      stats.finishedSessions > 0
+                        ? `${((stats.winningSessions / stats.finishedSessions) * 100).toFixed(1)}% (${stats.winningSessions}W / ${stats.losingSessions}L / ${stats.breakEvenSessions} even)`
+                        : '—'
+                    }
+                  />
+                  <StatRow
+                    t={t}
+                    label="Total buy-in"
+                    value={formatCurrency(stats.totalBuyIn)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Total cash-out"
+                    value={formatCurrency(stats.totalCashOut)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Return on buy-in"
+                    value={
+                      stats.totalBuyIn > 0
+                        ? `${((stats.totalProfit / stats.totalBuyIn) * 100).toFixed(1)}%`
+                        : '—'
+                    }
+                    hint="Profit ÷ total buy-in across finished sessions."
+                    valueColor={
+                      stats.totalBuyIn > 0 ? signedMetricColor(c, stats.totalProfit) : undefined
+                    }
+                  />
+
+                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Time & places</Text>
+                  <StatRow
+                    t={t}
+                    label="Total time played"
+                    value={formatPlayTime(stats.totalPlayTimeMs)}
+                    hint="Sum of session lengths where end time is recorded."
+                  />
+                  <StatRow
+                    t={t}
+                    label="Sessions with a location"
+                    value={String(stats.sessionsWithLocation)}
+                  />
+                  <StatRow
+                    t={t}
+                    label="Unique locations played"
+                    value={String(stats.uniqueSessionLocations)}
+                  />
+
+                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Social & saved data</Text>
+                  <StatRow t={t} label="Friends" value={String(stats.friendCount)} />
+                  <StatRow t={t} label="Groups" value={String(stats.groupCount)} />
+                  <StatRow
+                    t={t}
+                    label="Saved locations"
+                    value={`${stats.savedLocationCount} / 10`}
+                  />
+
+                  <Text style={[styles.statsFootnote, { color: t.muted }]}>
+                    Stats include every finished session in the database where you have a saved result.
+                    Sessions without a recorded end time do not add to “time played” or P/L per hour.
+                  </Text>
+                </ScrollView>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showAvatarPicker}
@@ -164,6 +401,41 @@ export default function SettingsScreen() {
         </View>
       </Modal>
     </ScrollView>
+  );
+}
+
+function StatRow({
+  t,
+  label,
+  value,
+  hint,
+  emphasize,
+  valueColor,
+}: {
+  t: (typeof theme)['dark'];
+  label: string;
+  value: string;
+  hint?: string;
+  emphasize?: boolean;
+  valueColor?: string;
+}) {
+  return (
+    <View style={styles.statBlock}>
+      <View style={styles.statRow}>
+        <Text style={[styles.statLabel, { color: t.muted }]}>{label}</Text>
+        <Text
+          style={[
+            emphasize ? styles.statValueStrong : styles.statValue,
+            { color: valueColor ?? t.text },
+          ]}
+          numberOfLines={3}>
+          {value}
+        </Text>
+      </View>
+      {hint ? (
+        <Text style={[styles.statHint, { color: t.muted }]}>{hint}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -318,11 +590,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  secondaryBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   secondaryBtn: {
     borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  secondaryBtnHalf: {
+    flex: 1,
+    minWidth: 0,
   },
   secondaryBtnContent: {
     flexDirection: 'row',
@@ -417,5 +697,94 @@ const styles = StyleSheet.create({
   },
   emojiBtnText: {
     fontSize: 24,
+  },
+  statsModalCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  statsCard: {
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '88%',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 8,
+  },
+  statsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  statsScrollContent: {
+    gap: 2,
+    paddingBottom: 12,
+  },
+  statsSectionLabel: {
+    marginTop: 12,
+    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  statBlock: {
+    marginBottom: 6,
+    gap: 2,
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statLabel: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  statValue: {
+    maxWidth: '52%',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'right',
+    lineHeight: 18,
+  },
+  statValueStrong: {
+    maxWidth: '52%',
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'right',
+    lineHeight: 20,
+  },
+  statHint: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  statsRefCode: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  statsLoadingWrap: {
+    paddingVertical: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsError: {
+    paddingVertical: 12,
+    fontSize: 14,
+  },
+  statsFootnote: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 10,
   },
 });

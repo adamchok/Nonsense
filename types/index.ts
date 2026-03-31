@@ -15,11 +15,20 @@ export interface FriendRecord {
   avatarEmoji?: string;
 }
 
+export interface FriendRequestRecord {
+  playerId: string;
+  name: string;
+  createdAt: Date;
+  avatarEmoji?: string;
+}
+
 export interface SessionRecord {
   id: string;
   hostId: string;
   date: Date;
   location?: string;
+  smallBlind?: number;
+  bigBlind?: number;
   status: SessionStatus;
   finishedAt?: Date;
 }
@@ -52,6 +61,7 @@ export interface PokerGroup {
   id: string;
   name: string;
   createdAt: Date;
+  memberCount?: number;
 }
 
 export interface GroupMember {

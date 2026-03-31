@@ -12,6 +12,15 @@ export function formatCompactCurrency(amount: number): string {
   return `$${Number(k.toFixed(2)).toString()}K`;
 }
 
+/** Stake string e.g. `$1.00/$2.00` when both blinds are valid; otherwise null. */
+export function formatBlinds(small?: number, big?: number): string | null {
+  if (small == null || big == null) return null;
+  if (!Number.isFinite(small) || !Number.isFinite(big) || small <= 0 || big < small) {
+    return null;
+  }
+  return `${formatCompactCurrency(small)}/${formatCompactCurrency(big)}`;
+}
+
 /** Compact currency with explicit + / - sign. */
 export function formatSignedCompactCurrency(amount: number): string {
   const sign = amount >= 0 ? '+' : '-';

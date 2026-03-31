@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -18,18 +19,19 @@ import {
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatCompactCurrency } from '@/lib/currency-format';
+import { formatBlinds, formatCompactCurrency } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getFirestoreDb } from '@/lib/firebase';
+import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import {
   addBuyIn,
-  finishSession,
   removeEarlyCashOut,
   removePlayerBuyIns,
   saveEarlyCashOut,
   subscribeBuyIns,
   subscribeEarlyCashOuts,
   subscribeFriends,
+  updateSessionBlinds,
   updateSessionLocation,
 } from '@/lib/firestore';
 import type { BuyIn, EarlyCashOut, FriendRecord } from '@/types';
@@ -38,8 +40,23 @@ type SessionView = {
   hostId?: string;
   date?: Date;
   location?: string;
+  smallBlind?: number;
+  bigBlind?: number;
   status: 'active' | 'finished';
 };
+
+function sessionBlindsFromData(data: Record<string, unknown>): {
+  smallBlind?: number;
+  bigBlind?: number;
+} {
+  const rawSb = data.smallBlind;
+  const rawBb = data.bigBlind;
+  if (rawSb == null || rawBb == null) return {};
+  const sb = typeof rawSb === 'number' ? rawSb : Number(rawSb);
+  const bb = typeof rawBb === 'number' ? rawBb : Number(rawBb);
+  if (!Number.isFinite(sb) || !Number.isFinite(bb) || sb <= 0 || bb < sb) return {};
+  return { smallBlind: sb, bigBlind: bb };
+}
 
 function toDate(value: unknown): Date | undefined {
   if (value instanceof Timestamp) return value.toDate();
@@ -64,7 +81,7 @@ function formatCashOutTimestamp(d: Date): string {
 }
 
 /** Max rows visible before the buy-in ledger scrolls (approx row height incl. margin). */
-const LEDGER_MAX_VISIBLE_ROWS = 4;
+const LEDGER_MAX_VISIBLE_ROWS = 8;
 const LEDGER_ROW_APPROX_PX = 68;
 const GUEST_AVATARS = ['🤠', '😎', '🦈', '🐯', '🦁', '🐸', '🐻', '🎯', '🔥', '⚡', '🍀', '🎲'];
 
@@ -90,12 +107,20 @@ export default function ActiveSessionScreen() {
     totalBuyIn: number;
   } | null>(null);
   const [cashOutAmount, setCashOutAmount] = useState('');
-  const amountInputRef = useRef<TextInput>(null);
+  const [buyInEditorVisible, setBuyInEditorVisible] = useState(false);
+  const buyInAmountInputRef = useRef<TextInput>(null);
+  const buyInScrollRef = useRef<ScrollView>(null);
+  const locationScrollRef = useRef<ScrollView>(null);
+  const blindsScrollRef = useRef<ScrollView>(null);
   /** Ledger row tap → early cash-out detail modal (buy back in lives in modal). */
   const [cashedOutDetailPlayerId, setCashedOutDetailPlayerId] = useState<string | null>(null);
   const [locationEditorVisible, setLocationEditorVisible] = useState(false);
   const [locationDraft, setLocationDraft] = useState('');
   const [isSavingLocation, setIsSavingLocation] = useState(false);
+  const [blindsEditorVisible, setBlindsEditorVisible] = useState(false);
+  const [smallBlindDraft, setSmallBlindDraft] = useState('');
+  const [bigBlindDraft, setBigBlindDraft] = useState('');
+  const [isSavingBlinds, setIsSavingBlinds] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -108,11 +133,12 @@ export default function ActiveSessionScreen() {
           setSession(null);
           return;
         }
-        const data = snapshot.data();
+        const data = snapshot.data() as Record<string, unknown>;
         setSession({
           hostId: data.hostId ? String(data.hostId) : undefined,
           date: toDate(data.date ?? data.createdAt),
           location: data.location ? String(data.location) : undefined,
+          ...sessionBlindsFromData(data),
           status: data.status === 'finished' ? 'finished' : 'active',
         });
         setError(null);
@@ -167,6 +193,7 @@ export default function ActiveSessionScreen() {
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
   const totalPot = players.reduce((sum, p) => sum + p.total, 0);
+  const selfInSession = Boolean(playerProfile && playerTotals[playerProfile.id]);
 
   function pickGuestAvatar(seed: string): string {
     let hash = 0;
@@ -205,6 +232,10 @@ export default function ActiveSessionScreen() {
 
   async function handleAddBuyIn(name: string, amt: string) {
     Keyboard.dismiss();
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can add buy-ins.');
+      return;
+    }
     if (!id || !name.trim() || !amt.trim()) return;
     const parsed = parseFloat(amt);
     if (isNaN(parsed) || parsed <= 0) {
@@ -237,7 +268,19 @@ export default function ActiveSessionScreen() {
   function selectRebuyForPlayer(playerId: string, name: string) {
     setPlayerName(name);
     setPickedPlayerId(playerId);
-    amountInputRef.current?.focus();
+    requestAnimationFrame(() => buyInAmountInputRef.current?.focus());
+  }
+
+  function openBuyInEditor() {
+    setBuyInEditorVisible(true);
+  }
+
+  function closeBuyInEditor() {
+    Keyboard.dismiss();
+    setBuyInEditorVisible(false);
+    setPlayerName('');
+    setAmount('');
+    setPickedPlayerId(null);
   }
 
   const viewerIsHost = Boolean(
@@ -245,6 +288,10 @@ export default function ActiveSessionScreen() {
   );
 
   function confirmRemovePlayer(playerId: string, name: string) {
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can remove players.');
+      return;
+    }
     if (!id) return;
     Alert.alert(
       `Remove ${name}?`,
@@ -274,11 +321,19 @@ export default function ActiveSessionScreen() {
   }
 
   function startEarlyCashOut(playerId: string, playerName: string, totalBuyIn: number) {
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can cash out players.');
+      return;
+    }
     setCashOutTarget({ playerId, playerName, totalBuyIn });
     setCashOutAmount('');
   }
 
   async function confirmEarlyCashOut() {
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can cash out players.');
+      return;
+    }
     if (!id || !cashOutTarget) return;
     const parsed = parseFloat(cashOutAmount);
     if (isNaN(parsed) || parsed < 0) {
@@ -300,6 +355,10 @@ export default function ActiveSessionScreen() {
   }
 
   function confirmBuyBackIn(playerId: string, playerName: string) {
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can buy players back in.');
+      return;
+    }
     if (!id) return;
     Alert.alert(
       `Buy back in?`,
@@ -326,25 +385,29 @@ export default function ActiveSessionScreen() {
   }
 
   function handleEndSession() {
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can end this session.');
+      return;
+    }
     if (!id) return;
+    if (!formatBlinds(session?.smallBlind, session?.bigBlind)) {
+      Alert.alert(
+        'Blinds required',
+        'Set small and big blind before ending this session.'
+      );
+      return;
+    }
     Alert.alert('End Session', 'Are you sure? Players will need to cash out.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'End Session',
         style: 'destructive',
-        onPress: async () => {
-          try {
-            await finishSession(id);
-            router.push(`./cashout/${id}`);
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'Failed to end session.');
-          }
+        onPress: () => {
+          router.push(`./cashout/${id}`);
         },
       },
     ]);
   }
-
-  const selfInSession = playerProfile && playerTotals[playerProfile.id];
 
   function closeCashOutModal() {
     Keyboard.dismiss();
@@ -364,6 +427,10 @@ export default function ActiveSessionScreen() {
   }
 
   async function saveLocation() {
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can edit location.');
+      return;
+    }
     if (!id) return;
     try {
       setIsSavingLocation(true);
@@ -376,6 +443,74 @@ export default function ActiveSessionScreen() {
     }
   }
 
+  function openBlindsEditor() {
+    setSmallBlindDraft(
+      session?.smallBlind != null && Number.isFinite(session.smallBlind)
+        ? String(session.smallBlind)
+        : ''
+    );
+    setBigBlindDraft(
+      session?.bigBlind != null && Number.isFinite(session.bigBlind) ? String(session.bigBlind) : ''
+    );
+    setBlindsEditorVisible(true);
+  }
+
+  function closeBlindsEditor() {
+    Keyboard.dismiss();
+    setBlindsEditorVisible(false);
+    setSmallBlindDraft('');
+    setBigBlindDraft('');
+  }
+
+  async function saveBlinds() {
+    if (!viewerIsHost) {
+      Alert.alert('Host only', 'Only the host can edit blinds.');
+      return;
+    }
+    if (!id) return;
+    const sbTrim = smallBlindDraft.trim();
+    const bbTrim = bigBlindDraft.trim();
+    const sb = parseFloat(sbTrim);
+    const bb = parseFloat(bbTrim);
+    if (!sbTrim || !bbTrim || Number.isNaN(sb) || Number.isNaN(bb) || sb <= 0 || bb < sb) {
+      Alert.alert(
+        'Blinds required',
+        'Enter small and big blind amounts, with big blind at least equal to the small blind.'
+      );
+      return;
+    }
+    try {
+      setIsSavingBlinds(true);
+      await updateSessionBlinds(id, { smallBlind: sb, bigBlind: bb });
+      closeBlindsEditor();
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to update blinds.');
+    } finally {
+      setIsSavingBlinds(false);
+    }
+  }
+
+  async function confirmBuyInFromModal() {
+    if (!playerName.trim() || !amount.trim()) return;
+    await handleAddBuyIn(playerName, amount);
+    closeBuyInEditor();
+  }
+
+  const blindsDisplay = session ? formatBlinds(session.smallBlind, session.bigBlind) : null;
+  const showBlindsRow = Boolean(viewerIsHost || blindsDisplay);
+  const sbDraft = smallBlindDraft.trim();
+  const bbDraft = bigBlindDraft.trim();
+  const sbDraftValue = parseFloat(sbDraft);
+  const bbDraftValue = parseFloat(bbDraft);
+  const isBlindsDraftValid =
+    Boolean(sbDraft) &&
+    Boolean(bbDraft) &&
+    !Number.isNaN(sbDraftValue) &&
+    !Number.isNaN(bbDraftValue) &&
+    sbDraftValue > 0 &&
+    bbDraftValue >= sbDraftValue;
+  const isBlindsSaveDisabled = isSavingBlinds || !isBlindsDraftValid;
+
   return (
     <>
     <ScrollView
@@ -383,126 +518,92 @@ export default function ActiveSessionScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled>
-      <Text style={[styles.title, { color: c.text }]}>
-        {session?.date ? formatDateTimeDMY(session.date) : 'Active Session'}
-      </Text>
-      <View style={styles.metaRow}>
+      <View style={styles.sessionHeader}>
+        <View style={styles.sessionHeaderText}>
+          <Text style={[styles.sessionHeaderLabel, { color: c.textHint }]}>SESSION</Text>
+          <Text
+            style={[styles.sessionHeaderTitle, { color: c.text }]}
+            numberOfLines={2}>
+            {session?.date ? formatDateTimeDMY(session.date) : 'Active Session'}
+          </Text>
+        </View>
         {viewerIsHost ? (
           <Pressable
-            onPress={openLocationEditor}
-            style={[styles.locationCard, { backgroundColor: c.card, borderColor: c.border }]}>
-            <MaterialIcons name="place" size={20} color={c.textHint} style={styles.locationIcon} />
-            <View style={styles.locationTextBlock}>
-              <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
-              <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={2}>
-                {session?.location ? session.location : 'Tap to add location'}
-              </Text>
-            </View>
-            <MaterialIcons name="edit" size={18} color={c.textHint} />
+            onPress={openBuyInEditor}
+            style={({ pressed }) => [
+              styles.sessionHeaderBuyIn,
+              {
+                backgroundColor: c.accent,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              },
+            ]}>
+            <MaterialIcons name="add" size={18} color="#fff" />
+            <Text style={styles.sessionHeaderBuyInLabel}>Buy-In</Text>
           </Pressable>
-        ) : session?.location ? (
-          <View style={[styles.locationCard, { backgroundColor: c.card, borderColor: c.border }]}>
-            <MaterialIcons name="place" size={20} color={c.textHint} style={styles.locationIcon} />
-            <View style={styles.locationTextBlock}>
-              <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
-              <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={2}>
-                {session.location}
-              </Text>
-            </View>
+        ) : null}
+      </View>
+      <View style={styles.metaRow}>
+        <View style={styles.potRowRight}>
+          <View style={[styles.potBadge, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
+            <Text style={[styles.potLabel, { color: c.profit }]}>POT</Text>
+            <Text style={[styles.potValue, { color: c.profit }]}>{formatCompactCurrency(totalPot)}</Text>
           </View>
-        ) : (
-          <View style={styles.metaSpacer} />
-        )}
-        <View style={[styles.potBadge, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
-          <Text style={[styles.potLabel, { color: c.profit }]}>POT</Text>
-          <Text style={[styles.potValue, { color: c.profit }]}>{formatCompactCurrency(totalPot)}</Text>
         </View>
       </View>
-      {error ? <Text style={[styles.error, { color: c.loss }]}>{error}</Text> : null}
-
-      {session?.status === 'active' && (
-        <View style={[styles.addSection, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.sectionTitle, { color: c.text }]}>Add Buy-In</Text>
-
-          {playerProfile && !selfInSession && (
-            <Pressable
-              style={[styles.quickAddButton, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
-              onPress={() => selectRebuyForPlayer(playerProfile.id, playerProfile.name)}>
-              <Text style={[styles.quickAddLabel, { color: c.profit }]}>+ Add myself ({playerProfile.name})</Text>
-            </Pressable>
-          )}
-
-          {(() => {
-            const sessionPlayerIds = new Set(players.map((p) => p.playerId));
-            const activePlayers = players.filter((p) => !earlyCashOutMap.has(p.playerId));
-            const friendsNotInSession = friends.filter(
-              (f) => !sessionPlayerIds.has(f.playerId)
-            );
-            const hasChips = activePlayers.length > 0 || friendsNotInSession.length > 0;
-            if (!hasChips) return null;
-            return (
-              <View style={styles.rebuyBlock}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.rebuyChips}
-                  keyboardShouldPersistTaps="handled">
-                  {activePlayers.map((p) => {
-                    const isMe = playerProfile && p.playerId === playerProfile.id;
-                    return (
-                      <Pressable
-                        key={p.playerId}
-                        style={[styles.rebuyChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}
-                        onPress={() => selectRebuyForPlayer(p.playerId, p.name)}>
-                        <Text style={[styles.rebuyChipText, { color: c.chipText }]}>
-                          {p.name}
-                          {isMe ? ' (You)' : ''}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                  {friendsNotInSession.map((f) => (
-                    <Pressable
-                      key={f.playerId}
-                      style={[styles.friendChip, { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder }]}
-                      onPress={() => selectRebuyForPlayer(f.playerId, f.name)}>
-                      <MaterialIcons name="person-add" size={14} color={c.blue} />
-                      <Text style={[styles.friendChipText, { color: c.blue }]}>{f.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+      {showBlindsRow ? (
+        <View style={styles.metaSecondRow}>
+          {viewerIsHost ? (
+            <>
+              <Pressable
+                onPress={openLocationEditor}
+                style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                <View style={styles.locationTextBlock}>
+                  <View style={styles.locationLabelRow}>
+                    <MaterialIcons name="place" size={14} color={c.textHint} />
+                    <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
+                  </View>
+                  <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                    {session?.location ? session.location : 'Tap to add location'}
+                  </Text>
+                </View>
+                <MaterialIcons name="edit" size={18} color={c.textHint} />
+              </Pressable>
+              <Pressable
+                onPress={openBlindsEditor}
+                style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                <View style={styles.locationTextBlock}>
+                  <View style={styles.locationLabelRow}>
+                    <MaterialIcons name="payments" size={14} color={c.textHint} />
+                    <Text style={[styles.locationLabel, { color: c.textHint }]}>BLINDS</Text>
+                  </View>
+                  <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                    {blindsDisplay ?? 'Tap to add blinds'}
+                  </Text>
+                </View>
+                <MaterialIcons name="edit" size={18} color={c.textHint} />
+              </Pressable>
+            </>
+          ) : blindsDisplay ? (
+            <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              <View style={styles.locationTextBlock}>
+                <View style={styles.locationLabelRow}>
+                  <MaterialIcons name="payments" size={14} color={c.textHint} />
+                  <Text style={[styles.locationLabel, { color: c.textHint }]}>BLINDS</Text>
+                </View>
+                <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                  {blindsDisplay}
+                </Text>
               </View>
-            );
-          })()}
-
-          <View style={styles.inputRow}>
-            <TextInput
-              value={playerName}
-              onChangeText={onPlayerNameChange}
-              placeholder="Player name"
-              placeholderTextColor={c.placeholder}
-              style={[styles.input, { flex: 2, borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
-            />
-            <View style={[styles.amountInputWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
-              <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
-              <TextInput
-                ref={amountInputRef}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0.00"
-                placeholderTextColor={c.placeholder}
-                keyboardType="numeric"
-                style={[styles.amountInput, { color: c.text }]}
-              />
             </View>
-          </View>
-          <Pressable
-            style={[styles.addButton, { backgroundColor: c.accent }, (isAdding || !playerName.trim() || !amount.trim()) && styles.disabled]}
-            onPress={() => handleAddBuyIn(playerName, amount)}
-            disabled={isAdding || !playerName.trim() || !amount.trim()}>
-            <Text style={styles.addButtonLabel}>{isAdding ? 'Adding...' : 'Add Buy-In'}</Text>
-          </Pressable>
+          ) : null}
         </View>
+      ) : null}
+      {error ? <Text style={[styles.error, { color: c.loss }]}>{error}</Text> : null}
+      {session?.status === 'active' && !viewerIsHost && (
+        <Text style={[styles.emptyText, { color: c.textMuted }]}>
+          View-only mode: only the host can add buy-ins, cash out players, edit location or blinds, or end the session.
+        </Text>
       )}
 
       <Text style={[styles.sectionTitle, { color: c.text }]}>Buy-In Ledger ({players.length})</Text>
@@ -528,7 +629,7 @@ export default function ActiveSessionScreen() {
               { backgroundColor: c.card, borderColor: c.border },
               isCashedOut && [styles.playerRowCashedOut, { borderColor: c.borderDanger }],
             ];
-            const tapCashedOutRow = session?.status === 'active' && isCashedOut;
+            const tapCashedOutRow = viewerIsHost && session?.status === 'active' && isCashedOut;
 
             const rowInner = (
               <>
@@ -594,7 +695,7 @@ export default function ActiveSessionScreen() {
                     )}
                   </View>
                 </View>
-                {session?.status === 'active' && !isCashedOut && (
+                {viewerIsHost && session?.status === 'active' && !isCashedOut && (
                   <View style={styles.playerRowActions}>
                     <Pressable
                       style={[styles.cashOutPlayerBtn, { backgroundColor: c.blueBg }]}
@@ -604,21 +705,19 @@ export default function ActiveSessionScreen() {
                       accessibilityRole="button">
                       <MaterialIcons name="account-balance-wallet" size={18} color={c.blue} />
                     </Pressable>
-                    {viewerIsHost ? (
-                      <Pressable
-                        style={styles.removePlayerBtn}
-                        disabled={removingPlayerId === item.playerId}
-                        onPress={() => confirmRemovePlayer(item.playerId, item.name)}
-                        hitSlop={8}
-                        accessibilityLabel={`Remove ${item.name}`}
-                        accessibilityRole="button">
-                        {removingPlayerId === item.playerId ? (
-                          <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>…</Text>
-                        ) : (
-                          <MaterialIcons name="delete-outline" size={18} color={c.lossLight} />
-                        )}
-                      </Pressable>
-                    ) : null}
+                    <Pressable
+                      style={styles.removePlayerBtn}
+                      disabled={removingPlayerId === item.playerId}
+                      onPress={() => confirmRemovePlayer(item.playerId, item.name)}
+                      hitSlop={8}
+                      accessibilityLabel={`Remove ${item.name}`}
+                      accessibilityRole="button">
+                      {removingPlayerId === item.playerId ? (
+                        <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>…</Text>
+                      ) : (
+                        <MaterialIcons name="delete-outline" size={18} color={c.lossLight} />
+                      )}
+                    </Pressable>
                   </View>
                 )}
                 {tapCashedOutRow ? (
@@ -650,7 +749,7 @@ export default function ActiveSessionScreen() {
       )}
 
       <View style={styles.bottomActions}>
-        {session?.status === 'active' && (
+        {viewerIsHost && session?.status === 'active' && (
           <Pressable style={[styles.endButton, { backgroundColor: c.destructive }]} onPress={handleEndSession}>
             <Text style={styles.endButtonLabel}>End Session & Cash Out</Text>
           </Pressable>
@@ -679,10 +778,10 @@ export default function ActiveSessionScreen() {
           />
           <View pointerEvents="box-none" style={styles.modalCenterWrap}>
             <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-              style={styles.modalKeyboard}>
-              <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.borderBlue }]}>
+              style={[styles.modalKeyboard, styles.sessionModalKav]}>
+              <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.border }]}>
                 <Text style={[styles.cashOutFormTitle, { color: c.text }]}>
                   Cash out: {cashOutTarget.playerName}
                 </Text>
@@ -718,6 +817,139 @@ export default function ActiveSessionScreen() {
     </Modal>
 
     <Modal
+      visible={buyInEditorVisible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={closeBuyInEditor}>
+      <View style={styles.modalRoot}>
+        <Pressable
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+          onPress={closeBuyInEditor}
+          accessibilityLabel="Dismiss"
+          accessibilityRole="button"
+        />
+        <View pointerEvents="box-none" style={styles.modalCenterWrap}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+            style={[styles.modalKeyboard, styles.sessionModalKav]}>
+            <View style={[styles.cashOutForm, styles.buyInModalForm, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[styles.cashOutFormTitle, { color: c.text }]}>Add Buy-In</Text>
+              <Text style={[styles.cashOutFormSub, { color: c.textMuted }]}>
+                Enter name and amount, or pick a player below.
+              </Text>
+              <ScrollView
+                ref={buyInScrollRef}
+                style={styles.buyInModalScroll}
+                contentContainerStyle={styles.buyInModalScrollContent}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}>
+                <View style={[styles.addSection, { borderColor: c.border, backgroundColor: c.cardAlt }]}>
+                  {playerProfile && !selfInSession && (
+                    <Pressable
+                      style={[styles.quickAddButton, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
+                      onPress={() => selectRebuyForPlayer(playerProfile.id, playerProfile.name)}>
+                      <Text style={[styles.quickAddLabel, { color: c.profit }]}>
+                        + Add myself ({playerProfile.name})
+                      </Text>
+                    </Pressable>
+                  )}
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      value={playerName}
+                      onChangeText={onPlayerNameChange}
+                      placeholder="Player name"
+                      placeholderTextColor={c.placeholder}
+                      onFocus={() => scrollModalFieldToTop(buyInScrollRef)}
+                      style={[styles.input, { flex: 2, borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                    />
+                    <View style={[styles.amountInputWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
+                      <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                      <TextInput
+                        ref={buyInAmountInputRef}
+                        value={amount}
+                        onChangeText={setAmount}
+                        placeholder="0.00"
+                        placeholderTextColor={c.placeholder}
+                        keyboardType="numeric"
+                        style={[styles.amountInput, { color: c.text }]}
+                      />
+                    </View>
+                  </View>
+                  {(() => {
+                    const sessionPlayerIds = new Set(players.map((p) => p.playerId));
+                    const activePlayers = players.filter((p) => !earlyCashOutMap.has(p.playerId));
+                    const friendsNotInSession = friends.filter((f) => !sessionPlayerIds.has(f.playerId));
+                    const hasChips = activePlayers.length > 0 || friendsNotInSession.length > 0;
+                    if (!hasChips) return null;
+                    return (
+                      <View style={styles.rebuyBlock}>
+                        <ScrollView
+                          horizontal
+                          nestedScrollEnabled
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.rebuyChips}
+                          keyboardShouldPersistTaps="handled">
+                          {activePlayers.map((p) => {
+                            const isMe = playerProfile && p.playerId === playerProfile.id;
+                            return (
+                              <Pressable
+                                key={p.playerId}
+                                style={[styles.rebuyChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}
+                                onPress={() => selectRebuyForPlayer(p.playerId, p.name)}>
+                                <Text style={[styles.rebuyChipText, { color: c.chipText }]}>
+                                  {p.name}
+                                  {isMe ? ' (You)' : ''}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                          {friendsNotInSession.map((f) => (
+                            <Pressable
+                              key={f.playerId}
+                              style={[
+                                styles.friendChip,
+                                { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder },
+                              ]}
+                              onPress={() => selectRebuyForPlayer(f.playerId, f.name)}>
+                              <MaterialIcons name="person-add" size={14} color={c.blue} />
+                              <Text style={[styles.friendChipText, { color: c.blue }]}>{f.name}</Text>
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    );
+                  })()}
+                </View>
+              </ScrollView>
+              <View style={styles.cashOutModalActions}>
+                <Pressable style={styles.cashOutCancelBtn} onPress={closeBuyInEditor}>
+                  <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.cashOutConfirmBtn,
+                    { backgroundColor: c.accent },
+                    (isAdding || !playerName.trim() || !amount.trim()) && styles.disabled,
+                  ]}
+                  onPress={() => void confirmBuyInFromModal()}
+                  disabled={isAdding || !playerName.trim() || !amount.trim()}>
+                  {isAdding ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.addButtonLabel}>Add</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal
       visible={!!cashedOutDetailPlayerId && !!cashedOutDetailModal}
       transparent
       animationType="fade"
@@ -733,7 +965,7 @@ export default function ActiveSessionScreen() {
           />
           <View pointerEvents="box-none" style={styles.modalCenterWrap}>
             <View style={styles.modalKeyboard}>
-              <View style={[styles.cashedOutDetailCard, { backgroundColor: c.card, borderColor: c.borderDanger }]}>
+              <View style={[styles.cashedOutDetailCard, { backgroundColor: c.card, borderColor: c.border }]}>
                 <Text style={[styles.cashedOutDetailTitle, { color: c.text }]}>{cashedOutDetailModal.name}</Text>
                 <Text style={[styles.cashedOutDetailSubtitle, { color: c.textHint }]}>Early cash-out</Text>
 
@@ -775,14 +1007,16 @@ export default function ActiveSessionScreen() {
                   </View>
                 </View>
 
-                <Pressable
-                  style={[styles.cashedOutDetailBuyBackBtn, { backgroundColor: c.chipBg, borderColor: c.borderAmber }]}
-                  onPress={() =>
-                    confirmBuyBackIn(cashedOutDetailModal.playerId, cashedOutDetailModal.name)
-                  }>
-                  <MaterialIcons name="replay" size={18} color={c.warning} />
-                  <Text style={[styles.cashedOutDetailBuyBackLabel, { color: c.warning }]}>Buy Back In</Text>
-                </Pressable>
+                {viewerIsHost ? (
+                  <Pressable
+                    style={[styles.cashedOutDetailBuyBackBtn, { backgroundColor: c.chipBg, borderColor: c.borderAmber }]}
+                    onPress={() =>
+                      confirmBuyBackIn(cashedOutDetailModal.playerId, cashedOutDetailModal.name)
+                    }>
+                    <MaterialIcons name="replay" size={18} color={c.warning} />
+                    <Text style={[styles.cashedOutDetailBuyBackLabel, { color: c.warning }]}>Buy Back In</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           </View>
@@ -805,21 +1039,29 @@ export default function ActiveSessionScreen() {
         />
         <View pointerEvents="box-none" style={styles.modalCenterWrap}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior="padding"
             keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-            style={styles.modalKeyboard}>
+            style={[styles.modalKeyboard, styles.sessionModalKav]}>
             <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.cashOutFormTitle, { color: c.text }]}>Edit location</Text>
-              <TextInput
-                value={locationDraft}
-                onChangeText={setLocationDraft}
-                placeholder="Location"
-                placeholderTextColor={c.placeholder}
-                style={[
-                  styles.input,
-                  { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
-                ]}
-              />
+              <ScrollView
+                ref={locationScrollRef}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                style={styles.sessionModalLocationScroll}
+                contentContainerStyle={styles.sessionModalFieldsScrollContent}>
+                <TextInput
+                  value={locationDraft}
+                  onChangeText={setLocationDraft}
+                  placeholder="Location"
+                  placeholderTextColor={c.placeholder}
+                  onFocus={() => scrollModalFieldToTop(locationScrollRef)}
+                  style={[
+                    styles.input,
+                    { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+                  ]}
+                />
+              </ScrollView>
               <View style={styles.cashOutModalActions}>
                 <Pressable style={styles.cashOutCancelBtn} onPress={closeLocationEditor}>
                   <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>Cancel</Text>
@@ -832,7 +1074,100 @@ export default function ActiveSessionScreen() {
                   ]}
                   onPress={saveLocation}
                   disabled={isSavingLocation}>
-                  <Text style={styles.addButtonLabel}>{isSavingLocation ? 'Saving...' : 'Save'}</Text>
+                  {isSavingLocation ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.addButtonLabel}>Save</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal
+      visible={blindsEditorVisible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={closeBlindsEditor}>
+      <View style={styles.modalRoot}>
+        <Pressable
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+          onPress={closeBlindsEditor}
+          accessibilityLabel="Dismiss"
+          accessibilityRole="button"
+        />
+        <View pointerEvents="box-none" style={styles.modalCenterWrap}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+            style={[styles.modalKeyboard, styles.sessionModalKav]}>
+            <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[styles.cashOutFormTitle, { color: c.text }]}>Edit blinds</Text>
+              <Text style={[styles.blindsModalHint, { color: c.textMuted }]}>
+                Small and big blind are required. Big blind must be at least the small blind.
+              </Text>
+              <ScrollView
+                ref={blindsScrollRef}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                style={styles.sessionModalFieldsScroll}
+                contentContainerStyle={styles.sessionModalFieldsScrollContent}>
+                <View style={styles.blindsModalInputs}>
+                  <View style={styles.blindsModalField}>
+                    <View style={styles.blindsModalLabelRow}>
+                      <Text style={[styles.blindsModalFieldLabel, { color: c.textHint }]}>Small blind</Text>
+                      <Text style={[styles.blindsModalRequiredMark, { color: c.loss }]}>*</Text>
+                    </View>
+                    <View style={[styles.blindsModalAmountWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
+                      <Text style={[styles.blindsModalDollar, { color: c.textMuted }]}>$</Text>
+                      <TextInput
+                        value={smallBlindDraft}
+                        onChangeText={setSmallBlindDraft}
+                        placeholder="0"
+                        placeholderTextColor={c.placeholder}
+                        keyboardType="decimal-pad"
+                        onFocus={() => scrollModalFieldToTop(blindsScrollRef)}
+                        style={[styles.blindsModalTextInput, { color: c.text }]}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.blindsModalField}>
+                    <View style={styles.blindsModalLabelRow}>
+                      <Text style={[styles.blindsModalFieldLabel, { color: c.textHint }]}>Big blind</Text>
+                      <Text style={[styles.blindsModalRequiredMark, { color: c.loss }]}>*</Text>
+                    </View>
+                    <View style={[styles.blindsModalAmountWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
+                      <Text style={[styles.blindsModalDollar, { color: c.textMuted }]}>$</Text>
+                      <TextInput
+                        value={bigBlindDraft}
+                        onChangeText={setBigBlindDraft}
+                        placeholder="0"
+                        placeholderTextColor={c.placeholder}
+                        keyboardType="decimal-pad"
+                        onFocus={() => scrollModalFieldToEnd(blindsScrollRef)}
+                        style={[styles.blindsModalTextInput, { color: c.text }]}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+              <View style={styles.cashOutModalActions}>
+                <Pressable style={styles.cashOutCancelBtn} onPress={closeBlindsEditor}>
+                  <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.cashOutConfirmBtn,
+                    { backgroundColor: c.accent },
+                    isBlindsSaveDisabled && styles.disabled,
+                  ]}
+                  onPress={() => void saveBlinds()}
+                  disabled={isBlindsSaveDisabled}>
+                  <Text style={styles.addButtonLabel}>{isSavingBlinds ? 'Saving...' : 'Save'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -854,14 +1189,132 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingBottom: 32,
   },
-  title: {
-    fontSize: 24,
+  sessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    marginBottom: 2,
+  },
+  sessionHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sessionHeaderLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  sessionHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 26,
+  },
+  sessionHeaderBuyIn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  sessionHeaderBuyInLabel: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '700',
   },
   metaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'stretch',
+  },
+  metaSecondRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+  },
+  potRowRight: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+  },
+  blindsCard: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+  },
+  blindsModalHint: {
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  blindsModalInputs: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  blindsModalField: {
+    flex: 1,
+    minWidth: 0,
+    gap: 8,
+  },
+  blindsModalFieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  blindsModalLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  blindsModalRequiredMark: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 12,
+  },
+  blindsModalAmountWrap: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'android' ? 2 : 6,
+    minHeight: 40,
+  },
+  blindsModalDollar: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  blindsModalTextInput: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: Platform.OS === 'android' ? 34 : 30,
+    paddingVertical: Platform.OS === 'android' ? 4 : 2,
+    paddingHorizontal: 4,
+    fontSize: 13,
+    ...(Platform.OS === 'android' ? { textAlignVertical: 'center' as const } : {}),
   },
   metaSpacer: {
     flex: 1,
@@ -876,8 +1329,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 10,
   },
-  locationIcon: {
-    marginTop: 1,
+  locationLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   locationTextBlock: {
     flex: 1,
@@ -894,12 +1349,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   potBadge: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 10,
     borderWidth: 1,
     padding: 10,
-    minWidth: 88,
+    minWidth: 0,
   },
   potLabel: {
     fontSize: 9,
@@ -1182,6 +1638,33 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
+  /** Shared with Add Buy-In, Edit location, Edit blinds modals */
+  sessionModalKav: {
+    flex: 1,
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 360,
+  },
+  sessionModalLocationScroll: {
+    width: '100%',
+  },
+  sessionModalFieldsScroll: {
+    maxHeight: 260,
+    width: '100%',
+  },
+  sessionModalFieldsScrollContent: {
+    paddingBottom: 4,
+  },
+  buyInModalForm: {
+    maxWidth: '100%',
+  },
+  buyInModalScroll: {
+    maxHeight: 320,
+    width: '100%',
+  },
+  buyInModalScrollContent: {
+    paddingBottom: 4,
+  },
   cashOutModalAmountWrap: {
     flex: 1,
     minWidth: 0,
@@ -1196,7 +1679,7 @@ const styles = StyleSheet.create({
   },
   cashOutFormTitle: {
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 18,
   },
   cashOutFormSub: {
     fontSize: 13,
