@@ -1,7 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { appAlert } from '@/lib/app-alert';
 
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -79,7 +81,7 @@ export default function SettingsScreen() {
       await saveAvatarEmoji(emoji);
       setShowAvatarPicker(false);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save avatar.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to save avatar.');
     } finally {
       setSavingAvatar(false);
       setPendingAvatarEmoji(null);

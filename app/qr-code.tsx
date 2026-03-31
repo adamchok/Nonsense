@@ -4,7 +4,9 @@ import * as Clipboard from 'expo-clipboard';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { appAlert } from '@/lib/app-alert';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 
@@ -80,7 +82,7 @@ export default function QrCodeScreen() {
 
   async function handleShareQrImage() {
     if (Platform.OS === 'web') {
-      Alert.alert('Not available', 'Sharing QR images is not supported on web.');
+      appAlert('Not available', 'Sharing QR images is not supported on web.');
       return;
     }
     if (!refCode || sharingQr) return;
@@ -95,7 +97,7 @@ export default function QrCodeScreen() {
       });
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert('Sharing unavailable', 'Sharing is not available on this device.');
+        appAlert('Sharing unavailable', 'Sharing is not available on this device.');
         return;
       }
       await Sharing.shareAsync(uri, {
@@ -103,7 +105,7 @@ export default function QrCodeScreen() {
         dialogTitle: 'Share your Nonsense code',
       });
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not share QR image.');
+      appAlert('Error', e instanceof Error ? e.message : 'Could not share QR image.');
     } finally {
       setSharingQr(false);
     }
@@ -120,7 +122,7 @@ export default function QrCodeScreen() {
       (async () => {
         const ok = await ensureCamera();
         if (!ok) {
-          Alert.alert('Permission needed', 'Camera access is required to scan QR codes.');
+          appAlert('Permission needed', 'Camera access is required to scan QR codes.');
           setActiveTab('my');
           return;
         }
@@ -147,13 +149,13 @@ export default function QrCodeScreen() {
     }
 
     if (code.length !== 6) {
-      Alert.alert('Invalid QR', 'This QR code does not contain a valid ref code.', [
+      appAlert('Invalid QR', 'This QR code does not contain a valid ref code.', [
         { text: 'OK', onPress: () => { scanLock.current = false; } },
       ]);
       return;
     }
     if (code === playerProfile?.refCode) {
-      Alert.alert('Oops', "That's your own code!", [
+      appAlert('Oops', "That's your own code!", [
         { text: 'OK', onPress: () => { scanLock.current = false; } },
       ]);
       return;
@@ -163,27 +165,27 @@ export default function QrCodeScreen() {
     try {
       const found = await lookupPlayerByRefCode(code);
       if (!found) {
-        Alert.alert('Not found', 'No player found with that code.');
+        appAlert('Not found', 'No player found with that code.');
         return;
       }
       if (friendsRef.current.some((f) => f.playerId === found.id)) {
-        Alert.alert('Already friends', `You're already friends with ${found.name}.`);
+        appAlert('Already friends', `You're already friends with ${found.name}.`);
         return;
       }
 
       const incoming = incomingRef.current.some((r) => r.playerId === found.id);
       if (incoming) {
-        Alert.alert(`${found.name} invited you`, 'Accept their friend request?', [
+        appAlert(`${found.name} invited you`, 'Accept their friend request?', [
           { text: 'Not now', onPress: () => { scanLock.current = false; } },
           {
             text: 'Accept',
             onPress: async () => {
               try {
                 await acceptFriendRequest(user.uid, found.id);
-                Alert.alert('Added!', `${found.name} is now your friend.`);
+                appAlert('Added!', `${found.name} is now your friend.`);
                 router.replace('/(tabs)/friends');
               } catch (e) {
-                Alert.alert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
               } finally {
                 scanLock.current = false;
               }
@@ -194,7 +196,7 @@ export default function QrCodeScreen() {
       }
 
       if (outgoingRef.current.some((r) => r.playerId === found.id)) {
-        Alert.alert('Request pending', `You already sent a request to ${found.name}.`, [
+        appAlert('Request pending', `You already sent a request to ${found.name}.`, [
           { text: 'OK', onPress: () => { scanLock.current = false; } },
         ]);
         return;
@@ -205,7 +207,7 @@ export default function QrCodeScreen() {
       setPendingRefCode(code);
       shouldReleaseLock = false;
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add friend.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to add friend.');
     } finally {
       if (shouldReleaseLock) scanLock.current = false;
     }
@@ -226,24 +228,24 @@ export default function QrCodeScreen() {
       const result = await sendFriendRequest(user.uid, pendingFriend);
       if (!result.ok) {
         if (result.reason === 'already_friends') {
-          Alert.alert('Already friends', `You're already friends with ${pendingFriend.name}.`);
+          appAlert('Already friends', `You're already friends with ${pendingFriend.name}.`);
         } else if (result.reason === 'already_sent') {
-          Alert.alert('Request pending', `You already sent a request to ${pendingFriend.name}.`);
+          appAlert('Request pending', `You already sent a request to ${pendingFriend.name}.`);
         } else {
-          Alert.alert('Oops', "That's your own code!");
+          appAlert('Oops', "That's your own code!");
         }
         dismissAddFriendModal();
         return;
       }
       if (result.outcome === 'now_friends') {
-        Alert.alert('Added!', `You and ${pendingFriend.name} are now friends.`);
+        appAlert('Added!', `You and ${pendingFriend.name} are now friends.`);
       } else {
-        Alert.alert('Request sent', `${pendingFriend.name} will see your request.`);
+        appAlert('Request sent', `${pendingFriend.name} will see your request.`);
       }
       router.replace('/(tabs)/friends');
       dismissAddFriendModal();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to send request.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to send request.');
       dismissAddFriendModal();
     } finally {
       setAddingFriend(false);
@@ -267,7 +269,7 @@ export default function QrCodeScreen() {
           onPress={async () => {
             const ok = await ensureCamera();
             if (!ok) {
-              Alert.alert('Permission needed', 'Camera access is required to scan QR codes.');
+              appAlert('Permission needed', 'Camera access is required to scan QR codes.');
               return;
             }
             scanLock.current = false;

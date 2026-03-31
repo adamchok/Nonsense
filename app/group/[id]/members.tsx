@@ -2,7 +2,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
@@ -12,6 +11,7 @@ import {
   View
 } from 'react-native';
 
+import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -72,7 +72,7 @@ export default function GroupMembersScreen() {
         isRegistered: true,
       });
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add member.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to add member.');
     }
   }
 
@@ -85,7 +85,7 @@ export default function GroupMembersScreen() {
         isRegistered: true,
       });
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add yourself.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to add yourself.');
     }
   }
 
@@ -94,14 +94,14 @@ export default function GroupMembersScreen() {
     const name = guestName.trim();
     const memberId = name.toLowerCase().replace(/\s+/g, '_');
     if (members.some((m) => m.id === memberId)) {
-      Alert.alert('Already in group', `${name} is already a member.`);
+      appAlert('Already in group', `${name} is already a member.`);
       return;
     }
     try {
       await addGroupMember(user.uid, id, { id: memberId, name, isRegistered: false });
       setGuestName('');
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add guest.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to add guest.');
     }
   }
 
@@ -110,7 +110,7 @@ export default function GroupMembersScreen() {
     try {
       await removeGroupMember(user.uid, id, memberId);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to remove member.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to remove member.');
     }
   }
 

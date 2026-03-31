@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createGroup } from '@/lib/firestore';
@@ -22,7 +23,7 @@ export default function NewGroupScreen() {
       const groupId = await createGroup(playerProfile.id, name);
       router.replace(`./${groupId}/members`);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to create group.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to create group.');
     } finally {
       setIsSaving(false);
     }

@@ -2,7 +2,6 @@ import { Redirect, router, useNavigation } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
@@ -59,7 +59,7 @@ export default function NameScreen() {
       return;
     }
     if (trimmed.length > MAX_NAME_LEN) {
-      Alert.alert('Name too long', `Please keep your display name within ${MAX_NAME_LEN} characters.`);
+      appAlert('Name too long', `Please keep your display name within ${MAX_NAME_LEN} characters.`);
       return;
     }
 
@@ -73,7 +73,7 @@ export default function NameScreen() {
         router.replace('/(tabs)');
       }
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'Unable to save name',
         error instanceof Error ? error.message : 'Please try again.'
       );

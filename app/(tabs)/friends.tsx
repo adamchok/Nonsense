@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -15,6 +14,7 @@ import {
   View,
 } from 'react-native';
 
+import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatSignedCurrency } from '@/lib/currency-format';
@@ -28,6 +28,7 @@ import {
   getGroupLeaderboard,
   lookupPlayerByRefCode,
   removeFriend,
+  renameGroup,
   sendFriendRequest,
   subscribeFriends,
   subscribeGroupMembers,
@@ -64,6 +65,9 @@ export default function FriendsScreen() {
   const [groupLbLoading, setGroupLbLoading] = useState(false);
   const [groupLeaderboardModalGroup, setGroupLeaderboardModalGroup] = useState<PokerGroup | null>(null);
   const [showGroupLeaderboardModal, setShowGroupLeaderboardModal] = useState(false);
+  const [renameGroupTarget, setRenameGroupTarget] = useState<PokerGroup | null>(null);
+  const [renameGroupName, setRenameGroupName] = useState('');
+  const [renameGroupSaving, setRenameGroupSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<FriendsSectionTab>('friends');
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
@@ -179,9 +183,33 @@ export default function FriendsScreen() {
     };
   }, [user, expandedGroupId]);
 
+  function openRenameGroupModal(group: PokerGroup) {
+    setRenameGroupTarget(group);
+    setRenameGroupName(group.name);
+  }
+
+  async function handleConfirmRenameGroup() {
+    if (!user || !renameGroupTarget) return;
+    const trimmed = renameGroupName.trim();
+    if (trimmed.length < 2) {
+      appAlert('Invalid name', 'Use at least 2 characters.');
+      return;
+    }
+    try {
+      setRenameGroupSaving(true);
+      await renameGroup(user.uid, renameGroupTarget.id, trimmed);
+      setRenameGroupTarget(null);
+      setRenameGroupName('');
+    } catch (e) {
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to rename group.');
+    } finally {
+      setRenameGroupSaving(false);
+    }
+  }
+
   function handleDeleteGroup(groupId: string, groupName: string) {
     if (!user) return;
-    Alert.alert(`Delete "${groupName}"?`, 'This group and all its members will be removed.', [
+    appAlert(`Delete "${groupName}"?`, 'This group and all its members will be removed.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -191,7 +219,7 @@ export default function FriendsScreen() {
             if (expandedGroupId === groupId) setExpandedGroupId(null);
             await deleteGroup(user.uid, groupId);
           } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'Failed to delete group.');
+            appAlert('Error', e instanceof Error ? e.message : 'Failed to delete group.');
           }
         },
       },
@@ -203,7 +231,7 @@ export default function FriendsScreen() {
     const code = refCodeInput.trim().toUpperCase();
 
     if (code === playerProfile?.refCode) {
-      Alert.alert('Oops', "That's your own code!");
+      appAlert('Oops', "That's your own code!");
       return;
     }
 
@@ -211,7 +239,7 @@ export default function FriendsScreen() {
       (f) => f.playerId === code || f.name.toUpperCase() === code
     );
     if (existing) {
-      Alert.alert('Already friends', `You're already friends with ${existing.name}.`);
+      appAlert('Already friends', `You're already friends with ${existing.name}.`);
       return;
     }
 
@@ -219,17 +247,17 @@ export default function FriendsScreen() {
       setAdding(true);
       const found = await lookupPlayerByRefCode(code);
       if (!found) {
-        Alert.alert('Not found', 'No player found with that code.');
+        appAlert('Not found', 'No player found with that code.');
         return;
       }
       if (friends.some((f) => f.playerId === found.id)) {
-        Alert.alert('Already friends', `You're already friends with ${found.name}.`);
+        appAlert('Already friends', `You're already friends with ${found.name}.`);
         return;
       }
 
       const incoming = incomingRequests.find((r) => r.playerId === found.id);
       if (incoming) {
-        Alert.alert(
+        appAlert(
           'Friend request',
           `${found.name} already sent you a request.`,
           [
@@ -241,9 +269,9 @@ export default function FriendsScreen() {
                   await acceptFriendRequest(user.uid, found.id);
                   setRefCodeInput('');
                   setShowAddModal(false);
-                  Alert.alert('Added!', `${found.name} is now your friend.`);
+                  appAlert('Added!', `${found.name} is now your friend.`);
                 } catch (e) {
-                  Alert.alert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                  appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
                 }
               },
             },
@@ -255,11 +283,11 @@ export default function FriendsScreen() {
       const result = await sendFriendRequest(user.uid, found);
       if (!result.ok) {
         if (result.reason === 'already_friends') {
-          Alert.alert('Already friends', `You're already friends with ${found.name}.`);
+          appAlert('Already friends', `You're already friends with ${found.name}.`);
         } else if (result.reason === 'already_sent') {
-          Alert.alert('Request pending', `You already sent a request to ${found.name}.`);
+          appAlert('Request pending', `You already sent a request to ${found.name}.`);
         } else {
-          Alert.alert('Oops', "That's your own code!");
+          appAlert('Oops', "That's your own code!");
         }
         return;
       }
@@ -267,12 +295,12 @@ export default function FriendsScreen() {
       setRefCodeInput('');
       setShowAddModal(false);
       if (result.outcome === 'now_friends') {
-        Alert.alert('Added!', `You and ${found.name} are now friends.`);
+        appAlert('Added!', `You and ${found.name} are now friends.`);
       } else {
-        Alert.alert('Request sent', `${found.name} will see your request.`);
+        appAlert('Request sent', `${found.name} will see your request.`);
       }
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to send request.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to send request.');
     } finally {
       setAdding(false);
     }
@@ -280,7 +308,7 @@ export default function FriendsScreen() {
 
   function handleRemoveFriend(friendId: string, friendName: string) {
     if (!user) return;
-    Alert.alert(`Remove ${friendName}?`, 'They will also be removed from your friends list.', [
+    appAlert(`Remove ${friendName}?`, 'They will also be removed from your friends list.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -289,7 +317,7 @@ export default function FriendsScreen() {
           try {
             await removeFriend(user.uid, friendId);
           } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'Failed to remove friend.');
+            appAlert('Error', e instanceof Error ? e.message : 'Failed to remove friend.');
           }
         },
       },
@@ -378,7 +406,7 @@ export default function FriendsScreen() {
                         try {
                           await acceptFriendRequest(user!.uid, req.playerId);
                         } catch (e) {
-                          Alert.alert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                          appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
                         }
                       }}>
                       <Text style={styles.requestAcceptLabel}>Accept</Text>
@@ -389,7 +417,7 @@ export default function FriendsScreen() {
                         try {
                           await declineFriendRequest(user!.uid, req.playerId);
                         } catch (e) {
-                          Alert.alert('Error', e instanceof Error ? e.message : 'Failed to decline.');
+                          appAlert('Error', e instanceof Error ? e.message : 'Failed to decline.');
                         }
                       }}>
                       <MaterialIcons name="close" size={22} color={c.textHint} />
@@ -417,7 +445,7 @@ export default function FriendsScreen() {
                   <Pressable
                     hitSlop={8}
                     onPress={() => {
-                      Alert.alert('Cancel request?', `Stop waiting for ${req.name} to accept?`, [
+                      appAlert('Cancel request?', `Stop waiting for ${req.name} to accept?`, [
                         { text: 'No', style: 'cancel' },
                         {
                           text: 'Cancel request',
@@ -426,7 +454,7 @@ export default function FriendsScreen() {
                             try {
                               await cancelOutgoingFriendRequest(user!.uid, req.playerId);
                             } catch (e) {
-                              Alert.alert('Error', e instanceof Error ? e.message : 'Failed to cancel.');
+                              appAlert('Error', e instanceof Error ? e.message : 'Failed to cancel.');
                             }
                           },
                         },
@@ -448,24 +476,26 @@ export default function FriendsScreen() {
               No friend matches: {friendSearchQuery.trim()}.
             </Text>
           ) : (
-            filteredFriends.map((item) => (
-              <View
-                key={item.playerId}
-                style={[styles.friendRow, { backgroundColor: c.card, borderColor: c.border }]}>
-                <View style={styles.friendInfo}>
-                  <Text style={styles.friendAvatar}>{item.avatarEmoji ?? '🙂'}</Text>
-                  <View style={styles.friendTextBlock}>
-                    <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
-                    <Text style={[styles.friendMeta, { color: c.textHint }]}>
-                      Friends since {formatDateDMY(item.addedAt)}
-                    </Text>
+            <View style={styles.friendList}>
+              {filteredFriends.map((item) => (
+                <View
+                  key={item.playerId}
+                  style={[styles.friendRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <View style={styles.friendInfo}>
+                    <Text style={styles.friendAvatar}>{item.avatarEmoji ?? '🙂'}</Text>
+                    <View style={styles.friendTextBlock}>
+                      <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
+                      <Text style={[styles.friendMeta, { color: c.textHint }]}>
+                        Friends since {formatDateDMY(item.addedAt)}
+                      </Text>
+                    </View>
                   </View>
+                  <Pressable hitSlop={8} onPress={() => handleRemoveFriend(item.playerId, item.name)}>
+                    <MaterialIcons name="close" size={20} color={c.textHint} />
+                  </Pressable>
                 </View>
-                <Pressable hitSlop={8} onPress={() => handleRemoveFriend(item.playerId, item.name)}>
-                  <MaterialIcons name="close" size={20} color={c.textHint} />
-                </Pressable>
-              </View>
-            ))
+              ))}
+            </View>
           )}
         </>
       )}
@@ -518,27 +548,34 @@ export default function FriendsScreen() {
                 <View
                   key={group.id}
                   style={[styles.groupCard, { backgroundColor: c.card, borderColor: isExpanded ? c.borderAccent : c.border }]}>
-                  <Pressable
-                    style={styles.groupHeader}
-                    onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
-                    <View style={styles.groupHeaderLeft}>
+                  <View style={styles.groupHeader}>
+                    <Pressable
+                      style={styles.groupHeaderLeft}
+                      onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
                       <MaterialIcons name="group" size={20} color={c.textMuted} />
                       <Text style={[styles.groupName, { color: c.text }]}>{group.name}</Text>
                       <Text style={[styles.groupCount, { color: c.textHint }]}>
                         {group.memberCount ?? 0} {(group.memberCount ?? 0) === 1 ? 'player' : 'players'}
                       </Text>
-                    </View>
+                    </Pressable>
                     <View style={styles.groupHeaderRight}>
+                      <Pressable hitSlop={8} onPress={() => openRenameGroupModal(group)}>
+                        <MaterialIcons name="edit" size={20} color={c.textHint} />
+                      </Pressable>
                       <Pressable hitSlop={8} onPress={() => handleDeleteGroup(group.id, group.name)}>
                         <MaterialIcons name="delete-outline" size={20} color={c.textHint} />
                       </Pressable>
-                      <MaterialIcons
-                        name={isExpanded ? 'expand-less' : 'expand-more'}
-                        size={22}
-                        color={c.textMuted}
-                      />
+                      <Pressable
+                        hitSlop={8}
+                        onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
+                        <MaterialIcons
+                          name={isExpanded ? 'expand-less' : 'expand-more'}
+                          size={22}
+                          color={c.textMuted}
+                        />
+                      </Pressable>
                     </View>
-                  </Pressable>
+                  </View>
 
                   {isExpanded && (
                     <View style={styles.groupBody}>
@@ -833,6 +870,81 @@ export default function FriendsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ---- Rename group modal ---- */}
+      <Modal
+        visible={renameGroupTarget != null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          if (!renameGroupSaving) {
+            setRenameGroupTarget(null);
+            setRenameGroupName('');
+          }
+        }}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            disabled={renameGroupSaving}
+            onPress={() => {
+              setRenameGroupTarget(null);
+              setRenameGroupName('');
+            }}
+          />
+          <View pointerEvents="box-none" style={styles.modalCenter}>
+            <KeyboardAvoidingView
+              behavior="padding"
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+              style={styles.addFriendModalKav}>
+              <View style={[styles.addCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                <Text style={[styles.addCardTitle, { color: c.text }]}>Rename group</Text>
+                <Text style={[styles.addCardSub, { color: c.textMuted }]}>
+                  This name is only visible to you.
+                </Text>
+                <TextInput
+                  value={renameGroupName}
+                  onChangeText={setRenameGroupName}
+                  placeholder="Group name"
+                  placeholderTextColor={c.placeholder}
+                  autoCapitalize="words"
+                  autoFocus
+                  editable={!renameGroupSaving}
+                  style={[
+                    styles.renameGroupInput,
+                    { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+                  ]}
+                />
+                <View style={styles.addCardActions}>
+                  <Pressable
+                    style={styles.cancelBtn}
+                    disabled={renameGroupSaving}
+                    onPress={() => {
+                      setRenameGroupTarget(null);
+                      setRenameGroupName('');
+                    }}>
+                    <Text style={[styles.cancelLabel, { color: c.lossLight }]}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.confirmBtn,
+                      { backgroundColor: c.accent },
+                      (renameGroupSaving || renameGroupName.trim().length < 2) && styles.disabled,
+                    ]}
+                    disabled={renameGroupSaving || renameGroupName.trim().length < 2}
+                    onPress={handleConfirmRenameGroup}>
+                    {renameGroupSaving ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={[styles.confirmLabel, { color: '#fff' }]}>Save</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1028,15 +1140,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  friendList: {
+    gap: 8,
+  },
   friendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderRadius: 8,
     borderWidth: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    marginBottom: 6,
   },
   friendInfo: {
     flexDirection: 'row',
@@ -1225,6 +1339,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 14,
     paddingHorizontal: 12,
+  },
+  renameGroupInput: {
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   addCardActions: {
     flexDirection: 'row',

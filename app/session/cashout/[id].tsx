@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { finishSession, getBuyIns, getEarlyCashOuts, getSessionMeta, saveResults } from '@/lib/firestore';
@@ -68,7 +68,7 @@ export default function CashOutScreen() {
           })
         );
       } catch (e) {
-        Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load buy-ins.');
+        appAlert('Error', e instanceof Error ? e.message : 'Failed to load buy-ins.');
       } finally {
         setLoading(false);
       }
@@ -113,7 +113,7 @@ export default function CashOutScreen() {
 
   async function handleConfirm() {
     if (!canEdit) {
-      Alert.alert('Host only', 'Only the host can complete cash-out.');
+      appAlert('Host only', 'Only the host can complete cash-out.');
       return;
     }
     if (!id) return;
@@ -121,13 +121,13 @@ export default function CashOutScreen() {
     for (const p of players) {
       const val = parseFloat(p.cashOutInput);
       if (isNaN(val) || val < 0) {
-        Alert.alert('Invalid entry', `Enter a valid cash-out for ${p.playerName}.`);
+        appAlert('Invalid entry', `Enter a valid cash-out for ${p.playerName}.`);
         return;
       }
     }
 
     if (!balanced) {
-      Alert.alert(
+      appAlert(
         'Totals don\'t match',
         `$${Math.abs(remaining).toFixed(2)} ${remaining > 0 ? 'left to distribute' : 'over-distributed'}. Totals must balance.`
       );
@@ -150,7 +150,7 @@ export default function CashOutScreen() {
       await finishSession(id);
       router.replace(`../../session/summary/${id}`);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save results.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to save results.');
     } finally {
       setSaving(false);
     }

@@ -99,7 +99,7 @@ const dark: AppColors = {
 
   badge: {
     host: '#2d6a4f',
-    you: '#1e40af',
+    you: '#3961e3',
     cashedOut: '#475569',
     live: '#2d6a4f',
     liveBorder: '#2d6a4f',

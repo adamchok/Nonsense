@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { AppAlertProvider } from '@/lib/app-alert';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemePreferenceProvider, useThemePreference } from '@/lib/theme-context';
 
@@ -81,7 +82,9 @@ function ThemedNavigation() {
 export default function RootLayout() {
   return (
     <ThemePreferenceProvider>
-      <ThemedNavigation />
+      <AppAlertProvider>
+        <ThemedNavigation />
+      </AppAlertProvider>
     </ThemePreferenceProvider>
   );
 }

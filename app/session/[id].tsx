@@ -4,7 +4,6 @@ import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -15,14 +14,15 @@ import {
   Text,
   TextInput,
   View,
+  type ViewStyle,
 } from 'react-native';
 
+import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatBlinds, formatCompactCurrency } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getFirestoreDb } from '@/lib/firebase';
-import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import {
   addBuyIn,
   removeEarlyCashOut,
@@ -34,6 +34,7 @@ import {
   updateSessionBlinds,
   updateSessionLocation,
 } from '@/lib/firestore';
+import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { BuyIn, EarlyCashOut, FriendRecord } from '@/types';
 
 type SessionView = {
@@ -233,13 +234,13 @@ export default function ActiveSessionScreen() {
   async function handleAddBuyIn(name: string, amt: string) {
     Keyboard.dismiss();
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can add buy-ins.');
+      appAlert('Host only', 'Only the host can add buy-ins.');
       return;
     }
     if (!id || !name.trim() || !amt.trim()) return;
     const parsed = parseFloat(amt);
     if (isNaN(parsed) || parsed <= 0) {
-      Alert.alert('Invalid amount', 'Enter a positive number.');
+      appAlert('Invalid amount', 'Enter a positive number.');
       return;
     }
 
@@ -254,7 +255,7 @@ export default function ActiveSessionScreen() {
       setAmount('');
       setPickedPlayerId(null);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to add buy-in.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to add buy-in.');
     } finally {
       setIsAdding(false);
     }
@@ -289,11 +290,11 @@ export default function ActiveSessionScreen() {
 
   function confirmRemovePlayer(playerId: string, name: string) {
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can remove players.');
+      appAlert('Host only', 'Only the host can remove players.');
       return;
     }
     if (!id) return;
-    Alert.alert(
+    appAlert(
       `Remove ${name}?`,
       'All buy-ins for this player will be deleted from the session.',
       [
@@ -310,7 +311,7 @@ export default function ActiveSessionScreen() {
                 setPickedPlayerId(null);
               }
             } catch (e) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'Could not remove player.');
+              appAlert('Error', e instanceof Error ? e.message : 'Could not remove player.');
             } finally {
               setRemovingPlayerId(null);
             }
@@ -322,7 +323,7 @@ export default function ActiveSessionScreen() {
 
   function startEarlyCashOut(playerId: string, playerName: string, totalBuyIn: number) {
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can cash out players.');
+      appAlert('Host only', 'Only the host can cash out players.');
       return;
     }
     setCashOutTarget({ playerId, playerName, totalBuyIn });
@@ -331,13 +332,13 @@ export default function ActiveSessionScreen() {
 
   async function confirmEarlyCashOut() {
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can cash out players.');
+      appAlert('Host only', 'Only the host can cash out players.');
       return;
     }
     if (!id || !cashOutTarget) return;
     const parsed = parseFloat(cashOutAmount);
     if (isNaN(parsed) || parsed < 0) {
-      Alert.alert('Invalid', 'Enter a valid amount.');
+      appAlert('Invalid', 'Enter a valid amount.');
       return;
     }
     try {
@@ -350,17 +351,17 @@ export default function ActiveSessionScreen() {
       setCashOutTarget(null);
       setCashOutAmount('');
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save cash-out.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to save cash-out.');
     }
   }
 
   function confirmBuyBackIn(playerId: string, playerName: string) {
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can buy players back in.');
+      appAlert('Host only', 'Only the host can buy players back in.');
       return;
     }
     if (!id) return;
-    Alert.alert(
+    appAlert(
       `Buy back in?`,
       `${playerName} will rejoin the session. Their early cash-out will be removed.`,
       [
@@ -372,7 +373,7 @@ export default function ActiveSessionScreen() {
               await removeEarlyCashOut(id, playerId);
               setCashedOutDetailPlayerId(null);
             } catch (e) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'Failed to remove cash-out.');
+              appAlert('Error', e instanceof Error ? e.message : 'Failed to remove cash-out.');
             }
           },
         },
@@ -386,18 +387,18 @@ export default function ActiveSessionScreen() {
 
   function handleEndSession() {
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can end this session.');
+      appAlert('Host only', 'Only the host can end this session.');
       return;
     }
     if (!id) return;
     if (!formatBlinds(session?.smallBlind, session?.bigBlind)) {
-      Alert.alert(
+      appAlert(
         'Blinds required',
         'Set small and big blind before ending this session.'
       );
       return;
     }
-    Alert.alert('End Session', 'Are you sure? Players will need to cash out.', [
+    appAlert('End Session', 'Are you sure? Players will need to cash out.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'End Session',
@@ -428,7 +429,7 @@ export default function ActiveSessionScreen() {
 
   async function saveLocation() {
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can edit location.');
+      appAlert('Host only', 'Only the host can edit location.');
       return;
     }
     if (!id) return;
@@ -437,7 +438,7 @@ export default function ActiveSessionScreen() {
       await updateSessionLocation(id, locationDraft);
       closeLocationEditor();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to update location.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to update location.');
     } finally {
       setIsSavingLocation(false);
     }
@@ -464,7 +465,7 @@ export default function ActiveSessionScreen() {
 
   async function saveBlinds() {
     if (!viewerIsHost) {
-      Alert.alert('Host only', 'Only the host can edit blinds.');
+      appAlert('Host only', 'Only the host can edit blinds.');
       return;
     }
     if (!id) return;
@@ -473,7 +474,7 @@ export default function ActiveSessionScreen() {
     const sb = parseFloat(sbTrim);
     const bb = parseFloat(bbTrim);
     if (!sbTrim || !bbTrim || Number.isNaN(sb) || Number.isNaN(bb) || sb <= 0 || bb < sb) {
-      Alert.alert(
+      appAlert(
         'Blinds required',
         'Enter small and big blind amounts, with big blind at least equal to the small blind.'
       );
@@ -484,7 +485,7 @@ export default function ActiveSessionScreen() {
       await updateSessionBlinds(id, { smallBlind: sb, bigBlind: bb });
       closeBlindsEditor();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to update blinds.');
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to update blinds.');
     } finally {
       setIsSavingBlinds(false);
     }
@@ -497,7 +498,10 @@ export default function ActiveSessionScreen() {
   }
 
   const blindsDisplay = session ? formatBlinds(session.smallBlind, session.bigBlind) : null;
-  const showBlindsRow = Boolean(viewerIsHost || blindsDisplay);
+  /** Host always sees location/blinds cards; participants see them when the host has set values. */
+  const showSessionMetaCards = Boolean(
+    viewerIsHost || blindsDisplay || Boolean(session?.location?.trim())
+  );
   const sbDraft = smallBlindDraft.trim();
   const bbDraft = bigBlindDraft.trim();
   const sbDraftValue = parseFloat(sbDraft);
@@ -551,7 +555,7 @@ export default function ActiveSessionScreen() {
           </View>
         </View>
       </View>
-      {showBlindsRow ? (
+      {showSessionMetaCards ? (
         <View style={styles.metaSecondRow}>
           {viewerIsHost ? (
             <>
@@ -584,19 +588,36 @@ export default function ActiveSessionScreen() {
                 <MaterialIcons name="edit" size={18} color={c.textHint} />
               </Pressable>
             </>
-          ) : blindsDisplay ? (
-            <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <View style={styles.locationTextBlock}>
-                <View style={styles.locationLabelRow}>
-                  <MaterialIcons name="payments" size={14} color={c.textHint} />
-                  <Text style={[styles.locationLabel, { color: c.textHint }]}>BLINDS</Text>
+          ) : (
+            <>
+              {session?.location?.trim() ? (
+                <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <View style={styles.locationTextBlock}>
+                    <View style={styles.locationLabelRow}>
+                      <MaterialIcons name="place" size={14} color={c.textHint} />
+                      <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
+                    </View>
+                    <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={2}>
+                      {session.location}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
-                  {blindsDisplay}
-                </Text>
-              </View>
-            </View>
-          ) : null}
+              ) : null}
+              {blindsDisplay ? (
+                <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <View style={styles.locationTextBlock}>
+                    <View style={styles.locationLabelRow}>
+                      <MaterialIcons name="payments" size={14} color={c.textHint} />
+                      <Text style={[styles.locationLabel, { color: c.textHint }]}>BLINDS</Text>
+                    </View>
+                    <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                      {blindsDisplay}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+            </>
+          )}
         </View>
       ) : null}
       {error ? <Text style={[styles.error, { color: c.loss }]}>{error}</Text> : null}
@@ -607,6 +628,19 @@ export default function ActiveSessionScreen() {
       )}
 
       <Text style={[styles.sectionTitle, { color: c.text }]}>Buy-In Ledger ({players.length})</Text>
+      {players.length > 0 && session?.hostId ? (
+        <View style={styles.ledgerLegend}>
+          <View
+            style={[
+              styles.ledgerLegendSwatch,
+              { backgroundColor: c.accentBg, borderColor: c.borderAccent },
+            ]}
+          />
+          <Text style={[styles.ledgerLegendText, { color: c.textHint }]}>
+            Highlighted row is the session host.
+          </Text>
+        </View>
+      ) : null}
       {players.length === 0 ? (
         <Text style={[styles.emptyText, { color: c.textMuted }]}>No buy-ins yet. Add a player above.</Text>
       ) : (
@@ -624,11 +658,18 @@ export default function ActiveSessionScreen() {
             const rowIsHost = item.playerId === session?.hostId;
             const cashOut = earlyCashOutMap.get(item.playerId);
             const isCashedOut = !!cashOut;
-            const rowStyle = [
+            const rowStyle: ViewStyle[] = [
               styles.playerRow,
-              { backgroundColor: c.card, borderColor: c.border },
-              isCashedOut && [styles.playerRowCashedOut, { borderColor: c.borderDanger }],
+              rowIsHost
+                ? { backgroundColor: c.accentBg, borderColor: c.borderAccent, borderWidth: 2 }
+                : { backgroundColor: c.card, borderColor: c.border },
             ];
+            if (isCashedOut) {
+              rowStyle.push(styles.playerRowCashedOut);
+              if (!rowIsHost) {
+                rowStyle.push({ borderColor: c.borderDanger });
+              }
+            }
             const tapCashedOutRow = viewerIsHost && session?.status === 'active' && isCashedOut;
 
             const rowInner = (
@@ -642,12 +683,7 @@ export default function ActiveSessionScreen() {
                           numberOfLines={1}>
                           {getAvatarEmoji(item.playerId)} {item.name}
                         </Text>
-                        {rowIsHost && (
-                          <View style={[styles.hostBadge, { backgroundColor: c.badge.host }]}>
-                            <Text style={styles.badgeText}>HOST</Text>
-                          </View>
-                        )}
-                        {isMe && !rowIsHost && (
+                        {isMe && (
                           <View style={[styles.meBadge, { backgroundColor: c.badge.you }]}>
                             <Text style={styles.badgeText}>YOU</Text>
                           </View>
@@ -664,11 +700,6 @@ export default function ActiveSessionScreen() {
                           <View style={[styles.cashedOutBadge, { backgroundColor: c.badge.cashedOut }]}>
                             <Text style={styles.badgeText}>CASHED OUT</Text>
                           </View>
-                          {rowIsHost && (
-                            <View style={[styles.hostBadge, { backgroundColor: c.badge.host }]}>
-                              <Text style={styles.badgeText}>HOST</Text>
-                            </View>
-                          )}
                           {isMe && !rowIsHost && (
                             <View style={[styles.meBadge, { backgroundColor: c.badge.you }]}>
                               <Text style={styles.badgeText}>YOU</Text>
@@ -1428,6 +1459,23 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   emptyText: {},
+  ledgerLegend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: -6,
+    marginBottom: 4,
+  },
+  ledgerLegendSwatch: {
+    width: 22,
+    height: 14,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  ledgerLegendText: {
+    fontSize: 12,
+    flex: 1,
+  },
   playerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1515,11 +1563,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
     flexWrap: 'wrap',
-  },
-  hostBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
   },
   meBadge: {
     borderRadius: 4,

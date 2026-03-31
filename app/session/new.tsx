@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   Modal,
   Platform,
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { addBuyIn, createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
@@ -140,7 +140,7 @@ export default function NewSessionScreen() {
 
   async function onCreate() {
     if (!playerProfile) {
-      Alert.alert('Setup required', 'Please complete your display name first.');
+      appAlert('Setup required', 'Please complete your display name first.');
       router.replace('../../(auth)/name');
       return;
     }
@@ -165,7 +165,7 @@ export default function NewSessionScreen() {
     if (shouldAddGroupMembers) {
       const parsed = parseFloat(groupBuyIn);
       if (!groupBuyIn.trim() || isNaN(parsed) || parsed <= 0) {
-        Alert.alert('Invalid buy-in', 'Enter a valid buy-in amount for the group.');
+        appAlert('Invalid buy-in', 'Enter a valid buy-in amount for the group.');
         return;
       }
     }
@@ -173,7 +173,7 @@ export default function NewSessionScreen() {
     if (shouldAddSelf) {
       const parsed = parseFloat(buyInAmount);
       if (!buyInAmount.trim() || isNaN(parsed) || parsed <= 0) {
-        Alert.alert('Invalid buy-in', 'Enter a valid buy-in amount to join the session.');
+        appAlert('Invalid buy-in', 'Enter a valid buy-in amount to join the session.');
         return;
       }
     }
@@ -188,7 +188,7 @@ export default function NewSessionScreen() {
     const sb = parseFloat(sbTrim);
     const bb = parseFloat(bbTrim);
     if (!sbTrim || !bbTrim || Number.isNaN(sb) || Number.isNaN(bb) || sb <= 0 || bb < sb) {
-      Alert.alert(
+      appAlert(
         'Blinds required',
         'Enter small and big blind amounts, with big blind at least equal to the small blind.'
       );
@@ -228,7 +228,7 @@ export default function NewSessionScreen() {
 
       router.replace(`/session/${sessionId}`);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'Unable to create session',
         error instanceof Error ? error.message : 'Please try again.'
       );

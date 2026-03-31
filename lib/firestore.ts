@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  documentId,
   getDoc,
   getDocs,
   increment,
@@ -158,7 +159,7 @@ export async function ensureRefCode(uid: string): Promise<string> {
 const FRIEND_REQUESTS = 'friend_requests';
 const FRIEND_REQUESTS_SENT = 'friend_requests_sent';
 
-export type SendFriendRequestResult =
+type SendFriendRequestResult =
   | { ok: true; outcome: 'sent' | 'now_friends' }
   | { ok: false; reason: 'already_friends' | 'already_sent' | 'self' };
 
@@ -289,7 +290,7 @@ export async function lookupPlayerByRefCode(code: string): Promise<PlayerProfile
   return getPlayerProfile(playerId);
 }
 
-export async function addFriend(myUid: string, friendProfile: PlayerProfile): Promise<void> {
+async function addFriend(myUid: string, friendProfile: PlayerProfile): Promise<void> {
   const db = getFirestoreDb();
   const myProfile = await getPlayerProfile(myUid);
   if (!myProfile) throw new Error('Your profile not found');
@@ -464,20 +465,6 @@ export async function createSession(input: {
   return sessionRef.id;
 }
 
-export async function getRecentSessionsForHost(hostId: string): Promise<SessionRecord[]> {
-  const db = getFirestoreDb();
-  const sessionsRef = collection(db, 'sessions');
-  const sessionsQuery = query(sessionsRef, where('hostId', '==', hostId), limit(50));
-
-  const snapshots = await getDocs(sessionsQuery);
-  return snapshots.docs
-    .map<SessionRecord>((snapshot) =>
-      mapSessionDocToRecord(snapshot.id, snapshot.data() as Record<string, unknown>)
-    )
-    .sort((a, b) => b.date.getTime() - a.date.getTime())
-    .slice(0, 20);
-}
-
 function mapSessionDocToRecord(sessionId: string, data: Record<string, unknown>): SessionRecord {
   return {
     id: sessionId,
@@ -611,14 +598,6 @@ export async function addSavedLocation(uid: string, name: string): Promise<void>
 export async function removeSavedLocation(uid: string, locationId: string): Promise<void> {
   const ref = doc(getFirestoreDb(), 'players', uid, 'saved_locations', locationId);
   await deleteDoc(ref);
-}
-
-export async function getSessionDate(sessionId: string): Promise<Date | undefined> {
-  const ref = doc(getFirestoreDb(), 'sessions', sessionId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return undefined;
-  const data = snap.data();
-  return toDate(data.date ?? data.createdAt);
 }
 
 export async function getSessionMeta(sessionId: string): Promise<{
@@ -858,8 +837,12 @@ export async function createGroup(uid: string, name: string): Promise<string> {
 }
 
 export async function renameGroup(uid: string, groupId: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('Group name is required.');
+  }
   const ref = doc(getFirestoreDb(), 'players', uid, 'groups', groupId);
-  await updateDoc(ref, { name: name.trim() });
+  await updateDoc(ref, { name: trimmed });
 }
 
 export async function deleteGroup(uid: string, groupId: string): Promise<void> {
@@ -961,7 +944,7 @@ export function subscribeGroupMembers(
 // Player history (all sessions a player participated in via buy-ins)
 // ---------------------------------------------------------------------------
 
-export type SessionHistoryEntry = SessionRecord & {
+type SessionHistoryEntry = SessionRecord & {
   totalBuyIn: number;
   cashOut: number;
   profit: number;
@@ -1003,7 +986,7 @@ async function sessionHistoryEntriesFromDocs(
 /** Page size for History tab (Firestore `limit` per request; use `startAfter` for next page). */
 export const HISTORY_TAB_PAGE_SIZE = 50;
 
-export type SessionHistoryPageResult = {
+type SessionHistoryPageResult = {
   entries: SessionHistoryEntry[];
   lastDoc: QueryDocumentSnapshot | null;
   hasMore: boolean;
@@ -1012,7 +995,7 @@ export type SessionHistoryPageResult = {
 /**
  * One page of finished sessions (newest first), keeping only those with `results/{playerId}`.
  * Pass `lastDoc` from the previous page as `cursor` for the next page.
- * Requires composite index: `sessions` — `status` ASC + `date` DESC.
+ * Requires composite index: `sessions` — `status` ASC + `date` DESC + `__name__` DESC.
  */
 export async function getSessionHistoryPage(
   playerId: string,
@@ -1026,6 +1009,7 @@ export async function getSessionHistoryPage(
           collection(db, 'sessions'),
           where('status', '==', 'finished'),
           orderBy('date', 'desc'),
+          orderBy(documentId(), 'desc'),
           startAfter(cursor),
           limit(pageSize)
         )
@@ -1033,6 +1017,7 @@ export async function getSessionHistoryPage(
           collection(db, 'sessions'),
           where('status', '==', 'finished'),
           orderBy('date', 'desc'),
+          orderBy(documentId(), 'desc'),
           limit(pageSize)
         )
   );
@@ -1056,9 +1041,9 @@ const FINISHED_SESSIONS_QUERY_PAGE_SIZE = 500;
 
 /**
  * Every finished session in the database (paginated in batches), keeping only those with a
- * `results/{playerId}` doc. Requires composite index: `sessions` — `status` ASC + `date` DESC.
+ * `results/{playerId}` doc. Requires composite index: `sessions` — `status` ASC + `date` DESC + `__name__` DESC.
  */
-export async function getFullSessionHistoryForPlayer(playerId: string): Promise<SessionHistoryEntry[]> {
+async function getFullSessionHistoryForPlayer(playerId: string): Promise<SessionHistoryEntry[]> {
   const db = getFirestoreDb();
   const allDocs: QueryDocumentSnapshot[] = [];
   let cursor: QueryDocumentSnapshot | undefined;
@@ -1070,6 +1055,7 @@ export async function getFullSessionHistoryForPlayer(playerId: string): Promise<
             collection(db, 'sessions'),
             where('status', '==', 'finished'),
             orderBy('date', 'desc'),
+            orderBy(documentId(), 'desc'),
             startAfter(cursor),
             limit(FINISHED_SESSIONS_QUERY_PAGE_SIZE)
           )
@@ -1077,6 +1063,7 @@ export async function getFullSessionHistoryForPlayer(playerId: string): Promise<
             collection(db, 'sessions'),
             where('status', '==', 'finished'),
             orderBy('date', 'desc'),
+            orderBy(documentId(), 'desc'),
             limit(FINISHED_SESSIONS_QUERY_PAGE_SIZE)
           )
     );
