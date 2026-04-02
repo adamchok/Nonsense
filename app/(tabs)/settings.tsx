@@ -1,15 +1,22 @@
-import { AVATAR_EMOJIS } from '@/constants/avatar';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
 import { appAlert } from '@/lib/app-alert';
+
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+const AVATAR_EMOJIS = [
+  '🙂', '😀', '😎', '🤠', '🧠', '🦈', '🐯', '🦁', '🐸', '🐻',
+  '🃏', '♠️', '♥️', '♦️', '♣️', '🎲', '🎯', '🏆', '🔥', '⚡',
+  '🍀', '🌙', '⭐', '☀️', '🌊', '🍕', '🍔', '🍩', '🎧', '🎮',
+];
 
 function formatPlayTime(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000);

@@ -1,12 +1,13 @@
-import { AppAlertProvider } from '@/lib/app-alert';
-import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { ThemePreferenceProvider, useThemePreference } from '@/lib/theme-context';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+
+import { AppAlertProvider } from '@/lib/app-alert';
+import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { ThemePreferenceProvider, useThemePreference } from '@/lib/theme-context';
 
 SplashScreen.preventAutoHideAsync();
 

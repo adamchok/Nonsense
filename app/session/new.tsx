@@ -1,9 +1,3 @@
-import { GroupMemberAvatar } from '@/components/group-member-avatar';
-import { appAlert } from '@/lib/app-alert';
-import { useAppColors } from '@/lib/app-theme';
-import { useAuth } from '@/lib/auth-context';
-import { addBuyIn, createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
-import type { GroupMember, PokerGroup, SavedLocation } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +15,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { GroupMemberAvatar } from '@/components/group-member-avatar';
+import { appAlert } from '@/lib/app-alert';
+import { useAppColors } from '@/lib/app-theme';
+import { useAuth } from '@/lib/auth-context';
+import { addBuyIn, createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
+import type { GroupMember, PokerGroup, SavedLocation } from '@/types';
 
 const SCREEN_CONTENT_PADDING_BOTTOM = 32;
 

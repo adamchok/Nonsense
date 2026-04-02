@@ -1,7 +1,9 @@
-import { useAppColors } from '@/lib/app-theme';
-import type { GroupMember, PlayerProfile } from '@/types';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useAppColors } from '@/lib/app-theme';
+import type { GroupMember, PlayerProfile } from '@/types';
+
+/** Emoji shown for a group member row (live avatar for the current user when `viewerProfile` matches). */
 export function groupMemberDisplayEmoji(
   member: GroupMember,
   viewerProfile?: PlayerProfile | null
@@ -18,6 +20,7 @@ export function groupMemberDisplayEmoji(
 type GroupMemberAvatarProps = {
   member: GroupMember;
   viewerProfile?: PlayerProfile | null;
+  /** Default: 32px circle; compact: 28px for chips. */
   size?: 'default' | 'compact';
 };
 

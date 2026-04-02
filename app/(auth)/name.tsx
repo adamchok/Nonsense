@@ -1,7 +1,3 @@
-import { appAlert } from '@/lib/app-alert';
-import { useAppColors } from '@/lib/app-theme';
-import { useAuth } from '@/lib/auth-context';
-import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import { Redirect, router, useNavigation } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -16,6 +12,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { appAlert } from '@/lib/app-alert';
+import { useAppColors } from '@/lib/app-theme';
+import { useAuth } from '@/lib/auth-context';
+import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 
 export default function NameScreen() {
   const c = useAppColors();

@@ -1,10 +1,11 @@
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createGroup } from '@/lib/firestore';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function NewGroupScreen() {
   const c = useAppColors();

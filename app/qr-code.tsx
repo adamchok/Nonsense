@@ -1,4 +1,16 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+
 import { appAlert } from '@/lib/app-alert';
+import QRCode from 'react-native-qrcode-svg';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -10,16 +22,6 @@ import {
   subscribeOutgoingFriendRequests,
 } from '@/lib/firestore';
 import type { FriendRecord, FriendRequestRecord, PlayerProfile } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
-import * as Clipboard from 'expo-clipboard';
-import * as ImagePicker from 'expo-image-picker';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
-import ViewShot, { captureRef } from 'react-native-view-shot';
 
 type Tab = 'my' | 'scan';
 
