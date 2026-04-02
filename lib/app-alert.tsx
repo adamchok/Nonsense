@@ -1,3 +1,4 @@
+import { useAppColors } from '@/lib/app-theme';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   Modal,
@@ -8,8 +9,6 @@ import {
   type StyleProp,
   type TextStyle,
 } from 'react-native';
-
-import { useAppColors } from '@/lib/app-theme';
 
 export type AppAlertButtonStyle = 'default' | 'cancel' | 'destructive';
 

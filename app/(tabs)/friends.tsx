@@ -1,21 +1,3 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
@@ -45,6 +27,23 @@ import {
 } from '@/lib/firestore';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { FriendRecord, FriendRequestRecord, GroupMember, PokerGroup } from '@/types';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 type LeaderboardEntry = { playerId: string; name: string; avatarEmoji?: string; totalProfit: number };
 type FriendsSectionTab = 'friends' | 'leaderboard' | 'groups';

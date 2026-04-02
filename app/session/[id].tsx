@@ -1,22 +1,4 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router, useLocalSearchParams } from 'expo-router';
-import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type ViewStyle,
-} from 'react-native';
-
+import { AVATAR_EMOJIS } from '@/constants/avatar';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -36,6 +18,24 @@ import {
 } from '@/lib/firestore';
 import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { BuyIn, EarlyCashOut, FriendRecord } from '@/types';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type ViewStyle,
+} from 'react-native';
 
 type SessionView = {
   hostId?: string;
@@ -84,7 +84,6 @@ function formatCashOutTimestamp(d: Date): string {
 /** Max rows visible before the buy-in ledger scrolls (approx row height incl. margin). */
 const LEDGER_MAX_VISIBLE_ROWS = 8;
 const LEDGER_ROW_APPROX_PX = 68;
-const GUEST_AVATARS = ['🤠', '😎', '🦈', '🐯', '🦁', '🐸', '🐻', '🎯', '🔥', '⚡', '🍀', '🎲'];
 
 export default function ActiveSessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -201,7 +200,7 @@ export default function ActiveSessionScreen() {
     for (let i = 0; i < seed.length; i += 1) {
       hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
     }
-    return GUEST_AVATARS[hash % GUEST_AVATARS.length];
+    return AVATAR_EMOJIS[hash % AVATAR_EMOJIS.length];
   }
 
   function getAvatarEmoji(playerId: string): string {

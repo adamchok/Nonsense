@@ -1,3 +1,16 @@
+import { getFirestoreDb } from '@/lib/firebase';
+import type {
+  BuyIn,
+  EarlyCashOut,
+  FriendRecord,
+  FriendRequestRecord,
+  GroupMember,
+  PlayerProfile,
+  PokerGroup,
+  SavedLocation,
+  SessionRecord,
+  SessionResult,
+} from '@/types';
 import {
   addDoc,
   collection,
@@ -22,20 +35,6 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
-
-import { getFirestoreDb } from '@/lib/firebase';
-import type {
-  BuyIn,
-  EarlyCashOut,
-  FriendRecord,
-  FriendRequestRecord,
-  GroupMember,
-  PlayerProfile,
-  PokerGroup,
-  SavedLocation,
-  SessionRecord,
-  SessionResult,
-} from '@/types';
 
 function toDate(value: unknown): Date {
   if (value instanceof Timestamp) {
