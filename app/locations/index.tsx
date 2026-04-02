@@ -1,14 +1,12 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-
 import { appAlert } from '@/lib/app-alert';
-
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { addSavedLocation, getSavedLocations, removeSavedLocation } from '@/lib/firestore';
 import type { SavedLocation } from '@/types';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function SavedLocationsScreen() {
   const c = useAppColors();

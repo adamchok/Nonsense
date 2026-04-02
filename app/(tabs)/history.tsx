@@ -1,10 +1,3 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useFocusEffect, useRouter } from 'expo-router';
-import type { QueryDocumentSnapshot } from 'firebase/firestore';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -16,6 +9,12 @@ import {
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useFocusEffect, useRouter } from 'expo-router';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
 type SortKey = 'datetime' | 'buyIn' | 'profit' | 'duration';

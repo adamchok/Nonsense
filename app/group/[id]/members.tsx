@@ -1,3 +1,15 @@
+import { GroupMemberAvatar } from '@/components/group-member-avatar';
+import { appAlert } from '@/lib/app-alert';
+import { useAppColors } from '@/lib/app-theme';
+import { useAuth } from '@/lib/auth-context';
+import {
+  addGroupMember,
+  removeGroupMember,
+  subscribeFriends,
+  subscribeGroupMembers,
+  subscribeGroups,
+} from '@/lib/firestore';
+import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -10,19 +22,6 @@ import {
   TextInput,
   View
 } from 'react-native';
-
-import { GroupMemberAvatar } from '@/components/group-member-avatar';
-import { appAlert } from '@/lib/app-alert';
-import { useAppColors } from '@/lib/app-theme';
-import { useAuth } from '@/lib/auth-context';
-import {
-  addGroupMember,
-  removeGroupMember,
-  subscribeFriends,
-  subscribeGroups,
-  subscribeGroupMembers,
-} from '@/lib/firestore';
-import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
 
 export default function GroupMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

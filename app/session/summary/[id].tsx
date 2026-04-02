@@ -1,3 +1,11 @@
+import { appAlert } from '@/lib/app-alert';
+import { useAppColors } from '@/lib/app-theme';
+import { useAuth } from '@/lib/auth-context';
+import { formatBlinds, formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
+import { formatDateTimeDMY } from '@/lib/date-format';
+import { getEarlyCashOuts, getPlayerProfile, getResults, getSessionMeta } from '@/lib/firestore';
+import { computeSettlements } from '@/lib/settlement';
+import type { EarlyCashOut, SessionResult } from '@/types';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -13,15 +21,6 @@ import {
   Text,
   View,
 } from 'react-native';
-
-import { appAlert } from '@/lib/app-alert';
-import { useAppColors } from '@/lib/app-theme';
-import { useAuth } from '@/lib/auth-context';
-import { formatBlinds, formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
-import { formatDateTimeDMY } from '@/lib/date-format';
-import { getEarlyCashOuts, getPlayerProfile, getResults, getSessionMeta } from '@/lib/firestore';
-import { computeSettlements } from '@/lib/settlement';
-import type { EarlyCashOut, SessionResult } from '@/types';
 
 export default function SessionSummaryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

@@ -1,6 +1,5 @@
-import { Redirect } from 'expo-router';
-
 import { useAuth } from '@/lib/auth-context';
+import { Redirect } from 'expo-router';
 
 export default function IndexScreen() {
   const { isReady, user, playerProfile } = useAuth();

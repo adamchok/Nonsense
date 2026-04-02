@@ -1,3 +1,8 @@
+import { appAlert } from '@/lib/app-alert';
+import { useAppColors } from '@/lib/app-theme';
+import { useAuth } from '@/lib/auth-context';
+import { finishSession, getBuyIns, getEarlyCashOuts, getSessionMeta, saveResults } from '@/lib/firestore';
+import type { SessionResult } from '@/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -10,12 +15,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-
-import { appAlert } from '@/lib/app-alert';
-import { useAppColors } from '@/lib/app-theme';
-import { useAuth } from '@/lib/auth-context';
-import { finishSession, getBuyIns, getEarlyCashOuts, getSessionMeta, saveResults } from '@/lib/firestore';
-import type { SessionResult } from '@/types';
 
 const CHIP_AMOUNTS = [5, 10, 25, 50];
 const NEGATIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => b - a);
