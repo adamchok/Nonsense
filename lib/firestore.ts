@@ -104,8 +104,18 @@ export async function upsertPlayerProfile(uid: string, name: string): Promise<Pl
 
   let refCode: string | undefined;
   if (snapshot.exists()) {
+    const prevName = String(snapshot.data().name ?? '');
     refCode = snapshot.data().refCode ? String(snapshot.data().refCode) : undefined;
     await setDoc(ref, { name, anonymousUid: uid }, { merge: true });
+    if (prevName !== name) {
+      scheduleProfileDenormalization(
+        'displayName',
+        Promise.all([
+          propagateMyDisplayToFriends(uid, { name }),
+          propagateDisplayNameToGroupMembers(uid, name),
+        ])
+      );
+    }
   } else {
     refCode = generateRefCode();
     await setDoc(ref, {
@@ -282,6 +292,20 @@ export function subscribeOutgoingFriendRequests(
   );
 }
 
+export async function fetchIncomingFriendRequests(uid: string): Promise<FriendRequestRecord[]> {
+  const colRef = collection(getFirestoreDb(), 'players', uid, FRIEND_REQUESTS);
+  const snapshot = await getDocs(colRef);
+  const requests = snapshot.docs.map((d) => mapFriendRequestDoc(d));
+  return requests.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function fetchOutgoingFriendRequests(uid: string): Promise<FriendRequestRecord[]> {
+  const colRef = collection(getFirestoreDb(), 'players', uid, FRIEND_REQUESTS_SENT);
+  const snapshot = await getDocs(colRef);
+  const requests = snapshot.docs.map((d) => mapFriendRequestDoc(d));
+  return requests.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export async function lookupPlayerByRefCode(code: string): Promise<PlayerProfile | null> {
   const ref = doc(getFirestoreDb(), 'refCodes', code.toUpperCase());
   const snap = await getDoc(ref);
@@ -310,6 +334,80 @@ async function addFriend(myUid: string, friendProfile: PlayerProfile): Promise<v
   });
 }
 
+/** Max operations per Firestore batch (stay under 500). */
+const FRIEND_PROPAGATE_BATCH_SIZE = 400;
+
+/**
+ * Runs denormalized writes without blocking the caller so the canonical `players/{uid}` update
+ * can finish and the UI can unblock; failures are logged (friends/groups may be briefly stale).
+ */
+function scheduleProfileDenormalization(label: string, work: Promise<unknown>): void {
+  void work.catch((err) => {
+    console.error(`[Firestore profile denorm: ${label}]`, err);
+  });
+}
+
+/**
+ * Updates each friend's denormalized copy of this user (`players/{friendUid}/friends/{myUid}`).
+ * Without this, avatar/name changes only live on `players/{myUid}` and friends' lists stay stale.
+ */
+async function propagateMyDisplayToFriends(
+  myUid: string,
+  patch: { name?: string; avatarEmoji?: string | null }
+): Promise<void> {
+  const hasName = patch.name !== undefined;
+  const hasAvatar = patch.avatarEmoji !== undefined;
+  if (!hasName && !hasAvatar) return;
+
+  const db = getFirestoreDb();
+  const friendsSnap = await getDocs(collection(db, 'players', myUid, 'friends'));
+  if (friendsSnap.empty) return;
+
+  const firestorePatch: Record<string, string | null> = {};
+  if (hasName) firestorePatch.name = patch.name as string;
+  if (hasAvatar) firestorePatch.avatarEmoji = patch.avatarEmoji ?? null;
+
+  const friendIds = friendsSnap.docs.map((d) => d.id);
+  for (let i = 0; i < friendIds.length; i += FRIEND_PROPAGATE_BATCH_SIZE) {
+    const batch = writeBatch(db);
+    for (const friendId of friendIds.slice(i, i + FRIEND_PROPAGATE_BATCH_SIZE)) {
+      batch.update(doc(db, 'players', friendId, 'friends', myUid), firestorePatch);
+    }
+    await batch.commit();
+  }
+}
+
+/**
+ * Updates `avatarEmoji` on every `groups/{groupId}/members/{myUid}` row so group lists stay in sync
+ * after the player changes their profile avatar (same idea as friends denormalization).
+ */
+async function propagateAvatarToGroupMembers(myUid: string, avatarEmoji: string | null): Promise<void> {
+  const db = getFirestoreDb();
+  const membershipsSnap = await getDocs(collection(db, 'players', myUid, 'group_memberships'));
+  if (membershipsSnap.empty) return;
+
+  const groupIds = membershipsSnap.docs.map((d) => d.id);
+  await Promise.allSettled(
+    groupIds.map((groupId) =>
+      updateDoc(doc(db, 'groups', groupId, 'members', myUid), { avatarEmoji })
+    )
+  );
+}
+
+/** Syncs display `name` on every `groups/{groupId}/members/{myUid}` row after profile name change. */
+async function propagateDisplayNameToGroupMembers(myUid: string, name: string): Promise<void> {
+  const db = getFirestoreDb();
+  const membershipsSnap = await getDocs(collection(db, 'players', myUid, 'group_memberships'));
+  if (membershipsSnap.empty) return;
+
+  const groupIds = membershipsSnap.docs.map((d) => d.id);
+  await Promise.allSettled(
+    groupIds.map((groupId) =>
+      updateDoc(doc(db, 'groups', groupId, 'members', myUid), { name })
+    )
+  );
+}
+
 export async function removeFriend(myUid: string, friendId: string): Promise<void> {
   const db = getFirestoreDb();
   await deleteDoc(doc(db, 'players', myUid, 'friends', friendId));
@@ -335,6 +433,19 @@ export function subscribeFriends(
     },
     onError
   );
+}
+
+/** One-shot read; same ordering as {@link subscribeFriends}. */
+export async function fetchFriendsList(uid: string): Promise<FriendRecord[]> {
+  const colRef = collection(getFirestoreDb(), 'players', uid, 'friends');
+  const snapshot = await getDocs(colRef);
+  const friends = snapshot.docs.map<FriendRecord>((d) => ({
+    playerId: d.id,
+    name: String(d.data().name ?? ''),
+    addedAt: toDate(d.data().addedAt),
+    avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
+  }));
+  return friends.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getFriendLeaderboard(
@@ -563,9 +674,18 @@ export async function updateSessionBlinds(
 }
 
 export async function updatePlayerAvatar(uid: string, avatarEmoji: string): Promise<void> {
-  const ref = doc(getFirestoreDb(), 'players', uid);
+  const db = getFirestoreDb();
+  const ref = doc(db, 'players', uid);
   const trimmed = avatarEmoji.trim();
-  await updateDoc(ref, { avatarEmoji: trimmed || null });
+  const value = trimmed || null;
+  await updateDoc(ref, { avatarEmoji: value });
+  scheduleProfileDenormalization(
+    'avatar',
+    Promise.all([
+      propagateMyDisplayToFriends(uid, { avatarEmoji: value }),
+      propagateAvatarToGroupMembers(uid, value),
+    ])
+  );
 }
 
 export async function getSavedLocations(uid: string): Promise<SavedLocation[]> {
@@ -817,23 +937,91 @@ export async function getResults(sessionId: string): Promise<SessionResult[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Groups  (subcollection: players/{uid}/groups/{groupId})
-//         members:         players/{uid}/groups/{groupId}/members/{memberId}
+// Groups — canonical: groups/{groupId} + groups/{groupId}/members/{memberId}
+// Per-user index (one query for the Groups tab): players/{uid}/group_memberships/{groupId}
 // ---------------------------------------------------------------------------
+
+const GROUPS_COLLECTION = 'groups';
+const GROUP_MEMBERSHIPS_SUB = 'group_memberships';
+
+/** Keeps denormalized list fields in sync for every player who should see the group. */
+async function syncGroupMembershipDocs(groupId: string): Promise<void> {
+  const db = getFirestoreDb();
+  const groupRef = doc(db, GROUPS_COLLECTION, groupId);
+  const groupSnap = await getDoc(groupRef);
+  if (!groupSnap.exists()) return;
+
+  const g = groupSnap.data() as Record<string, unknown>;
+  const name = String(g.name ?? '');
+  const memberCount = Number(g.memberCount ?? 0);
+  const ownerId = String(g.ownerId ?? '');
+  const groupCreatedAt = g.createdAt ?? g.groupCreatedAt;
+
+  const membersSnap = await getDocs(collection(db, GROUPS_COLLECTION, groupId, 'members'));
+  const registeredIds = membersSnap.docs
+    .filter((d) => Boolean(d.data().isRegistered))
+    .map((d) => d.id);
+
+  const ids = new Set<string>([ownerId, ...registeredIds]);
+  const idsList = [...ids];
+
+  const payloadBase: Record<string, unknown> = {
+    name,
+    memberCount,
+    ownerId,
+  };
+  if (groupCreatedAt !== undefined && groupCreatedAt !== null) {
+    payloadBase.groupCreatedAt = groupCreatedAt;
+  }
+
+  for (let i = 0; i < idsList.length; i += FRIEND_PROPAGATE_BATCH_SIZE) {
+    const batch = writeBatch(db);
+    for (const pid of idsList.slice(i, i + FRIEND_PROPAGATE_BATCH_SIZE)) {
+      const mref = doc(db, 'players', pid, GROUP_MEMBERSHIPS_SUB, groupId);
+      const role = pid === ownerId ? 'owner' : 'member';
+      batch.set(
+        mref,
+        {
+          ...payloadBase,
+          role,
+        },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+  }
+}
 
 export async function createGroup(uid: string, name: string): Promise<string> {
   const db = getFirestoreDb();
-  const colRef = collection(db, 'players', uid, 'groups');
-  const existing = await getDocs(colRef);
-  if (existing.size >= 10) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Group name is required.');
+
+  const ownedSnap = await getDocs(query(collection(db, GROUPS_COLLECTION), where('ownerId', '==', uid)));
+  if (ownedSnap.size >= 10) {
     throw new Error('You can create up to 10 groups.');
   }
-  const ref = await addDoc(colRef, {
-    name: name.trim(),
-    createdAt: serverTimestamp(),
+
+  const groupRef = doc(collection(db, GROUPS_COLLECTION));
+  const groupId = groupRef.id;
+  const groupCreatedAt = serverTimestamp();
+
+  await setDoc(groupRef, {
+    name: trimmed,
+    ownerId: uid,
     memberCount: 0,
+    createdAt: groupCreatedAt,
   });
-  return ref.id;
+
+  await setDoc(doc(db, 'players', uid, GROUP_MEMBERSHIPS_SUB, groupId), {
+    name: trimmed,
+    memberCount: 0,
+    ownerId: uid,
+    role: 'owner',
+    groupCreatedAt,
+  });
+
+  return groupId;
 }
 
 export async function renameGroup(uid: string, groupId: string, name: string): Promise<void> {
@@ -841,17 +1029,52 @@ export async function renameGroup(uid: string, groupId: string, name: string): P
   if (!trimmed) {
     throw new Error('Group name is required.');
   }
-  const ref = doc(getFirestoreDb(), 'players', uid, 'groups', groupId);
-  await updateDoc(ref, { name: trimmed });
+  const db = getFirestoreDb();
+  const groupRef = doc(db, GROUPS_COLLECTION, groupId);
+  const snap = await getDoc(groupRef);
+  if (!snap.exists()) throw new Error('Group not found');
+  if (String(snap.data().ownerId) !== uid) {
+    throw new Error('Only the group owner can rename the group.');
+  }
+  await updateDoc(groupRef, { name: trimmed });
+  await syncGroupMembershipDocs(groupId);
 }
 
 export async function deleteGroup(uid: string, groupId: string): Promise<void> {
   const db = getFirestoreDb();
-  const membersSnap = await getDocs(collection(db, 'players', uid, 'groups', groupId, 'members'));
-  const batch = writeBatch(db);
-  membersSnap.docs.forEach((d) => batch.delete(d.ref));
-  batch.delete(doc(db, 'players', uid, 'groups', groupId));
-  await batch.commit();
+  const groupRef = doc(db, GROUPS_COLLECTION, groupId);
+  const snap = await getDoc(groupRef);
+  if (!snap.exists()) throw new Error('Group not found');
+  if (String(snap.data().ownerId) !== uid) {
+    throw new Error('Only the group owner can delete the group.');
+  }
+
+  const membersSnap = await getDocs(collection(db, GROUPS_COLLECTION, groupId, 'members'));
+  const membershipIds = new Set<string>([uid]);
+  for (const d of membersSnap.docs) {
+    if (Boolean(d.data().isRegistered)) membershipIds.add(d.id);
+  }
+
+  const memberDocs = membersSnap.docs.map((d) => d.ref);
+
+  for (let i = 0; i < memberDocs.length; i += FRIEND_PROPAGATE_BATCH_SIZE) {
+    const batch = writeBatch(db);
+    for (const ref of memberDocs.slice(i, i + FRIEND_PROPAGATE_BATCH_SIZE)) {
+      batch.delete(ref);
+    }
+    await batch.commit();
+  }
+
+  const membershipIdList = [...membershipIds];
+  for (let i = 0; i < membershipIdList.length; i += FRIEND_PROPAGATE_BATCH_SIZE) {
+    const batch = writeBatch(db);
+    for (const pid of membershipIdList.slice(i, i + FRIEND_PROPAGATE_BATCH_SIZE)) {
+      batch.delete(doc(db, 'players', pid, GROUP_MEMBERSHIPS_SUB, groupId));
+    }
+    await batch.commit();
+  }
+
+  await deleteDoc(groupRef);
 }
 
 export function subscribeGroups(
@@ -859,73 +1082,145 @@ export function subscribeGroups(
   onNext: (groups: PokerGroup[]) => void,
   onError: (err: Error) => void
 ): Unsubscribe {
-  const colRef = collection(getFirestoreDb(), 'players', uid, 'groups');
-  const q = query(colRef, orderBy('createdAt', 'desc'));
+  const colRef = collection(getFirestoreDb(), 'players', uid, GROUP_MEMBERSHIPS_SUB);
+  const q = query(colRef, orderBy('groupCreatedAt', 'desc'));
   return onSnapshot(
     q,
     (snapshot) => {
-      const groups = snapshot.docs.map<PokerGroup>((d) => ({
-        id: d.id,
-        name: String(d.data().name ?? ''),
-        createdAt: toDate(d.data().createdAt),
-        memberCount: Number(d.data().memberCount ?? 0),
-      }));
+      const groups = snapshot.docs.map<PokerGroup>((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: String(data.name ?? ''),
+          createdAt: toDate(data.groupCreatedAt ?? data.createdAt),
+          memberCount: Number(data.memberCount ?? 0),
+          ownerId: String(data.ownerId ?? ''),
+          myRole: data.role === 'owner' ? 'owner' : 'member',
+        };
+      });
       onNext(groups);
     },
     onError
   );
 }
 
+/** One-shot read; same ordering as {@link subscribeGroups}. */
+export async function fetchGroupsList(uid: string): Promise<PokerGroup[]> {
+  const colRef = collection(getFirestoreDb(), 'players', uid, GROUP_MEMBERSHIPS_SUB);
+  const q = query(colRef, orderBy('groupCreatedAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map<PokerGroup>((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      name: String(data.name ?? ''),
+      createdAt: toDate(data.groupCreatedAt ?? data.createdAt),
+      memberCount: Number(data.memberCount ?? 0),
+      ownerId: String(data.ownerId ?? ''),
+      myRole: data.role === 'owner' ? 'owner' : 'member',
+    };
+  });
+}
+
 export async function addGroupMember(
-  uid: string,
+  ownerUid: string,
   groupId: string,
   member: GroupMember
 ): Promise<void> {
   const db = getFirestoreDb();
-  const groupRef = doc(db, 'players', uid, 'groups', groupId);
-  const memberRef = doc(db, 'players', uid, 'groups', groupId, 'members', member.id);
+  const groupRef = doc(db, GROUPS_COLLECTION, groupId);
+  const memberRef = doc(db, GROUPS_COLLECTION, groupId, 'members', member.id);
+
+  let avatarEmoji: string | null = null;
+  if (member.isRegistered) {
+    const fromInput = normalizeAvatarEmoji(member.avatarEmoji);
+    if (fromInput) {
+      avatarEmoji = fromInput;
+    } else {
+      const profile = await getPlayerProfile(member.id);
+      const fromProfile = profile ? normalizeAvatarEmoji(profile.avatarEmoji) : undefined;
+      avatarEmoji = fromProfile ?? null;
+    }
+  } else {
+    avatarEmoji = normalizeAvatarEmoji(member.avatarEmoji) ?? null;
+  }
+
   await runTransaction(db, async (tx) => {
+    const gSnap = await tx.get(groupRef);
+    if (!gSnap.exists()) throw new Error('Group not found');
+    if (String(gSnap.data().ownerId) !== ownerUid) {
+      throw new Error('Only the group owner can add members');
+    }
+
     const existing = await tx.get(memberRef);
-    tx.set(memberRef, { name: member.name, isRegistered: member.isRegistered });
+    tx.set(memberRef, {
+      name: member.name,
+      isRegistered: member.isRegistered,
+      avatarEmoji,
+    });
     if (!existing.exists()) {
       tx.update(groupRef, { memberCount: increment(1) });
     }
   });
+
+  await syncGroupMembershipDocs(groupId);
 }
 
 export async function removeGroupMember(
-  uid: string,
+  ownerUid: string,
   groupId: string,
   memberId: string
 ): Promise<void> {
   const db = getFirestoreDb();
-  const groupRef = doc(db, 'players', uid, 'groups', groupId);
-  const memberRef = doc(db, 'players', uid, 'groups', groupId, 'members', memberId);
+  const groupRef = doc(db, GROUPS_COLLECTION, groupId);
+  const memberRef = doc(db, GROUPS_COLLECTION, groupId, 'members', memberId);
+
+  let wasRegistered = false;
+
   await runTransaction(db, async (tx) => {
+    const gSnap = await tx.get(groupRef);
+    if (!gSnap.exists()) throw new Error('Group not found');
+    if (String(gSnap.data().ownerId) !== ownerUid) {
+      throw new Error('Only the group owner can remove members');
+    }
+
     const existing = await tx.get(memberRef);
     if (!existing.exists()) return;
+    wasRegistered = Boolean(existing.data().isRegistered);
     tx.delete(memberRef);
     tx.update(groupRef, { memberCount: increment(-1) });
   });
+
+  if (wasRegistered) {
+    await deleteDoc(doc(db, 'players', memberId, GROUP_MEMBERSHIPS_SUB, groupId));
+  }
+
+  await syncGroupMembershipDocs(groupId);
 }
 
-export async function getGroupMembers(uid: string, groupId: string): Promise<GroupMember[]> {
-  const colRef = collection(getFirestoreDb(), 'players', uid, 'groups', groupId, 'members');
-  const snap = await getDocs(colRef);
+export async function getGroupMembers(viewerUid: string, groupId: string): Promise<GroupMember[]> {
+  const db = getFirestoreDb();
+  const access = await getDoc(doc(db, 'players', viewerUid, GROUP_MEMBERSHIPS_SUB, groupId));
+  if (!access.exists()) {
+    throw new Error('Group not found or you are not a member.');
+  }
+  const snap = await getDocs(collection(db, GROUPS_COLLECTION, groupId, 'members'));
   return snap.docs.map<GroupMember>((d) => ({
     id: d.id,
     name: String(d.data().name ?? ''),
     isRegistered: Boolean(d.data().isRegistered),
+    avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
   }));
 }
 
 export function subscribeGroupMembers(
-  uid: string,
+  _viewerUid: string,
   groupId: string,
   onNext: (members: GroupMember[]) => void,
   onError: (err: Error) => void
 ): Unsubscribe {
-  const colRef = collection(getFirestoreDb(), 'players', uid, 'groups', groupId, 'members');
+  const db = getFirestoreDb();
+  const colRef = collection(db, GROUPS_COLLECTION, groupId, 'members');
   return onSnapshot(
     colRef,
     (snapshot) => {
@@ -933,6 +1228,7 @@ export function subscribeGroupMembers(
         id: d.id,
         name: String(d.data().name ?? ''),
         isRegistered: Boolean(d.data().isRegistered),
+        avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
       }));
       onNext(members.sort((a, b) => a.name.localeCompare(b.name)));
     },
@@ -1116,7 +1412,7 @@ export async function getPlayerAppStatistics(uid: string): Promise<PlayerAppStat
   const [history, friendsSnap, groupsSnap, savedLocs] = await Promise.all([
     getFullSessionHistoryForPlayer(uid),
     getDocs(collection(db, 'players', uid, 'friends')),
-    getDocs(collection(db, 'players', uid, 'groups')),
+    getDocs(collection(db, 'players', uid, GROUP_MEMBERSHIPS_SUB)),
     getSavedLocations(uid),
   ]);
 

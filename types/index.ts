@@ -68,6 +68,7 @@ export interface GroupMember {
   id: string;
   name: string;
   isRegistered: boolean;
+  avatarEmoji?: string;
 }
 
 export interface SavedLocation {

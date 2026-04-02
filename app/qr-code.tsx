@@ -1,10 +1,11 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { appAlert } from '@/lib/app-alert';
 import QRCode from 'react-native-qrcode-svg';
@@ -37,6 +38,7 @@ export default function QrCodeScreen() {
   const [pendingRefCode, setPendingRefCode] = useState<string | null>(null);
   const [addingFriend, setAddingFriend] = useState(false);
   const [sharingQr, setSharingQr] = useState(false);
+  const [pickingGalleryImage, setPickingGalleryImage] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const scanLock = useRef(false);
   const shareCardRef = useRef<ViewShot | null>(null);
@@ -133,6 +135,42 @@ export default function QrCodeScreen() {
 
     if (tab === 'my') setActiveTab('my');
   }, [tab, ensureCamera]);
+
+  async function handlePickQrFromGallery() {
+    if (Platform.OS === 'web') {
+      appAlert('Not available', 'Scanning a QR from a photo is not supported on web.');
+      return;
+    }
+    if (!user || pickingGalleryImage) return;
+    setPickingGalleryImage(true);
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        appAlert('Permission needed', 'Photo library access is needed to scan a QR code from an image.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: false,
+        quality: 1,
+      });
+      if (result.canceled || !result.assets[0]?.uri) return;
+
+      const barcodes = await scanFromURLAsync(result.assets[0].uri, ['qr']);
+      if (!barcodes.length) {
+        appAlert(
+          'No QR code found',
+          'Could not find a QR code in that image. Try a clearer photo with the code visible.',
+        );
+        return;
+      }
+      await handleBarCodeScanned({ data: barcodes[0].data });
+    } catch (e) {
+      appAlert('Error', e instanceof Error ? e.message : 'Could not read that image.');
+    } finally {
+      setPickingGalleryImage(false);
+    }
+  }
 
   async function handleBarCodeScanned({ data }: { data: string }) {
     if (scanLock.current || !user) return;
@@ -368,8 +406,30 @@ export default function QrCodeScreen() {
               <View style={[styles.scanFrame, { borderColor: c.blue }]} />
             </View>
           </View>
+          {Platform.OS !== 'web' && (
+            <Pressable
+              style={[
+                styles.scanGalleryBtn,
+                { borderColor: c.border, backgroundColor: c.cardAlt },
+                pickingGalleryImage && styles.disabled,
+              ]}
+              onPress={handlePickQrFromGallery}
+              disabled={pickingGalleryImage}
+              accessibilityRole="button"
+              accessibilityLabel="Choose QR code image from gallery">
+              {pickingGalleryImage ? (
+                <ActivityIndicator size="small" color={c.blue} />
+              ) : (
+                <MaterialIcons name="photo-library" size={22} color={c.blue} />
+              )}
+              <Text style={[styles.scanGalleryBtnLabel, { color: c.text }]}>
+                {pickingGalleryImage ? 'Reading…' : 'Choose from gallery'}
+              </Text>
+            </Pressable>
+          )}
           <Text style={[styles.scanHint, { color: c.textMuted }]}>
             Scan a friend&apos;s QR code to send them a friend request.
+            {Platform.OS !== 'web' ? ' Or pick a saved photo of their code.' : ''}
           </Text>
         </View>
       )}
@@ -590,6 +650,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     paddingBottom: 40,
+  },
+  scanGalleryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  scanGalleryBtnLabel: {
+    fontSize: 15,
+    fontWeight: '800',
   },
 
   modalRoot: {

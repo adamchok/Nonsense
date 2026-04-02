@@ -654,7 +654,6 @@ export default function ActiveSessionScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={players.length > LEDGER_MAX_VISIBLE_ROWS}>
           {players.map((item) => {
-            const isMe = item.playerId === playerProfile?.id;
             const rowIsHost = item.playerId === session?.hostId;
             const cashOut = earlyCashOutMap.get(item.playerId);
             const isCashedOut = !!cashOut;
@@ -678,33 +677,25 @@ export default function ActiveSessionScreen() {
                   <View style={styles.playerInfo}>
                     {!isCashedOut ? (
                       <View style={styles.playerInfoInline}>
+                        <Text style={styles.playerAvatarEmoji}>{getAvatarEmoji(item.playerId)}</Text>
                         <Text
                           style={[styles.playerName, styles.playerNameInline, { color: c.text }]}
                           numberOfLines={1}>
-                          {getAvatarEmoji(item.playerId)} {item.name}
+                          {item.name}
                         </Text>
-                        {isMe && (
-                          <View style={[styles.meBadge, { backgroundColor: c.badge.you }]}>
-                            <Text style={styles.badgeText}>YOU</Text>
-                          </View>
-                        )}
                       </View>
                     ) : (
                       <>
-                        <Text
-                          style={[styles.playerName, { color: c.textMuted }]}
-                          numberOfLines={1}>
-                          {getAvatarEmoji(item.playerId)} {item.name}
-                        </Text>
+                        <View style={styles.playerInfoInline}>
+                          <Text style={styles.playerAvatarEmoji}>{getAvatarEmoji(item.playerId)}</Text>
+                          <Text style={[styles.playerName, styles.playerNameInline, { color: c.textMuted }]} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                        </View>
                         <View style={styles.badges}>
                           <View style={[styles.cashedOutBadge, { backgroundColor: c.badge.cashedOut }]}>
                             <Text style={styles.badgeText}>CASHED OUT</Text>
                           </View>
-                          {isMe && !rowIsHost && (
-                            <View style={[styles.meBadge, { backgroundColor: c.badge.you }]}>
-                              <Text style={styles.badgeText}>YOU</Text>
-                            </View>
-                          )}
                         </View>
                       </>
                     )}
@@ -1347,19 +1338,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     ...(Platform.OS === 'android' ? { textAlignVertical: 'center' as const } : {}),
   },
-  metaSpacer: {
-    flex: 1,
-  },
-  locationCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginRight: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 10,
-  },
   locationLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1445,11 +1423,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 4,
-  },
-  addButton: {
-    borderRadius: 8,
-    alignItems: 'center',
-    paddingVertical: 10,
   },
   addButtonLabel: {
     color: '#fff',
@@ -1549,8 +1522,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
     minWidth: 0,
+  },
+  playerAvatarEmoji: {
+    fontSize: 15,
+    lineHeight: 20,
+    flexShrink: 0,
   },
   playerName: {
     fontWeight: '600',
@@ -1561,13 +1539,6 @@ const styles = StyleSheet.create({
   },
   badges: {
     flexDirection: 'row',
-    gap: 4,
-    flexWrap: 'wrap',
-  },
-  meBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
   },
   badgeText: {
     color: '#fff',

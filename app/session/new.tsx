@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -370,7 +371,10 @@ export default function NewSessionScreen() {
                   <>
                     <View style={styles.groupMemberList}>
                       {groupMembers.map((m) => (
-                        <View key={m.id} style={[styles.groupMemberChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}>
+                        <View
+                          key={m.id}
+                          style={[styles.groupMemberChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}>
+                          <GroupMemberAvatar member={m} viewerProfile={playerProfile} size="compact" />
                           <Text style={[styles.groupMemberChipText, { color: c.chipText }]}>{m.name}</Text>
                         </View>
                       ))}
@@ -725,10 +729,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   groupMemberChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
+    paddingRight: 10,
   },
   groupMemberChipText: {
     fontSize: 12,

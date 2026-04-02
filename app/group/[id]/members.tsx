@@ -11,6 +11,7 @@ import {
   View
 } from 'react-native';
 
+import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -31,6 +32,11 @@ export default function GroupMembersScreen() {
   const [friends, setFriends] = useState<FriendRecord[]>([]);
   const [guestName, setGuestName] = useState('');
   const [groupName, setGroupName] = useState<string | null>(null);
+  const [groupMeta, setGroupMeta] = useState<PokerGroup | null>(null);
+
+  const isOwner = Boolean(
+    user && groupMeta && (groupMeta.ownerId === user.uid || groupMeta.myRole === 'owner')
+  );
 
   useEffect(() => {
     if (!user || !id) return;
@@ -45,6 +51,7 @@ export default function GroupMembersScreen() {
       user.uid,
       (groups: PokerGroup[]) => {
         const match = groups.find((g) => g.id === id);
+        setGroupMeta(match ?? null);
         setGroupName(match?.name ?? null);
       },
       (e) => console.error('Groups error:', e)
@@ -64,12 +71,13 @@ export default function GroupMembersScreen() {
     : true;
 
   async function handleAddFriend(friend: FriendRecord) {
-    if (!user || !id) return;
+    if (!user || !id || !isOwner) return;
     try {
       await addGroupMember(user.uid, id, {
         id: friend.playerId,
         name: friend.name,
         isRegistered: true,
+        avatarEmoji: friend.avatarEmoji,
       });
     } catch (e) {
       appAlert('Error', e instanceof Error ? e.message : 'Failed to add member.');
@@ -77,12 +85,13 @@ export default function GroupMembersScreen() {
   }
 
   async function handleAddSelf() {
-    if (!user || !id || !playerProfile) return;
+    if (!user || !id || !playerProfile || !isOwner) return;
     try {
       await addGroupMember(user.uid, id, {
         id: playerProfile.id,
         name: playerProfile.name,
         isRegistered: true,
+        avatarEmoji: playerProfile.avatarEmoji,
       });
     } catch (e) {
       appAlert('Error', e instanceof Error ? e.message : 'Failed to add yourself.');
@@ -90,7 +99,7 @@ export default function GroupMembersScreen() {
   }
 
   async function handleAddGuest() {
-    if (!user || !id || !guestName.trim()) return;
+    if (!user || !id || !guestName.trim() || !isOwner) return;
     const name = guestName.trim();
     const memberId = name.toLowerCase().replace(/\s+/g, '_');
     if (members.some((m) => m.id === memberId)) {
@@ -106,7 +115,7 @@ export default function GroupMembersScreen() {
   }
 
   async function handleRemove(memberId: string) {
-    if (!user || !id) return;
+    if (!user || !id || !isOwner) return;
     try {
       await removeGroupMember(user.uid, id, memberId);
     } catch (e) {
@@ -124,13 +133,17 @@ export default function GroupMembersScreen() {
       />
 
       <View style={styles.content}>
-        <Text style={[styles.heading, { color: c.text }]}>Add members</Text>
+        <Text style={[styles.heading, { color: c.text }]}>
+          {isOwner ? 'Add members' : 'Members'}
+        </Text>
         <Text style={[styles.hint, { color: c.textMuted }]}>
-          Tap a friend to add them, or type a guest name below.
+          {isOwner
+            ? 'Tap a friend to add them, or type a guest name below.'
+            : 'Only the group owner can add or remove people. You can review who is in this group.'}
         </Text>
 
         {/* Quick-add chips */}
-        {(friendsNotInGroup.length > 0 || !selfInGroup) && (
+        {isOwner && (friendsNotInGroup.length > 0 || !selfInGroup) && (
           <View style={styles.chipsSection}>
             <Text style={[styles.chipsSectionLabel, { color: c.textHint }]}>QUICK ADD</Text>
             <View style={styles.chipsWrap}>
@@ -156,6 +169,7 @@ export default function GroupMembersScreen() {
         )}
 
         {/* Guest input */}
+        {isOwner ? (
         <View style={styles.guestSection}>
           <Text style={[styles.chipsSectionLabel, { color: c.textHint }]}>ADD GUEST</Text>
           <View style={styles.guestRow}>
@@ -180,6 +194,7 @@ export default function GroupMembersScreen() {
             </Pressable>
           </View>
         </View>
+        ) : null}
 
         {/* Member list */}
         <View style={styles.membersSection}>
@@ -188,7 +203,7 @@ export default function GroupMembersScreen() {
           </Text>
           {members.length === 0 ? (
             <Text style={[styles.emptyText, { color: c.textMuted }]}>
-              No members yet. Add some above.
+              {isOwner ? 'No members yet. Add some above.' : 'No members in this group yet.'}
             </Text>
           ) : (
             <ScrollView
@@ -201,11 +216,7 @@ export default function GroupMembersScreen() {
                   key={member.id}
                   style={[styles.memberRow, { backgroundColor: c.card, borderColor: c.border }]}>
                   <View style={styles.memberInfo}>
-                    <MaterialIcons
-                      name={member.isRegistered ? 'person' : 'person-outline'}
-                      size={20}
-                      color={c.textMuted}
-                    />
+                    <GroupMemberAvatar member={member} viewerProfile={playerProfile} />
                     <Text style={[styles.memberName, { color: c.text }]}>
                       {member.id === playerProfile?.id
                         ? (playerProfile?.name ?? member.name)
@@ -218,9 +229,13 @@ export default function GroupMembersScreen() {
                       </View>
                     )}
                   </View>
-                  <Pressable hitSlop={10} onPress={() => handleRemove(member.id)}>
-                    <MaterialIcons name="close" size={20} color={c.textHint} />
-                  </Pressable>
+                  {isOwner ? (
+                    <Pressable hitSlop={10} onPress={() => handleRemove(member.id)}>
+                      <MaterialIcons name="close" size={20} color={c.textHint} />
+                    </Pressable>
+                  ) : (
+                    <View style={{ width: 20 }} />
+                  )}
                 </View>
               ))}
             </ScrollView>

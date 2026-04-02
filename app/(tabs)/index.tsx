@@ -152,25 +152,6 @@ export default function HomeScreen() {
         <Text style={styles.ctaText}>Start New Session</Text>
       </Pressable>
 
-      <View style={styles.statsRow}>
-        <View
-          style={[
-            styles.statCard,
-            { backgroundColor: c.card, borderColor: c.border },
-          ]}>
-          <Text style={[styles.statValue, { color: c.text }]}>{sessions.length}</Text>
-          <Text style={[styles.statLabel, { color: c.textMuted }]}>Sessions</Text>
-        </View>
-        <View
-          style={[
-            styles.statCard,
-            { backgroundColor: c.card, borderColor: c.border },
-          ]}>
-          <Text style={[styles.statValue, { color: c.text }]}>{activeSessions.length}</Text>
-          <Text style={[styles.statLabel, { color: c.textMuted }]}>Active</Text>
-        </View>
-      </View>
-
       {error ? <Text style={{ color: c.loss }}>{error}</Text> : null}
 
       <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -253,7 +234,8 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     resizeMode: 'contain',
-    marginTop: 12
+    marginTop: 12,
+    marginBottom: 12,
   },
   welcomeGreeting: {
     fontSize: 22,
@@ -274,25 +256,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 15,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    gap: 2,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  statLabel: {
-    fontSize: 13,
-    fontWeight: '500',
   },
   card: {
     borderRadius: 16,

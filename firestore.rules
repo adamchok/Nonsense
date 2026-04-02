@@ -73,12 +73,70 @@ service cloud.firestore {
         allow read, write: if isPlayerOwner(playerId);
       }
 
-      match /groups/{groupId} {
-        allow read, write: if isPlayerOwner(playerId);
+      // Index of groups this user belongs to (efficient Groups tab). Synced from canonical `groups/{groupId}`.
+      match /group_memberships/{groupId} {
+        allow read: if isPlayerOwner(playerId);
+        // Owner creates their row when creating a group; group owner may create rows for invited players.
+        allow create: if signedIn()
+          && exists(/databases/$(database)/documents/groups/$(groupId))
+          && (
+            (
+              request.auth.uid == playerId
+              && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == playerId
+            )
+            || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+          );
+        allow update: if signedIn()
+          && (
+            request.auth.uid == playerId
+            || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+          );
+        allow delete: if signedIn()
+          && (
+            request.auth.uid == playerId
+            || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+          );
+      }
+    }
 
-        match /members/{memberId} {
-          allow read, write: if isPlayerOwner(playerId);
-        }
+    // Canonical poker groups (shared by all members). Members list lives under `members`.
+    match /groups/{groupId} {
+      allow read: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId))
+        );
+
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.memberCount is int;
+
+      allow update, delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
+
+      match /members/{memberId} {
+        allow read: if signedIn()
+          && (
+            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+            || exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId))
+          );
+
+        allow create, delete: if signedIn()
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid;
+
+        // Owner can manage any member. A member may update their own row only when `name` matches
+        // canonical `players/{uid}` (profile sync) and `isRegistered` is unchanged.
+        allow update: if signedIn()
+          && (
+            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+            || (
+              memberId == request.auth.uid
+              && request.resource.data.isRegistered == resource.data.isRegistered
+              && request.resource.data.name
+                == get(/databases/$(database)/documents/players/$(request.auth.uid)).data.name
+            )
+          );
       }
     }
 
