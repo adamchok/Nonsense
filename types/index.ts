@@ -62,6 +62,8 @@ export interface PokerGroup {
   name: string;
   createdAt: Date;
   memberCount?: number;
+  ownerId?: string;
+  myRole?: 'owner' | 'member';
 }
 
 export interface GroupMember {
