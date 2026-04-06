@@ -1,260 +1,241 @@
-# Nonsense — Poker Session Tracker
+# Nonsense App Spec (Current)
 
-## Project overview
+## Product overview
 
-Nonsense is a mobile app for tracking home poker sessions. It lets a host manage buy-ins for all players at the table in real time, tracks each player's cumulative winnings and losses across sessions, and gives everyone at the table a live view from their own phone.
+Nonsense is a cross-platform poker session tracker for friendly home games.
+The app covers the full lifecycle:
 
-The name reflects the spirit of the game — chaotic, fun, and among friends.
+- create and run live sessions
+- track buy-ins, re-entries, and early cash-outs
+- finalize results and settlement
+- review personal history, filters, and lifetime statistics
+- manage a social graph (friends + groups) for recurring tables
+
+Primary audience: casual-to-serious home poker groups that need clean records without account friction.
 
 ---
 
-## Tech stack
+## Current implementation status
+
+### Shipping now
+
+- Anonymous sign-in and profile setup (name + avatar emoji).
+- Session lifecycle:
+  - create session with optional location and optional blinds
+  - real-time buy-in ledger
+  - optional early cash-out tracking per player
+  - cash-out + finalize results
+  - read-only summary view
+- History tab:
+  - pagination (`HISTORY_TAB_PAGE_SIZE`)
+  - filters (location, date range, buy-in range, profit range)
+  - sort controls (date/time, buy-in, profit, duration; asc/desc)
+- Friends:
+  - ref-code friend discovery
+  - incoming/outgoing requests
+  - friend list management
+  - friend leaderboard
+- Groups:
+  - create, rename, delete
+  - owner/member roles
+  - member management and group leaderboard
+- Settings:
+  - theme preference (system/light/dark)
+  - locations manager
+  - statistics modal (full-history aggregation)
+  - QR code screen (share + scan flows)
+
+### Not implemented yet
+
+- Push notifications
+- Payment integrations
+- Export to CSV/PDF
+- Advanced trend charts / graphs
+
+---
+
+## Tech stack (actual)
 
 | Layer | Technology |
 |---|---|
-| Mobile framework | React Native (Expo SDK) |
-| Language | TypeScript |
-| Styling | NativeWind (Tailwind CSS for RN) |
-| Backend / DB | Firebase (Spark free tier) |
-| Database | Firestore (NoSQL) |
-| Auth | Firebase Authentication — anonymous |
-| State management | Zustand |
-| Data fetching | React Query + Firestore real-time listeners |
+| App framework | Expo SDK 54 + Expo Router |
+| UI | React Native 0.81 + React 19 + TypeScript |
+| Backend | Firebase (Auth + Firestore) |
+| Auth | Anonymous Firebase Authentication with RN persistence (`AsyncStorage`) |
+| Data layer | Firestore SDK reads/writes + real-time listeners (`onSnapshot`) |
+| Navigation | File-based routing with Expo Router |
+| Tooling | ESLint (Expo config), TypeScript |
 
-### Why this stack
-- Expo allows a single codebase for iOS and Android
-- Firebase Spark plan is permanently free, no credit card required, no inactivity pause
-- Firestore real-time listeners sync buy-ins across all players' phones instantly
-- Anonymous auth means zero friction — players open the app, enter a display name, and they're in. No sign-up, no passwords, no OTP
+Notes:
+
+- NativeWind, Zustand, and React Query are **not** part of the current architecture.
+- Firebase is initialized through `lib/firebase.ts` using Expo public env variables.
 
 ---
 
-## Core features (MVP)
+## Core user flows
 
-### 1. Session management
-- Host creates a new session (date, optional location/name)
-- Session has a shareable code or link so players can join from their phone
-- Session states: `active`, `finished`
-- Host can close/end a session and lock it
+### 1) Onboarding
 
-### 2. Player buy-in tracker
-- Host adds players to a session by name or from a saved player list
-- Host records buy-ins per player (supports multiple rebuys)
-- Each buy-in entry logs: amount (MYR), timestamp
-- Total buy-in per player is calculated automatically
-- All players at the table see the buy-in list update in real time
+1. User opens app.
+2. App authenticates anonymously.
+3. User sets display name on first run.
+4. Profile is upserted under `players/{uid}` with a generated 6-char ref code.
 
-### 3. Session cash-out
-- When session ends, host enters each player's final chip count / cash-out amount
-- App calculates profit/loss per player: `cash_out - total_buy_ins`
-- Settlement summary shown at end of session (who owes who)
+### 2) Session lifecycle
 
-### 4. Player history
-- Each player has a profile showing all past sessions
-- Stats shown: total sessions played, total bought in, total cashed out, net profit/loss
-- Host (me) can see aggregate stats across all sessions
+1. Host creates session (`status = active`) with optional location + blinds.
+2. Buy-ins are recorded under `sessions/{id}/buy_ins`.
+3. Participants are tracked under `sessions/{id}/session_participants`.
+4. Early cash-outs (if any) are tracked under `sessions/{id}/early_cashouts`.
+5. Cash-out screen computes final totals and writes `sessions/{id}/results`.
+6. Session is finalized (`status = finished`, `finishedAt` set).
+7. Summary screen renders persisted results.
 
-### 5. My winnings dashboard
-- Personal screen showing my own performance over time
-- Session-by-session breakdown
-- Running net profit/loss chart
+### 3) Social loop
 
----
+1. Player adds friend using ref code.
+2. Request accepted/declined through request docs.
+3. Friends can create groups and manage recurring members.
+4. Leaderboards aggregate historical profits from stored session results.
 
-## Firestore data model
+### 4) Analytics loop
 
-### Collection: `players`
-```
-players/{playerId}
-  - name: string (display name chosen on first launch)
-  - anonymousUid: string (Firebase anonymous auth UID)
-  - createdAt: timestamp
-```
-
-### Collection: `sessions`
-```
-sessions/{sessionId}
-  - hostId: string (playerId of host)
-  - date: timestamp
-  - location: string (optional)
-  - label: string (optional, e.g. "Friday Night")
-  - status: "active" | "finished"
-  - createdAt: timestamp
-  - finishedAt: timestamp (optional)
-```
-
-### Subcollection: `sessions/{sessionId}/buy_ins`
-```
-buy_ins/{buyInId}
-  - playerId: string
-  - playerName: string (denormalized for display)
-  - amount: number
-  - timestamp: timestamp
-```
-
-### Subcollection: `sessions/{sessionId}/results`
-```
-results/{playerId}
-  - playerId: string
-  - playerName: string
-  - totalBuyIn: number (sum of all buy_ins for this player)
-  - cashOut: number
-  - profit: number (cashOut - totalBuyIn)
-  - settledAt: timestamp
-```
-
-### Firestore security rules (summary)
-- Any authenticated user can read an active session they are a participant of
-- Only the host can write buy-ins and results
-- Players can read their own history
+1. History tab fetches finished sessions by pages.
+2. Client filters and sorts currently loaded entries.
+3. Settings > Statistics computes full-history aggregates by paging all finished sessions and checking `results/{playerId}` presence.
 
 ---
 
-## App screens
+## Firestore data model (current)
 
-### 1. Onboarding
-- App silently signs the user in anonymously via Firebase on first launch
-- Single screen: display name entry ("What should we call you?")
-- Name saved to Firestore and stored locally
-- No email, no phone, no password — done in one tap
+### `players/{playerId}`
 
-### 2. Home screen
-- "Start new session" button (prominent)
-- List of recent sessions with date, location, my result
-- Quick stats: total sessions, net profit/loss
+Core player profile:
 
-### 3. New session screen
-- Fields: optional label, optional location
-- Confirm and create → navigates to active session screen
+- `name`
+- `anonymousUid`
+- `refCode`
+- `avatarEmoji`
+- `createdAt`
 
-### 4. Active session screen (main table view)
-- Session label and date at top
-- Player list showing: name, total buy-in, number of rebuys
-- "Add buy-in" button per player row
-- "Add player" button to add new participants mid-session
-- Real-time — updates for all players watching
-- "End session" button (host only) → navigates to cash-out screen
+Subcollections:
 
-### 5. Add buy-in bottom sheet
-- Player name (pre-filled or selectable)
-- Amount input (numeric, MYR)
-- Confirm button
+- `friends/{friendId}` (denormalized friend display data)
+- `friend_requests/{senderId}` (incoming requests)
+- `friend_requests_sent/{receiverId}` (outgoing requests)
+- `saved_locations/{locationId}` (max 10)
+- `group_memberships/{groupId}` (per-user index for groups)
 
-### 6. Cash-out screen
-- List of all players with their total buy-in shown
-- Input field for each player's cash-out amount
-- Live profit/loss preview updates as host enters values
-- "Confirm and finish" button
-- Settlement summary: who owes who and how much
+### `refCodes/{code}`
 
-### 7. Session summary screen
-- Final results table: player, bought in, cashed out, profit/loss
-- Colour-coded rows (green profit, red loss)
-- Share button (screenshot or text summary)
+- maps 6-char ref code -> `playerId`
 
-### 8. Player history screen
-- My own session history list
-- Net result per session (colour coded)
-- Running total at top
+### `sessions/{sessionId}`
 
-### 9. Settings screen
-- Edit display name
-- Sign out
+- `hostId`
+- `date`
+- `location` (nullable)
+- `status` (`active` | `finished`)
+- `smallBlind` (nullable)
+- `bigBlind` (nullable)
+- `finishedAt` (when closed)
 
----
+Subcollections:
 
-## UI/UX design direction
+- `buy_ins/{buyInId}`
+  - `playerId`, `playerName`, `amount`, `createdAt`
+- `early_cashouts/{playerId}`
+  - `playerName`, `amount`, `cashedOutAt`
+- `results/{playerId}`
+  - `playerName`, `totalBuyIn`, `cashOut`, `profit`, `settledAt`
+- `session_participants/{playerId}`
+  - `playerId`, `playerName`, `joinedAt`
 
-### Aesthetic
-- Dark theme by default — suits a dimly lit poker table environment
-- Minimal, focused UI — no clutter, big tap targets for use mid-game
-- Green felt accent colour (`#2D6A4F` or similar) as the primary brand colour
-- White and light gray text on dark backgrounds
-- Card-style list items with subtle borders
+### `groups/{groupId}`
 
-### Typography
-- Single sans-serif font (Inter or System default)
-- Large, readable numbers for amounts — poker is about the numbers
-- Compact player rows to fit 6–10 players on one screen
+- `name`
+- `ownerId`
+- `memberCount`
+- `createdAt`
 
-### Interaction patterns
-- Bottom sheets for add buy-in, add player actions (not full screen navigations)
-- Swipe to delete a buy-in entry (host only)
-- Haptic feedback on buy-in confirmation
-- Pull-to-refresh on session screen as a fallback (real-time listener is primary)
-- Toast notifications when a new buy-in is added by host (visible to all players)
+Subcollection:
 
-### Accessibility
-- Minimum tap target size 44px
-- Sufficient colour contrast on all text
-- No colour-only indicators (profit/loss uses colour + sign prefix)
+- `members/{memberId}`
+  - `name`
+  - `isRegistered`
+  - `avatarEmoji`
+
+The app also maintains denormalized `players/{uid}/group_memberships/{groupId}` docs for cheap "my groups" queries.
 
 ---
 
-## Project structure
+## Screen map (routes)
 
-```
-nonsense/
-├── app/                        # Expo Router screens
-│   ├── (auth)/
-│   │   └── name.tsx            # Display name entry (first launch only)
-│   ├── (tabs)/
-│   │   ├── index.tsx           # Home
-│   │   ├── history.tsx         # My winnings
-│   │   └── settings.tsx
-│   ├── session/
-│   │   ├── new.tsx             # New session
-│   │   ├── [id].tsx            # Active session
-│   │   ├── cashout/[id].tsx    # Cash-out screen
-│   │   └── summary/[id].tsx    # Session summary
-├── components/
-│   ├── PlayerRow.tsx
-│   ├── BuyInSheet.tsx
-│   ├── AddPlayerSheet.tsx
-│   └── SettlementCard.tsx
-├── lib/
-│   ├── firebase.ts             # Firebase init
-│   ├── firestore.ts            # DB query helpers
-│   └── auth.ts                 # Auth helpers
-├── stores/
-│   └── sessionStore.ts         # Zustand session state
-├── hooks/
-│   ├── useSession.ts           # Real-time session listener
-│   └── usePlayerHistory.ts
-└── types/
-    └── index.ts                # Shared TypeScript types
+### Auth
+
+- `app/(auth)/name.tsx` - display-name setup/edit
+
+### Tabs
+
+- `app/(tabs)/index.tsx` - home
+- `app/(tabs)/history.tsx` - my winnings history
+- `app/(tabs)/friends.tsx` - friends/groups/leaderboards
+- `app/(tabs)/settings.tsx` - profile/theme/stats
+
+### Session stack
+
+- `app/session/new.tsx` - create session
+- `app/session/[id].tsx` - active session live tracker
+- `app/session/cashout/[id].tsx` - finalize payouts
+- `app/session/summary/[id].tsx` - read-only recap
+
+### Supporting routes
+
+- `app/group/new.tsx`
+- `app/group/[id]/members.tsx`
+- `app/locations/index.tsx`
+- `app/qr-code.tsx`
+
+---
+
+## Key constraints and limits
+
+- Saved locations: max 10 per player.
+- Groups owned by one player: max 10.
+- Group member count is tracked and denormalized.
+- History tab is page-based; totals on that screen reflect loaded pages unless more are fetched.
+- Statistics modal intentionally computes full history in batches for completeness.
+
+---
+
+## Security and data integrity notes
+
+- Firestore rules and indexes are versioned in:
+  - `firestore.rules`
+  - `firestore.indexes.json`
+- Composite indexes are required for finished-session history queries by status/date/documentId.
+- Profile updates (name/avatar) trigger best-effort denormalization across friend and group surfaces.
+
+---
+
+## Repository layout (high level)
+
+```text
+app/           Expo Router screens and navigation structure
+components/    Shared UI components
+constants/     Static app constants (e.g. avatar options)
+hooks/         Small platform/theme hooks
+lib/           Firebase init, Firestore services, theme/auth utilities
+types/         Shared TypeScript types
+doc/           Product/documentation files
 ```
 
 ---
 
-## Firebase setup instructions
+## Roadmap (next likely increments)
 
-1. Create a Firebase project at console.firebase.google.com (Spark / free plan)
-2. Enable Firestore in Native mode
-3. Enable Firebase Authentication → Anonymous provider
-4. Add Android and iOS apps to the Firebase project
-5. Download `google-services.json` (Android) and `GoogleService-Info.plist` (iOS)
-6. Install: `npx expo install @react-native-firebase/app @react-native-firebase/auth @react-native-firebase/firestore`
-7. Configure Expo with the Firebase native plugin in `app.json`
-
----
-
-## Out of scope for MVP
-
-- Player-to-player payments / integrations (e.g. DuitNow, PayNow)
-- In-app chat
-- Hand history or poker statistics
-- Tournament / blind structure tracking
-- Push notifications
-- Web version
-- Public leaderboards
-
----
-
-## Future ideas (post-MVP)
-
-- Recurring game groups with standing player lists
-- Blind schedule timer integrated into session screen
-- Export session to PDF or CSV
-- Player invite via WhatsApp share link
-- Multi-currency support
+1. Push notifications for friend requests/session events.
+2. Better analytics UX (charts/trends).
+3. Optional exports (CSV/PDF/session share formats).
+4. Potential backend offload (Cloud Functions) for heavier aggregates.
