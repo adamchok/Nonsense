@@ -28,6 +28,14 @@ type PlayerEntry = {
   locked: boolean;
 };
 
+/** Split `totalCents` into `n` non-negative integers that sum to `totalCents` (extra cent to lower indices first). */
+function splitCents(totalCents: number, n: number): number[] {
+  if (n <= 0) return [];
+  const base = Math.floor(totalCents / n);
+  const rem = totalCents % n;
+  return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0));
+}
+
 export default function CashOutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
@@ -99,6 +107,76 @@ export default function CashOutScreen() {
         viewPosition: 0.65,
       });
     }, 120);
+  }
+
+  function distributeRemainingEqually() {
+    const unlocked = players.filter((p) => !p.locked);
+    if (unlocked.length === 0) {
+      appAlert(
+        'No players',
+        'No unlocked players to split among. Players who cashed out early are excluded.'
+      );
+      return;
+    }
+    setPlayers((prev) => {
+      const unlockedPrev = prev.filter((p) => !p.locked);
+      if (unlockedPrev.length === 0) return prev;
+      const totalBuyInLocal = prev.reduce((s, p) => s + p.totalBuyIn, 0);
+      const totalCashOutLocal = prev.reduce((s, p) => s + (parseFloat(p.cashOutInput) || 0), 0);
+      const rem = totalBuyInLocal - totalCashOutLocal;
+      if (rem <= 0.01) return prev;
+      const cents = Math.round(rem * 100);
+      const parts = splitCents(cents, unlockedPrev.length);
+      const deltaById = new Map<string, number>();
+      unlockedPrev.forEach((p, i) => deltaById.set(p.playerId, parts[i] / 100));
+      return prev.map((p) => {
+        if (p.locked) return p;
+        const d = deltaById.get(p.playerId) ?? 0;
+        const current = parseFloat(p.cashOutInput) || 0;
+        return { ...p, cashOutInput: (current + d).toFixed(2) };
+      });
+    });
+  }
+
+  function trimOverageEqually() {
+    const unlocked = players.filter((p) => !p.locked);
+    if (unlocked.length === 0) {
+      appAlert(
+        'No players',
+        'No unlocked players to trim among. Players who cashed out early are excluded.'
+      );
+      return;
+    }
+    setPlayers((prev) => {
+      const unlockedPrev = prev.filter((p) => !p.locked);
+      if (unlockedPrev.length === 0) return prev;
+      const totalBuyInLocal = prev.reduce((s, p) => s + p.totalBuyIn, 0);
+      const totalCashOutLocal = prev.reduce((s, p) => s + (parseFloat(p.cashOutInput) || 0), 0);
+      const rem = totalBuyInLocal - totalCashOutLocal;
+      if (rem >= -0.01) return prev;
+      const overCents = Math.round(Math.abs(rem) * 100);
+      const parts = splitCents(overCents, unlockedPrev.length);
+      const subById = new Map<string, number>();
+      unlockedPrev.forEach((p, i) => subById.set(p.playerId, parts[i] / 100));
+      const next = prev.map((p) => {
+        if (p.locked) return p;
+        const sub = subById.get(p.playerId) ?? 0;
+        const current = parseFloat(p.cashOutInput) || 0;
+        const nextVal = Math.max(0, current - sub);
+        return { ...p, cashOutInput: nextVal.toFixed(2) };
+      });
+      const newTotalCashOut = next.reduce((s, p) => s + (parseFloat(p.cashOutInput) || 0), 0);
+      const newRem = totalBuyInLocal - newTotalCashOut;
+      if (newRem < -0.01) {
+        queueMicrotask(() =>
+          appAlert(
+            'Still over-distributed',
+            `$${Math.abs(newRem).toFixed(2)} still over. Some players could not absorb an equal share. Adjust manually.`
+          )
+        );
+      }
+      return next;
+    });
   }
 
   const totalBuyIn = useMemo(() => players.reduce((s, p) => s + p.totalBuyIn, 0), [players]);
@@ -236,6 +314,25 @@ export default function CashOutScreen() {
           <Text style={[styles.overHint, { color: c.loss }]}>
             ${Math.abs(remaining).toFixed(2)} over-distributed. Reduce some cash-outs.
           </Text>
+        )}
+        {players.some((p) => p.locked) && (
+          <Text style={[styles.splitHint, { color: c.textHint }]}>
+            Equal split / trim applies to players still at the table (not early cash-out).
+          </Text>
+        )}
+        {!balanced && remaining > 0.01 && (
+          <Pressable
+            style={[styles.trackerActionBtn, { backgroundColor: c.accent }]}
+            onPress={distributeRemainingEqually}>
+            <Text style={[styles.trackerActionLabel, { color: '#fff' }]}>Split remaining equally</Text>
+          </Pressable>
+        )}
+        {!balanced && remaining < -0.01 && (
+          <Pressable
+            style={[styles.trackerActionBtn, { backgroundColor: c.chipBg }]}
+            onPress={trimOverageEqually}>
+            <Text style={[styles.trackerActionLabel, { color: '#fff' }]}>Trim overage equally</Text>
+          </Pressable>
         )}
       </View>
 
@@ -397,6 +494,20 @@ const styles = StyleSheet.create({
   overHint: {
     fontSize: 12,
     textAlign: 'center',
+  },
+  splitHint: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  trackerActionBtn: {
+    borderRadius: 8,
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  trackerActionLabel: {
+    fontWeight: '700',
+    fontSize: 14,
   },
   list: {
     flex: 1,
