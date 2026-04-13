@@ -1,8 +1,11 @@
+import { SessionAmountPrefix } from '@/components/session-amount-prefix';
+import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
+import { formatChipsLedger, formatSessionAmountValue } from '@/lib/currency-format';
 import { finishSession, getBuyIns, getEarlyCashOuts, getSessionMeta, saveResults } from '@/lib/firestore';
-import type { SessionResult } from '@/types';
+import type { SessionAmountUnit, SessionResult } from '@/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -36,6 +39,39 @@ function splitCents(totalCents: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0));
 }
 
+function PlayerBuyInCaption({
+  totalBuyIn,
+  isChipsMode,
+  amountUnit,
+  mutedColor,
+}: {
+  totalBuyIn: number;
+  isChipsMode: boolean;
+  amountUnit: SessionAmountUnit;
+  mutedColor: string;
+}) {
+  if (isChipsMode) {
+    return (
+      <View style={styles.playerBuyInRow}>
+        <Text style={[styles.playerBuyIn, { color: mutedColor }]}>Buy-in: </Text>
+        <SessionAmountDisplay
+          value={totalBuyIn}
+          unit="chips"
+          color={mutedColor}
+          iconSize={18}
+          valueStyle="fixed2"
+          textStyle={[styles.playerBuyIn, { color: mutedColor }]}
+        />
+      </View>
+    );
+  }
+  return (
+    <Text style={[styles.playerBuyIn, { color: mutedColor }]}>
+      Buy-in: {formatSessionAmountValue(totalBuyIn, 'cash', 'fixed2')}
+    </Text>
+  );
+}
+
 export default function CashOutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
@@ -44,7 +80,10 @@ export default function CashOutScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [amountUnit, setAmountUnit] = useState<SessionAmountUnit>('cash');
+  const [dollarsPerChip, setDollarsPerChip] = useState<number | undefined>();
   const listRef = useRef<FlatList<PlayerEntry>>(null);
+  const isChipsMode = amountUnit === 'chips';
 
   useEffect(() => {
     if (!id) return;
@@ -56,6 +95,8 @@ export default function CashOutScreen() {
           getSessionMeta(id),
         ]);
         setCanEdit(Boolean(playerProfile?.id && sessionMeta.hostId === playerProfile.id));
+        setAmountUnit(sessionMeta.amountUnit);
+        setDollarsPerChip(sessionMeta.dollarsPerChip);
         const earlyMap = new Map(earlyCashOuts.map((c) => [c.playerId, c]));
         const totals: Record<string, { name: string; total: number }> = {};
         for (const b of buyIns) {
@@ -171,7 +212,9 @@ export default function CashOutScreen() {
         queueMicrotask(() =>
           appAlert(
             'Still over-distributed',
-            `$${Math.abs(newRem).toFixed(2)} still over. Some players could not absorb an equal share. Adjust manually.`
+            isChipsMode
+              ? `${formatChipsLedger(Math.abs(newRem))} chips still over. Some players could not absorb an equal share. Adjust manually.`
+              : `$${Math.abs(newRem).toFixed(2)} still over. Some players could not absorb an equal share. Adjust manually.`
           )
         );
       }
@@ -206,21 +249,39 @@ export default function CashOutScreen() {
     if (!balanced) {
       appAlert(
         'Totals don\'t match',
-        `$${Math.abs(remaining).toFixed(2)} ${remaining > 0 ? 'left to distribute' : 'over-distributed'}. Totals must balance.`
+        isChipsMode
+          ? `${formatChipsLedger(Math.abs(remaining))} chips ${remaining > 0 ? 'left to distribute' : 'over-distributed'}. Totals must balance.`
+          : `$${Math.abs(remaining).toFixed(2)} ${remaining > 0 ? 'left to distribute' : 'over-distributed'}. Totals must balance.`
       );
+      return;
+    }
+
+    if (isChipsMode && (dollarsPerChip == null || !Number.isFinite(dollarsPerChip) || dollarsPerChip <= 0)) {
+      appAlert('Session error', 'This chip session is missing a valid dollars-per-chip value.');
       return;
     }
 
     try {
       setSaving(true);
+      const dpc = dollarsPerChip ?? 1;
       const results: SessionResult[] = players.map((p) => {
-        const cashOut = parseFloat(p.cashOutInput) || 0;
+        const cashOutRaw = parseFloat(p.cashOutInput) || 0;
+        if (isChipsMode) {
+          const buyChips = p.totalBuyIn;
+          return {
+            playerId: p.playerId,
+            playerName: p.playerName,
+            totalBuyIn: buyChips * dpc,
+            cashOut: cashOutRaw * dpc,
+            profit: (cashOutRaw - buyChips) * dpc,
+          };
+        }
         return {
           playerId: p.playerId,
           playerName: p.playerName,
           totalBuyIn: p.totalBuyIn,
-          cashOut,
-          profit: cashOut - p.totalBuyIn,
+          cashOut: cashOutRaw,
+          profit: cashOutRaw - p.totalBuyIn,
         };
       });
       await saveResults(id, results);
@@ -277,7 +338,9 @@ export default function CashOutScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 20}>
       <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
       <Text style={[styles.meta, { color: c.textMuted }]}>
-        Count each remaining player&apos;s chips and enter the amount below.
+        {isChipsMode
+          ? "Enter each player's chip count below."
+          : "Enter each player's cash-out amount below."}
         {players.some((p) => p.locked) ? ' Players who cashed out early are locked.' : ''}
       </Text>
 
@@ -285,21 +348,42 @@ export default function CashOutScreen() {
         <View style={styles.trackerRow}>
           <View style={styles.trackerItem}>
             <Text style={[styles.trackerLabel, { color: c.textHint }]}>Total Pot</Text>
-            <Text style={[styles.trackerValue, { color: c.text }]}>${totalBuyIn.toFixed(2)}</Text>
+            <SessionAmountDisplay
+              value={totalBuyIn}
+              unit={amountUnit}
+              color={c.text}
+              iconSize={18}
+              valueStyle="fixed2"
+              textStyle={[styles.trackerValue, { color: c.text }]}
+              rowStyle={styles.trackerValueRow}
+            />
           </View>
           <View style={styles.trackerItem}>
             <Text style={[styles.trackerLabel, { color: c.textHint }]}>Distributed</Text>
-            <Text style={[styles.trackerValue, { color: c.text }]}>${totalCashOut.toFixed(2)}</Text>
+            <SessionAmountDisplay
+              value={totalCashOut}
+              unit={amountUnit}
+              color={c.text}
+              iconSize={18}
+              valueStyle="fixed2"
+              textStyle={[styles.trackerValue, { color: c.text }]}
+              rowStyle={styles.trackerValueRow}
+            />
           </View>
           <View style={styles.trackerItem}>
             <Text style={[styles.trackerLabel, { color: c.textHint }]}>Remaining</Text>
-            <Text
-              style={[
+            <SessionAmountDisplay
+              value={Math.abs(remaining)}
+              unit={amountUnit}
+              color={balanced ? c.profit : remaining > 0 ? c.warning : c.loss}
+              iconSize={18}
+              valueStyle="fixed2"
+              textStyle={[
                 styles.trackerValue,
-                balanced ? { color: c.profit } : remaining > 0 ? { color: c.warning } : { color: c.loss },
-              ]}>
-              ${Math.abs(remaining).toFixed(2)}
-            </Text>
+                { color: balanced ? c.profit : remaining > 0 ? c.warning : c.loss },
+              ]}
+              rowStyle={styles.trackerValueRow}
+            />
           </View>
         </View>
         {balanced && allFilled && (
@@ -307,12 +391,16 @@ export default function CashOutScreen() {
         )}
         {!balanced && remaining > 0 && (
           <Text style={[styles.remainingHint, { color: c.warning }]}>
-            ${remaining.toFixed(2)} left to distribute across players.
+            {isChipsMode
+              ? `${formatChipsLedger(remaining)} chips left to distribute across players.`
+              : `$${remaining.toFixed(2)} left to distribute across players.`}
           </Text>
         )}
         {!balanced && remaining < 0 && (
           <Text style={[styles.overHint, { color: c.loss }]}>
-            ${Math.abs(remaining).toFixed(2)} over-distributed. Reduce some cash-outs.
+            {isChipsMode
+              ? `${formatChipsLedger(Math.abs(remaining))} chips over-distributed. Reduce some stacks.`
+              : `$${Math.abs(remaining).toFixed(2)} over-distributed. Reduce some cash-outs.`}
           </Text>
         )}
         {players.some((p) => p.locked) && (
@@ -363,9 +451,12 @@ export default function CashOutScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={[styles.playerBuyIn, { color: c.textMuted }]}>
-                  Buy-in: ${item.totalBuyIn.toFixed(2)}
-                </Text>
+                <PlayerBuyInCaption
+                  totalBuyIn={item.totalBuyIn}
+                  isChipsMode={isChipsMode}
+                  amountUnit={amountUnit}
+                  mutedColor={c.textMuted}
+                />
               </View>
 
               <View
@@ -375,12 +466,12 @@ export default function CashOutScreen() {
                     ? { backgroundColor: c.card, borderColor: c.borderDanger }
                     : { backgroundColor: c.inputBg, borderColor: c.border },
                 ]}>
-                <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
                 <TextInput
                   value={item.cashOutInput}
                   onChangeText={(v) => updateCashOut(item.playerId, v)}
                   onFocus={() => focusPlayerRow(index)}
-                  placeholder="0.00"
+                  placeholder={isChipsMode ? 'Chips' : '0.00'}
                   placeholderTextColor={c.placeholder}
                   keyboardType="numeric"
                   style={[
@@ -421,7 +512,8 @@ export default function CashOutScreen() {
                     styles.profitValue,
                     profit > 0 ? { color: c.profit } : profit < 0 ? { color: c.loss } : { color: c.textMuted },
                   ]}>
-                  {profit >= 0 ? '+' : ''}${profit.toFixed(2)}
+                  {profit >= 0 ? '+' : ''}
+                  {isChipsMode ? formatChipsLedger(profit) : `$${profit.toFixed(2)}`}
                 </Text>
               </View>
             </View>
@@ -482,6 +574,12 @@ const styles = StyleSheet.create({
   trackerValue: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  trackerValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
   balancedHint: {
     fontSize: 12,
@@ -553,16 +651,19 @@ const styles = StyleSheet.create({
   playerBuyIn: {
     fontSize: 13,
   },
+  playerBuyInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 2,
+    flexShrink: 1,
+  },
   cashOutRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 10,
-  },
-  dollarSign: {
-    fontSize: 18,
-    fontWeight: '600',
   },
   cashOutInput: {
     flex: 1,

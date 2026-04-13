@@ -1,8 +1,8 @@
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
-  formatBlinds,
   formatCurrency,
+  formatSessionBlindsForDisplay,
   formatSignedCurrency,
   formatTightCompactNumber,
 } from '@/lib/currency-format';
@@ -501,7 +501,12 @@ export default function HistoryScreen() {
           }
           renderItem={({ item }) => {
             const isHost = Boolean(playerProfile && item.hostId === playerProfile.id);
-            const blindsText = formatBlinds(item.smallBlind, item.bigBlind);
+            const blindsText = formatSessionBlindsForDisplay(
+              item.smallBlind,
+              item.bigBlind,
+              item.amountUnit,
+              item.dollarsPerChip
+            );
             return (
               <Pressable
                 style={[

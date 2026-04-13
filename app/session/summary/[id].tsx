@@ -1,11 +1,11 @@
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatBlinds, formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
+import { formatCurrency, formatSessionBlindsForDisplay, formatSignedCurrency } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getEarlyCashOuts, getPlayerProfile, getResults, getSessionMeta } from '@/lib/firestore';
 import { computeSettlements } from '@/lib/settlement';
-import type { EarlyCashOut, SessionResult } from '@/types';
+import type { EarlyCashOut, SessionAmountUnit, SessionResult } from '@/types';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -34,6 +34,8 @@ export default function SessionSummaryScreen() {
   const [sessionLocation, setSessionLocation] = useState<string | undefined>();
   const [sessionSmallBlind, setSessionSmallBlind] = useState<number | undefined>();
   const [sessionBigBlind, setSessionBigBlind] = useState<number | undefined>();
+  const [sessionAmountUnit, setSessionAmountUnit] = useState<SessionAmountUnit>('cash');
+  const [sessionDollarsPerChip, setSessionDollarsPerChip] = useState<number | undefined>();
   const [sessionHostName, setSessionHostName] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const goToHistory = useCallback(() => {
@@ -56,6 +58,8 @@ export default function SessionSummaryScreen() {
         setSessionLocation(meta.location);
         setSessionSmallBlind(meta.smallBlind);
         setSessionBigBlind(meta.bigBlind);
+        setSessionAmountUnit(meta.amountUnit);
+        setSessionDollarsPerChip(meta.dollarsPerChip);
         if (meta.hostId) {
           let hostName = data.find((r) => r.playerId === meta.hostId)?.playerName;
           if (!hostName) {
@@ -89,7 +93,12 @@ export default function SessionSummaryScreen() {
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   })();
 
-  const blindsShareText = formatBlinds(sessionSmallBlind, sessionBigBlind);
+  const blindsShareText = formatSessionBlindsForDisplay(
+    sessionSmallBlind,
+    sessionBigBlind,
+    sessionAmountUnit,
+    sessionDollarsPerChip
+  );
 
   const buildSettlementMessage = useCallback((): string => {
     const title = sessionDate

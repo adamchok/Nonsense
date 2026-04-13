@@ -1,6 +1,6 @@
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatBlinds } from '@/lib/currency-format';
+import { formatSessionBlindsForDisplay } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getBuyIns, getRecentSessionsForPlayer } from '@/lib/firestore';
 import { useResolvedColorScheme } from '@/lib/theme-context';
@@ -174,7 +174,12 @@ export default function HomeScreen() {
           </Text>
         ) : (
           activeSessions.map((session) => {
-            const blindsText = formatBlinds(session.smallBlind, session.bigBlind);
+            const blindsText = formatSessionBlindsForDisplay(
+              session.smallBlind,
+              session.bigBlind,
+              session.amountUnit,
+              session.dollarsPerChip
+            );
             return (
             <Pressable
               key={session.id}

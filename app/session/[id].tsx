@@ -1,8 +1,15 @@
+import { SessionAmountPrefix } from '@/components/session-amount-prefix';
+import { SessionAmountDisplay, SessionAmountInputRow } from '@/components/session-amount-ui';
 import { AVATAR_EMOJIS } from '@/constants/avatar';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatBlinds, formatCompactCurrency } from '@/lib/currency-format';
+import {
+  formatBlindChipStakeNumber,
+  formatBlinds,
+  formatBlindsChips,
+  formatCompactCurrency,
+} from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getFirestoreDb } from '@/lib/firebase';
 import {
@@ -14,10 +21,12 @@ import {
   subscribeEarlyCashOuts,
   subscribeFriends,
   updateSessionBlinds,
+  updateSessionDollarsPerChip,
   updateSessionLocation,
 } from '@/lib/firestore';
 import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
-import type { BuyIn, EarlyCashOut, FriendRecord } from '@/types';
+import type { BuyIn, EarlyCashOut, FriendRecord, SessionAmountUnit } from '@/types';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
@@ -31,6 +40,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -43,6 +53,8 @@ type SessionView = {
   location?: string;
   smallBlind?: number;
   bigBlind?: number;
+  amountUnit: SessionAmountUnit;
+  dollarsPerChip?: number;
   status: 'active' | 'finished';
 };
 
@@ -65,12 +77,51 @@ function toDate(value: unknown): Date | undefined {
   return undefined;
 }
 
-/** USD with commas for ledger amounts (e.g. $12,345.67). */
-function formatLedgerCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
+function sessionBlindsAreSet(session: SessionView | null): boolean {
+  if (!session) return false;
+  if (session.amountUnit === 'chips') {
+    return formatBlindsChips(session.smallBlind, session.bigBlind) != null;
+  }
+  return formatBlinds(session.smallBlind, session.bigBlind) != null;
+}
+
+function BlindsMetaLine({
+  session,
+  textSecondary,
+}: {
+  session: SessionView;
+  textSecondary: string;
+}) {
+  if (session.amountUnit === 'chips') {
+    const s = session.smallBlind;
+    const b = session.bigBlind;
+    if (s == null || b == null || !Number.isFinite(s) || !Number.isFinite(b) || s <= 0 || b < s) {
+      return (
+        <Text style={[styles.locationValue, { color: textSecondary }]} numberOfLines={1}>
+          Tap to add blinds
+        </Text>
+      );
+    }
+    return (
+      <View style={styles.blindsChipsMetaRow}>
+        <SessionAmountPrefix unit="chips" color={textSecondary} size={14} />
+        <Text style={[styles.locationValue, { color: textSecondary }]} numberOfLines={1}>
+          {formatBlindChipStakeNumber(s)}
+        </Text>
+        <Text style={[styles.locationValue, { color: textSecondary }]}> / </Text>
+        <SessionAmountPrefix unit="chips" color={textSecondary} size={14} />
+        <Text style={[styles.locationValue, { color: textSecondary }]} numberOfLines={1}>
+          {formatBlindChipStakeNumber(b)}
+        </Text>
+      </View>
+    );
+  }
+  const line = formatBlinds(session.smallBlind, session.bigBlind);
+  return (
+    <Text style={[styles.locationValue, { color: textSecondary }]} numberOfLines={1}>
+      {line ?? 'Tap to add blinds'}
+    </Text>
+  );
 }
 
 function formatCashOutTimestamp(d: Date): string {
@@ -112,6 +163,7 @@ export default function ActiveSessionScreen() {
   const buyInScrollRef = useRef<ScrollView>(null);
   const locationScrollRef = useRef<ScrollView>(null);
   const blindsScrollRef = useRef<ScrollView>(null);
+  const chipValueScrollRef = useRef<ScrollView>(null);
   /** Ledger row tap → early cash-out detail modal (buy back in lives in modal). */
   const [cashedOutDetailPlayerId, setCashedOutDetailPlayerId] = useState<string | null>(null);
   const [locationEditorVisible, setLocationEditorVisible] = useState(false);
@@ -120,7 +172,12 @@ export default function ActiveSessionScreen() {
   const [blindsEditorVisible, setBlindsEditorVisible] = useState(false);
   const [smallBlindDraft, setSmallBlindDraft] = useState('');
   const [bigBlindDraft, setBigBlindDraft] = useState('');
+  const [chipValueEditorVisible, setChipValueEditorVisible] = useState(false);
+  const [dollarsPerChipDraft, setDollarsPerChipDraft] = useState('');
   const [isSavingBlinds, setIsSavingBlinds] = useState(false);
+  const [isSavingChipValue, setIsSavingChipValue] = useState(false);
+  /** Chip sessions with dollars per chip: ledger section switch toggles chip vs dollar display for all rows. */
+  const [ledgerShowDollars, setLedgerShowDollars] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -134,11 +191,18 @@ export default function ActiveSessionScreen() {
           return;
         }
         const data = snapshot.data() as Record<string, unknown>;
+        const amountUnit: SessionAmountUnit = data.amountUnit === 'chips' ? 'chips' : 'cash';
+        const rawDpc = data.dollarsPerChip;
+        const dpcParsed = typeof rawDpc === 'number' ? rawDpc : Number(rawDpc);
+        const dollarsPerChip =
+          amountUnit === 'chips' && Number.isFinite(dpcParsed) && dpcParsed > 0 ? dpcParsed : undefined;
         setSession({
           hostId: data.hostId ? String(data.hostId) : undefined,
           date: toDate(data.date ?? data.createdAt),
           location: data.location ? String(data.location) : undefined,
           ...sessionBlindsFromData(data),
+          amountUnit,
+          ...(dollarsPerChip != null ? { dollarsPerChip } : {}),
           status: data.status === 'finished' ? 'finished' : 'active',
         });
         setError(null);
@@ -220,6 +284,11 @@ export default function ActiveSessionScreen() {
     if (!co || !p) return null;
     return { playerId: p.playerId, name: p.name, totalBuyIn: p.total, cashOut: co };
   }, [cashedOutDetailPlayerId, earlyCashOuts, players]);
+
+  const earlyCashOutResultDelta = cashedOutDetailModal
+    ? cashedOutDetailModal.cashOut.amount - cashedOutDetailModal.totalBuyIn
+    : 0;
+  const earlyCashOutResultColor = earlyCashOutResultDelta >= 0 ? c.profit : c.lossLight;
 
   function resolvePlayerId(name: string): string {
     const trimmed = name.trim();
@@ -390,7 +459,7 @@ export default function ActiveSessionScreen() {
       return;
     }
     if (!id) return;
-    if (!formatBlinds(session?.smallBlind, session?.bigBlind)) {
+    if (!sessionBlindsAreSet(session)) {
       appAlert(
         'Blinds required',
         'Set small and big blind before ending this session.'
@@ -462,6 +531,47 @@ export default function ActiveSessionScreen() {
     setBigBlindDraft('');
   }
 
+  function openChipValueEditor() {
+    setDollarsPerChipDraft(
+      session?.dollarsPerChip != null && Number.isFinite(session.dollarsPerChip)
+        ? String(session.dollarsPerChip)
+        : ''
+    );
+    setChipValueEditorVisible(true);
+  }
+
+  function closeChipValueEditor() {
+    Keyboard.dismiss();
+    setChipValueEditorVisible(false);
+    setDollarsPerChipDraft('');
+  }
+
+  async function saveChipValue() {
+    if (!viewerIsHost) {
+      appAlert('Host only', 'Only the host can edit dollars per chip.');
+      return;
+    }
+    if (!id) return;
+    const dpcTrim = dollarsPerChipDraft.trim();
+    const dpc = parseFloat(dpcTrim);
+    if (!dpcTrim || Number.isNaN(dpc) || dpc <= 0) {
+      appAlert(
+        'Chip value required',
+        'Enter how much each chip is worth in dollars (e.g. 0.50 for a $50 buy-in of 100 chips).'
+      );
+      return;
+    }
+    try {
+      setIsSavingChipValue(true);
+      await updateSessionDollarsPerChip(id, dpc);
+      closeChipValueEditor();
+    } catch (e) {
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to update dollars per chip.');
+    } finally {
+      setIsSavingChipValue(false);
+    }
+  }
+
   async function saveBlinds() {
     if (!viewerIsHost) {
       appAlert('Host only', 'Only the host can edit blinds.');
@@ -496,10 +606,18 @@ export default function ActiveSessionScreen() {
     closeBuyInEditor();
   }
 
-  const blindsDisplay = session ? formatBlinds(session.smallBlind, session.bigBlind) : null;
+  const sessionAmountUnit = session?.amountUnit ?? 'cash';
+  const ledgerCanToggleDollars =
+    sessionAmountUnit === 'chips' &&
+    session?.dollarsPerChip != null &&
+    Number.isFinite(session.dollarsPerChip) &&
+    session.dollarsPerChip > 0;
   /** Host always sees location/blinds cards; participants see them when the host has set values. */
   const showSessionMetaCards = Boolean(
-    viewerIsHost || blindsDisplay || Boolean(session?.location?.trim())
+    viewerIsHost ||
+      sessionBlindsAreSet(session) ||
+      Boolean(session?.location?.trim()) ||
+      session?.amountUnit === 'chips'
   );
   const sbDraft = smallBlindDraft.trim();
   const bbDraft = bigBlindDraft.trim();
@@ -513,6 +631,11 @@ export default function ActiveSessionScreen() {
     sbDraftValue > 0 &&
     bbDraftValue >= sbDraftValue;
   const isBlindsSaveDisabled = isSavingBlinds || !isBlindsDraftValid;
+  const chipValueDraftTrim = dollarsPerChipDraft.trim();
+  const chipValueDraftNum = parseFloat(chipValueDraftTrim);
+  const isChipValueSaveValid =
+    Boolean(chipValueDraftTrim) && !Number.isNaN(chipValueDraftNum) && chipValueDraftNum > 0;
+  const isChipValueSaveDisabled = isSavingChipValue || !isChipValueSaveValid;
 
   return (
     <>
@@ -550,96 +673,167 @@ export default function ActiveSessionScreen() {
         <View style={styles.potRowRight}>
           <View style={[styles.potBadge, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
             <Text style={[styles.potLabel, { color: c.profit }]}>POT</Text>
-            <Text style={[styles.potValue, { color: c.profit }]}>{formatCompactCurrency(totalPot)}</Text>
+            <SessionAmountDisplay
+              value={totalPot}
+              unit={sessionAmountUnit}
+              color={c.profit}
+              iconSize={14}
+              valueStyle="compact"
+              textStyle={[styles.potValue, { color: c.profit }]}
+              rowStyle={styles.potValueRow}
+            />
           </View>
         </View>
       </View>
       {showSessionMetaCards ? (
-        <View style={styles.metaSecondRow}>
-          {viewerIsHost ? (
-            <>
-              <Pressable
-                onPress={openLocationEditor}
-                style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
-                <View style={styles.locationTextBlock}>
-                  <View style={styles.locationLabelRow}>
-                    <MaterialIcons name="place" size={14} color={c.textHint} />
-                    <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
-                  </View>
-                  <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
-                    {session?.location ? session.location : 'Tap to add location'}
-                  </Text>
-                </View>
-                <MaterialIcons name="edit" size={18} color={c.textHint} />
-              </Pressable>
-              <Pressable
-                onPress={openBlindsEditor}
-                style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
-                <View style={styles.locationTextBlock}>
-                  <View style={styles.locationLabelRow}>
-                    <MaterialIcons name="payments" size={14} color={c.textHint} />
-                    <Text style={[styles.locationLabel, { color: c.textHint }]}>BLINDS</Text>
-                  </View>
-                  <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
-                    {blindsDisplay ?? 'Tap to add blinds'}
-                  </Text>
-                </View>
-                <MaterialIcons name="edit" size={18} color={c.textHint} />
-              </Pressable>
-            </>
-          ) : (
-            <>
-              {session?.location?.trim() ? (
-                <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={styles.metaSessionCards}>
+          <View style={styles.metaSecondRow}>
+            {viewerIsHost ? (
+              <>
+                <Pressable
+                  onPress={openLocationEditor}
+                  style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
                   <View style={styles.locationTextBlock}>
                     <View style={styles.locationLabelRow}>
                       <MaterialIcons name="place" size={14} color={c.textHint} />
                       <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
                     </View>
-                    <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={2}>
-                      {session.location}
+                    <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                      {session?.location ? session.location : 'Tap to add location'}
                     </Text>
                   </View>
-                </View>
-              ) : null}
-              {blindsDisplay ? (
-                <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <MaterialIcons name="edit" size={18} color={c.textHint} />
+                </Pressable>
+                <Pressable
+                  onPress={openBlindsEditor}
+                  style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
                   <View style={styles.locationTextBlock}>
                     <View style={styles.locationLabelRow}>
                       <MaterialIcons name="payments" size={14} color={c.textHint} />
                       <Text style={[styles.locationLabel, { color: c.textHint }]}>BLINDS</Text>
                     </View>
-                    <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
-                      {blindsDisplay}
-                    </Text>
+                    {session ? (
+                      <BlindsMetaLine session={session} textSecondary={c.textSecondary} />
+                    ) : (
+                      <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                        Tap to add blinds
+                      </Text>
+                    )}
                   </View>
+                  <MaterialIcons name="edit" size={18} color={c.textHint} />
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {session?.location?.trim() ? (
+                  <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                    <View style={styles.locationTextBlock}>
+                      <View style={styles.locationLabelRow}>
+                        <MaterialIcons name="place" size={14} color={c.textHint} />
+                        <Text style={[styles.locationLabel, { color: c.textHint }]}>LOCATION</Text>
+                      </View>
+                      <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={2}>
+                        {session.location}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                {session && sessionBlindsAreSet(session) ? (
+                  <View style={[styles.blindsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                    <View style={styles.locationTextBlock}>
+                      <View style={styles.locationLabelRow}>
+                        <MaterialIcons name="payments" size={14} color={c.textHint} />
+                        <Text style={[styles.locationLabel, { color: c.textHint }]}>BLINDS</Text>
+                      </View>
+                      <BlindsMetaLine session={session} textSecondary={c.textSecondary} />
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            )}
+          </View>
+          {session?.amountUnit === 'chips' ? (
+            viewerIsHost ? (
+              <Pressable
+                onPress={openChipValueEditor}
+                style={[
+                  styles.blindsCard,
+                  styles.metaChipValueFullRow,
+                  { backgroundColor: c.card, borderColor: c.border },
+                ]}>
+                <View style={styles.locationTextBlock}>
+                  <View style={styles.locationLabelRow}>
+                    <MaterialIcons name="attach-money" size={14} color={c.textHint} />
+                    <Text style={[styles.locationLabel, { color: c.textHint }]}>DOLLARS PER CHIP</Text>
+                  </View>
+                  <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                    {session.dollarsPerChip != null && Number.isFinite(session.dollarsPerChip)
+                      ? formatCompactCurrency(session.dollarsPerChip)
+                      : 'Tap to set'}
+                  </Text>
                 </View>
-              ) : null}
-            </>
-          )}
+                <MaterialIcons name="edit" size={18} color={c.textHint} />
+              </Pressable>
+            ) : (
+              <View
+                style={[styles.blindsCard, styles.metaChipValueFullRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                <View style={styles.locationTextBlock}>
+                  <View style={styles.locationLabelRow}>
+                    <MaterialIcons name="attach-money" size={14} color={c.textHint} />
+                    <Text style={[styles.locationLabel, { color: c.textHint }]}>DOLLARS PER CHIP</Text>
+                  </View>
+                  <Text style={[styles.locationValue, { color: c.textSecondary }]} numberOfLines={1}>
+                    {session.dollarsPerChip != null && Number.isFinite(session.dollarsPerChip)
+                      ? formatCompactCurrency(session.dollarsPerChip)
+                      : '—'}
+                  </Text>
+                </View>
+              </View>
+            )
+          ) : null}
         </View>
       ) : null}
       {error ? <Text style={[styles.error, { color: c.loss }]}>{error}</Text> : null}
       {session?.status === 'active' && !viewerIsHost && (
         <Text style={[styles.emptyText, { color: c.textMuted }]}>
-          View-only mode: only the host can add buy-ins, cash out players, edit location or blinds, or end the session.
+          View-only mode: only the host can add buy-ins, cash out players, edit location, blinds, dollars per chip, or
+          end the session.
         </Text>
       )}
 
-      <Text style={[styles.sectionTitle, { color: c.text }]}>Buy-In Ledger ({players.length})</Text>
-      {players.length > 0 && session?.hostId ? (
-        <View style={styles.ledgerLegend}>
-          <View
-            style={[
-              styles.ledgerLegendSwatch,
-              { backgroundColor: c.accentBg, borderColor: c.borderAccent },
-            ]}
-          />
-          <Text style={[styles.ledgerLegendText, { color: c.textHint }]}>
-            Highlighted row is the session host.
+      <View style={styles.ledgerSectionHeader}>
+        <View style={styles.ledgerSectionTitle}>
+          <Text style={[styles.sectionTitle, { color: c.text }]} numberOfLines={1}>
+            Buy-In Ledger ({players.length})
           </Text>
+          {players.length > 0 && session?.hostId ? (
+            <View style={styles.ledgerLegendRow}>
+              <View
+                style={[
+                  styles.ledgerLegendSwatch,
+                  { backgroundColor: c.accentBg, borderColor: c.borderAccent },
+                ]}
+              />
+              <Text style={[styles.ledgerLegendText, { color: c.textHint }]}>
+                Highlighted row is the session host.
+              </Text>
+            </View>
+          ) : null}
         </View>
-      ) : null}
+        {ledgerCanToggleDollars ? (
+          <View style={styles.ledgerSwitchRow}>
+            <MaterialCommunityIcons name="poker-chip" size={14} color={c.textHint} />
+            <Switch
+              value={ledgerShowDollars}
+              onValueChange={setLedgerShowDollars}
+              trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
+              thumbColor={c.switchThumb}
+              accessibilityLabel={ledgerShowDollars ? 'Show buy-in ledger in chips' : 'Show buy-in ledger in dollars'}
+            />
+            <Text style={[styles.ledgerSwitchSideLabel, { color: c.textHint }]}>$</Text>
+          </View>
+        ) : null}
+      </View>
       {players.length === 0 ? (
         <Text style={[styles.emptyText, { color: c.textMuted }]}>No buy-ins yet. Add a player above.</Text>
       ) : (
@@ -669,6 +863,67 @@ export default function ActiveSessionScreen() {
               }
             }
             const tapCashedOutRow = viewerIsHost && session?.status === 'active' && isCashedOut;
+            const dpc = session?.dollarsPerChip;
+            const showLedgerDollars = ledgerCanToggleDollars && ledgerShowDollars;
+            const ledgerDisplayUnit: SessionAmountUnit = showLedgerDollars ? 'cash' : sessionAmountUnit;
+            const buyInLedgerValue =
+              showLedgerDollars && dpc != null ? item.total * dpc : item.total;
+            const cashOutLedgerValue =
+              cashOut && showLedgerDollars && dpc != null ? cashOut.amount * dpc : cashOut?.amount ?? 0;
+            const resultLedgerValue =
+              cashOut && showLedgerDollars && dpc != null
+                ? (cashOut.amount - item.total) * dpc
+                : cashOut
+                  ? cashOut.amount - item.total
+                  : 0;
+
+            const amountsBlock = (
+              <View style={styles.playerAmounts}>
+                <SessionAmountDisplay
+                  value={buyInLedgerValue}
+                  unit={ledgerDisplayUnit}
+                  color={isCashedOut ? c.textMuted : c.profit}
+                  iconSize={14}
+                  valueStyle="ledger"
+                  textStyle={[styles.playerAmount, { color: isCashedOut ? c.textMuted : c.profit }]}
+                />
+                {isCashedOut && cashOut ? (
+                  <View style={styles.ledgerCashOutSubline}>
+                    <Text style={[styles.cashOutResult, { color: c.textMuted }]}>Out:</Text>
+                    <SessionAmountDisplay
+                      value={cashOutLedgerValue}
+                      unit={ledgerDisplayUnit}
+                      color={c.textMuted}
+                      iconSize={12}
+                      valueStyle="ledger"
+                      textStyle={[styles.cashOutResult, { color: c.textMuted }]}
+                    />
+                    <Text style={[styles.cashOutResult, { color: c.textMuted }]}>(</Text>
+                    {resultLedgerValue >= 0 ? (
+                      <Text
+                        style={[
+                          styles.cashOutResult,
+                          { color: resultLedgerValue >= 0 ? c.profit : c.lossLight },
+                        ]}>
+                        +
+                      </Text>
+                    ) : null}
+                    <SessionAmountDisplay
+                      value={resultLedgerValue}
+                      unit={ledgerDisplayUnit}
+                      color={resultLedgerValue >= 0 ? c.profit : c.lossLight}
+                      iconSize={12}
+                      valueStyle="ledger"
+                      textStyle={[
+                        styles.cashOutResult,
+                        { color: resultLedgerValue >= 0 ? c.profit : c.lossLight },
+                      ]}
+                    />
+                    <Text style={[styles.cashOutResult, { color: c.textMuted }]}>)</Text>
+                  </View>
+                ) : null}
+              </View>
+            );
 
             const rowInner = (
               <>
@@ -699,22 +954,7 @@ export default function ActiveSessionScreen() {
                       </>
                     )}
                   </View>
-                  <View style={styles.playerAmounts}>
-                    <Text style={[styles.playerAmount, { color: isCashedOut ? c.textMuted : c.profit }]}>
-                      {formatLedgerCurrency(item.total)}
-                    </Text>
-                    {isCashedOut && (
-                      <Text style={[styles.cashOutResult, { color: c.textMuted }]}>
-                        Out: {formatLedgerCurrency(cashOut.amount)} (
-                        <Text
-                          style={{ color: cashOut.amount - item.total >= 0 ? c.profit : c.lossLight }}>
-                          {cashOut.amount - item.total >= 0 ? '+' : ''}
-                          {formatLedgerCurrency(cashOut.amount - item.total)}
-                        </Text>
-                        )
-                      </Text>
-                    )}
-                  </View>
+                  {amountsBlock}
                 </View>
                 {viewerIsHost && session?.status === 'active' && !isCashedOut && (
                   <View style={styles.playerRowActions}>
@@ -806,21 +1046,36 @@ export default function ActiveSessionScreen() {
                 <Text style={[styles.cashOutFormTitle, { color: c.text }]}>
                   Cash out: {cashOutTarget.playerName}
                 </Text>
-                <Text style={[styles.cashOutFormSub, { color: c.textMuted }]}>
-                  Buy-in total: {formatLedgerCurrency(cashOutTarget.totalBuyIn)}
-                </Text>
+                <View style={styles.modalBuyInTotalRow}>
+                  <Text style={[styles.cashOutFormSub, { color: c.textMuted }]}>Buy-in total: </Text>
+                  <SessionAmountDisplay
+                    value={cashOutTarget.totalBuyIn}
+                    unit={sessionAmountUnit}
+                    color={c.textMuted}
+                    iconSize={14}
+                    valueStyle="ledger"
+                    textStyle={[styles.cashOutFormSub, { color: c.textMuted }]}
+                  />
+                </View>
                 <View style={styles.cashOutInputRow}>
-                  <View style={[styles.amountInputWrap, styles.cashOutModalAmountWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
-                    <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                  <SessionAmountInputRow
+                    unit={sessionAmountUnit}
+                    color={c.textMuted}
+                    iconSize={16}
+                    style={[
+                      styles.amountInputWrap,
+                      styles.cashOutModalAmountWrap,
+                      { borderColor: c.border, backgroundColor: c.inputBg },
+                    ]}>
                     <TextInput
                       value={cashOutAmount}
                       onChangeText={setCashOutAmount}
-                      placeholder="0.00"
+                      placeholder={sessionAmountUnit === 'chips' ? 'Chips' : '0.00'}
                       placeholderTextColor={c.placeholder}
                       keyboardType="numeric"
                       style={[styles.amountInput, { color: c.text }]}
                     />
-                  </View>
+                  </SessionAmountInputRow>
                 </View>
                 <View style={styles.cashOutModalActions}>
                   <Pressable style={styles.cashOutCancelBtn} onPress={closeCashOutModal}>
@@ -858,7 +1113,9 @@ export default function ActiveSessionScreen() {
             <View style={[styles.cashOutForm, styles.buyInModalForm, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.cashOutFormTitle, { color: c.text }]}>Add Buy-In</Text>
               <Text style={[styles.cashOutFormSub, { color: c.textMuted }]}>
-                Enter name and amount, or pick a player below.
+                {sessionAmountUnit === 'chips'
+                  ? 'Enter name and chip amount, or pick a player below.'
+                  : 'Enter name and amount, or pick a player below.'}
               </Text>
               <ScrollView
                 ref={buyInScrollRef}
@@ -886,18 +1143,21 @@ export default function ActiveSessionScreen() {
                       onFocus={() => scrollModalFieldToTop(buyInScrollRef)}
                       style={[styles.input, { flex: 2, borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
                     />
-                    <View style={[styles.amountInputWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
-                      <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                    <SessionAmountInputRow
+                      unit={sessionAmountUnit}
+                      color={c.textMuted}
+                      iconSize={16}
+                      style={[styles.amountInputWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
                       <TextInput
                         ref={buyInAmountInputRef}
                         value={amount}
                         onChangeText={setAmount}
-                        placeholder="0.00"
+                        placeholder={sessionAmountUnit === 'chips' ? 'Chips' : '0.00'}
                         placeholderTextColor={c.placeholder}
                         keyboardType="numeric"
                         style={[styles.amountInput, { color: c.text }]}
                       />
-                    </View>
+                    </SessionAmountInputRow>
                   </View>
                   {(() => {
                     const sessionPlayerIds = new Set(players.map((p) => p.playerId));
@@ -993,32 +1253,48 @@ export default function ActiveSessionScreen() {
                 <View style={styles.cashOutDetailRows}>
                   <View style={styles.cashOutDetailRow}>
                     <Text style={[styles.cashOutDetailLabel, { color: c.textMuted }]}>Total buy-in</Text>
-                    <Text style={[styles.cashOutDetailValue, { color: c.textSecondary }]}>
-                      {formatLedgerCurrency(cashedOutDetailModal.totalBuyIn)}
-                    </Text>
+                    <View style={styles.cashOutDetailValueCol}>
+                      <SessionAmountDisplay
+                        value={cashedOutDetailModal.totalBuyIn}
+                        unit={sessionAmountUnit}
+                        color={c.textSecondary}
+                        iconSize={14}
+                        valueStyle="ledger"
+                        textStyle={[styles.cashOutDetailValue, { color: c.textSecondary }]}
+                        rowStyle={styles.cashOutDetailValueRowEnd}
+                      />
+                    </View>
                   </View>
                   <View style={styles.cashOutDetailRow}>
                     <Text style={[styles.cashOutDetailLabel, { color: c.textMuted }]}>Cashed out</Text>
-                    <Text style={[styles.cashOutDetailValue, { color: c.textSecondary }]}>
-                      {formatLedgerCurrency(cashedOutDetailModal.cashOut.amount)}
-                    </Text>
+                    <View style={styles.cashOutDetailValueCol}>
+                      <SessionAmountDisplay
+                        value={cashedOutDetailModal.cashOut.amount}
+                        unit={sessionAmountUnit}
+                        color={c.textSecondary}
+                        iconSize={14}
+                        valueStyle="ledger"
+                        textStyle={[styles.cashOutDetailValue, { color: c.textSecondary }]}
+                        rowStyle={styles.cashOutDetailValueRowEnd}
+                      />
+                    </View>
                   </View>
                   <View style={styles.cashOutDetailRow}>
                     <Text style={[styles.cashOutDetailLabel, { color: c.textMuted }]}>Result</Text>
-                    <Text
-                      style={[
-                        styles.cashOutDetailValue,
-                        { color: cashedOutDetailModal.cashOut.amount - cashedOutDetailModal.totalBuyIn >= 0
-                          ? c.profit
-                          : c.lossLight },
-                      ]}>
-                      {cashedOutDetailModal.cashOut.amount - cashedOutDetailModal.totalBuyIn >= 0
-                        ? '+'
-                        : ''}
-                      {formatLedgerCurrency(
-                        cashedOutDetailModal.cashOut.amount - cashedOutDetailModal.totalBuyIn
-                      )}
-                    </Text>
+                    <View style={[styles.cashOutDetailValueCol, styles.cashOutDetailResultValue]}>
+                      {earlyCashOutResultDelta >= 0 ? (
+                        <Text style={[styles.cashOutDetailValue, { color: c.profit }]}>+</Text>
+                      ) : null}
+                      <SessionAmountDisplay
+                        value={earlyCashOutResultDelta}
+                        unit={sessionAmountUnit}
+                        color={earlyCashOutResultColor}
+                        iconSize={14}
+                        valueStyle="ledger"
+                        textStyle={[styles.cashOutDetailValue, { color: earlyCashOutResultColor }]}
+                        rowStyle={styles.cashOutDetailValueRowEnd}
+                      />
+                    </View>
                   </View>
                   <View style={styles.cashOutDetailRow}>
                     <Text style={[styles.cashOutDetailLabel, { color: c.textMuted }]}>Cashed out at</Text>
@@ -1109,6 +1385,87 @@ export default function ActiveSessionScreen() {
     </Modal>
 
     <Modal
+      visible={chipValueEditorVisible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={closeChipValueEditor}>
+      <View style={styles.modalRoot}>
+        <Pressable
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+          onPress={closeChipValueEditor}
+          accessibilityLabel="Dismiss"
+          accessibilityRole="button"
+        />
+        <View pointerEvents="box-none" style={styles.modalCenterWrap}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+            style={[styles.modalKeyboard, styles.sessionModalKav]}>
+            <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[styles.cashOutFormTitle, { color: c.text }]}>Dollars per chip</Text>
+              <Text style={[styles.blindsModalHint, { color: c.textMuted }]}>
+                Used to show dollar equivalents for chip stacks, blinds, and the ledger. Buy-ins and cash-outs stay in
+                chips.
+              </Text>
+              <ScrollView
+                ref={chipValueScrollRef}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                style={styles.sessionModalLocationScroll}
+                contentContainerStyle={styles.sessionModalFieldsScrollContent}>
+                <View style={styles.chipValueModalField}>
+                  <View style={styles.blindsModalLabelRow}>
+                    <Text style={[styles.blindsModalFieldLabel, { color: c.textHint }]}>Dollar per chip</Text>
+                    <Text style={[styles.blindsModalRequiredMark, { color: c.loss }]}>*</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.blindsModalAmountWrap,
+                      { borderColor: c.border, backgroundColor: c.inputBg },
+                    ]}>
+                    <Text style={[styles.chipValueModalDollarSign, { color: c.textMuted }]}>$</Text>
+                    <TextInput
+                      value={dollarsPerChipDraft}
+                      onChangeText={setDollarsPerChipDraft}
+                      placeholder="0.50"
+                      placeholderTextColor={c.placeholder}
+                      keyboardType="decimal-pad"
+                      onFocus={() => scrollModalFieldToTop(chipValueScrollRef)}
+                      style={[styles.blindsModalTextInput, { color: c.text }]}
+                    />
+                  </View>
+                  <Text style={[styles.chipValueModalExample, { color: c.textHint }]}>
+                    Example: 100 chips for a $50 buy-in → $0.50 per chip.
+                  </Text>
+                </View>
+              </ScrollView>
+              <View style={styles.cashOutModalActions}>
+                <Pressable style={styles.cashOutCancelBtn} onPress={closeChipValueEditor}>
+                  <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.cashOutConfirmBtn,
+                    { backgroundColor: c.accent },
+                    isChipValueSaveDisabled && styles.disabled,
+                  ]}
+                  onPress={() => void saveChipValue()}
+                  disabled={isChipValueSaveDisabled}>
+                  {isSavingChipValue ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.addButtonLabel}>Save</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal
       visible={blindsEditorVisible}
       transparent
       animationType="fade"
@@ -1129,7 +1486,9 @@ export default function ActiveSessionScreen() {
             <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.cashOutFormTitle, { color: c.text }]}>Edit blinds</Text>
               <Text style={[styles.blindsModalHint, { color: c.textMuted }]}>
-                Small and big blind are required. Big blind must be at least the small blind.
+                {sessionAmountUnit === 'chips'
+                  ? 'Enter blinds in chips. Big blind must be at least the small blind.'
+                  : 'Small and big blind are required. Big blind must be at least the small blind.'}
               </Text>
               <ScrollView
                 ref={blindsScrollRef}
@@ -1143,8 +1502,14 @@ export default function ActiveSessionScreen() {
                       <Text style={[styles.blindsModalFieldLabel, { color: c.textHint }]}>Small blind</Text>
                       <Text style={[styles.blindsModalRequiredMark, { color: c.loss }]}>*</Text>
                     </View>
-                    <View style={[styles.blindsModalAmountWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
-                      <Text style={[styles.blindsModalDollar, { color: c.textMuted }]}>$</Text>
+                    <SessionAmountInputRow
+                      unit={sessionAmountUnit}
+                      color={c.textMuted}
+                      iconSize={16}
+                      style={[
+                        styles.blindsModalAmountWrap,
+                        { borderColor: c.border, backgroundColor: c.inputBg },
+                      ]}>
                       <TextInput
                         value={smallBlindDraft}
                         onChangeText={setSmallBlindDraft}
@@ -1154,15 +1519,21 @@ export default function ActiveSessionScreen() {
                         onFocus={() => scrollModalFieldToTop(blindsScrollRef)}
                         style={[styles.blindsModalTextInput, { color: c.text }]}
                       />
-                    </View>
+                    </SessionAmountInputRow>
                   </View>
                   <View style={styles.blindsModalField}>
                     <View style={styles.blindsModalLabelRow}>
                       <Text style={[styles.blindsModalFieldLabel, { color: c.textHint }]}>Big blind</Text>
                       <Text style={[styles.blindsModalRequiredMark, { color: c.loss }]}>*</Text>
                     </View>
-                    <View style={[styles.blindsModalAmountWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
-                      <Text style={[styles.blindsModalDollar, { color: c.textMuted }]}>$</Text>
+                    <SessionAmountInputRow
+                      unit={sessionAmountUnit}
+                      color={c.textMuted}
+                      iconSize={16}
+                      style={[
+                        styles.blindsModalAmountWrap,
+                        { borderColor: c.border, backgroundColor: c.inputBg },
+                      ]}>
                       <TextInput
                         value={bigBlindDraft}
                         onChangeText={setBigBlindDraft}
@@ -1172,7 +1543,7 @@ export default function ActiveSessionScreen() {
                         onFocus={() => scrollModalFieldToEnd(blindsScrollRef)}
                         style={[styles.blindsModalTextInput, { color: c.text }]}
                       />
-                    </View>
+                    </SessionAmountInputRow>
                   </View>
                 </View>
               </ScrollView>
@@ -1262,11 +1633,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'stretch',
   },
+  metaSessionCards: {
+    width: '100%',
+    gap: 10,
+  },
   metaSecondRow: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 10,
+  },
+  metaChipValueFullRow: {
+    flex: 0,
+    alignSelf: 'stretch',
+    width: '100%',
   },
   potRowRight: {
     flex: 1,
@@ -1287,6 +1667,18 @@ const styles = StyleSheet.create({
   blindsModalHint: {
     fontSize: 12,
     marginBottom: 8,
+  },
+  chipValueModalField: {
+    gap: 6,
+    alignSelf: 'stretch',
+  },
+  chipValueModalDollarSign: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  chipValueModalExample: {
+    fontSize: 11,
+    lineHeight: 15,
   },
   blindsModalInputs: {
     flexDirection: 'row',
@@ -1322,11 +1714,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'android' ? 2 : 6,
     minHeight: 40,
-  },
-  blindsModalDollar: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 4,
   },
   blindsModalTextInput: {
     flex: 1,
@@ -1374,11 +1761,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  potValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  blindsChipsMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    minWidth: 0,
+  },
   error: {},
   sectionTitle: {
     fontWeight: '700',
     fontSize: 15,
     marginTop: 6,
+  },
+  ledgerSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+  },
+  ledgerSectionTitle: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  ledgerSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  ledgerSwitchSideLabel: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   addSection: {
     gap: 8,
@@ -1414,10 +1836,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 10,
   },
-  dollarSign: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
   amountInput: {
     flex: 1,
     paddingVertical: 10,
@@ -1431,12 +1849,10 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   emptyText: {},
-  ledgerLegend: {
+  ledgerLegendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: -6,
-    marginBottom: 4,
   },
   ledgerLegendSwatch: {
     width: 22,
@@ -1566,6 +1982,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  ledgerCashOutSubline: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+  },
   cashOutPlayerBtn: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -1605,6 +2028,21 @@ const styles = StyleSheet.create({
   cashOutDetailLabel: {
     fontSize: 14,
     flex: 1,
+  },
+  cashOutDetailValueCol: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+    maxWidth: '55%',
+  },
+  cashOutDetailValueRowEnd: {
+    justifyContent: 'flex-end',
+  },
+  cashOutDetailResultValue: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
   },
   cashOutDetailValue: {
     fontWeight: '600',
@@ -1696,6 +2134,12 @@ const styles = StyleSheet.create({
   },
   cashOutFormSub: {
     fontSize: 13,
+  },
+  modalBuyInTotalRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 4,
   },
   cashOutInputRow: {
     flexDirection: 'row',

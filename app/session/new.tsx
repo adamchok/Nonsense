@@ -1,9 +1,10 @@
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
+import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { addBuyIn, createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
-import type { GroupMember, PokerGroup, SavedLocation } from '@/types';
+import type { GroupMember, PokerGroup, SavedLocation, SessionAmountUnit } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -46,7 +47,10 @@ export default function NewSessionScreen() {
   const [locationMode, setLocationMode] = useState<'saved' | 'other'>('saved');
   const [smallBlindStr, setSmallBlindStr] = useState('');
   const [bigBlindStr, setBigBlindStr] = useState('');
+  const [amountUnit, setAmountUnit] = useState<SessionAmountUnit>('cash');
+  const [dollarsPerChipStr, setDollarsPerChipStr] = useState('');
   const hasSavedLocations = savedLocations.length > 0;
+  const isChipsMode = amountUnit === 'chips';
 
   const userInSelectedGroup =
     Boolean(selectedGroup && playerProfile) &&
@@ -97,7 +101,10 @@ export default function NewSessionScreen() {
     };
   }, []);
 
-  /** KeyboardAvoidingView does not change ScrollView scroll offset — only pads/shrinks. Extra bottom inset + scroll lets lower fields stay reachable. */
+  /**
+   * ScrollView does not auto-scroll to focused inputs. `scrollToEnd` is only for fields near the bottom
+   * (group / join buy-in). Do not use it for upper fields like “Dollars per chip” — it jumps past them.
+   */
   function scrollLowerFormIntoView() {
     requestAnimationFrame(() => {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
@@ -165,7 +172,10 @@ export default function NewSessionScreen() {
     if (shouldAddGroupMembers) {
       const parsed = parseFloat(groupBuyIn);
       if (!groupBuyIn.trim() || isNaN(parsed) || parsed <= 0) {
-        appAlert('Invalid buy-in', 'Enter a valid buy-in amount for the group.');
+        appAlert(
+          'Invalid buy-in',
+          isChipsMode ? 'Enter a valid chip buy-in for the group.' : 'Enter a valid buy-in amount for the group.'
+        );
         return;
       }
     }
@@ -173,7 +183,10 @@ export default function NewSessionScreen() {
     if (shouldAddSelf) {
       const parsed = parseFloat(buyInAmount);
       if (!buyInAmount.trim() || isNaN(parsed) || parsed <= 0) {
-        appAlert('Invalid buy-in', 'Enter a valid buy-in amount to join the session.');
+        appAlert(
+          'Invalid buy-in',
+          isChipsMode ? 'Enter a valid chip amount to join the session.' : 'Enter a valid buy-in amount to join the session.'
+        );
         return;
       }
     }
@@ -195,6 +208,19 @@ export default function NewSessionScreen() {
       return;
     }
 
+    let dollarsPerChip: number | undefined;
+    if (isChipsMode) {
+      const dpc = parseFloat(dollarsPerChipStr.trim());
+      if (!dollarsPerChipStr.trim() || Number.isNaN(dpc) || dpc <= 0) {
+        appAlert(
+          'Chip value',
+          'Enter how much each chip is worth in dollars (e.g. 0.50 for a $50 buy-in of 100 chips).'
+        );
+        return;
+      }
+      dollarsPerChip = dpc;
+    }
+
     try {
       setIsSaving(true);
       const sessionId = await createSession({
@@ -203,6 +229,8 @@ export default function NewSessionScreen() {
         location: selectedLocation,
         smallBlind: sb,
         bigBlind: bb,
+        amountUnit,
+        ...(isChipsMode && dollarsPerChip != null ? { dollarsPerChip } : {}),
       });
 
       if (shouldAddGroupMembers) {
@@ -288,10 +316,64 @@ export default function NewSessionScreen() {
               </View>
             )}
 
+            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              <View style={styles.amountModeHeader}>
+                <MaterialIcons name="tune" size={20} color={c.textMuted} style={styles.icons} />
+                <Text style={[styles.amountModeTitle, { color: c.textMuted }]}>Amounts</Text>
+              </View>
+              <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
+                Cash: track dollars. Chips: track chip stacks; set how much each chip is worth.
+              </Text>
+              <View style={styles.amountModeRow}>
+                <Pressable
+                  style={[
+                    styles.amountModeOption,
+                    { borderColor: c.border, backgroundColor: c.inputBg },
+                    !isChipsMode && { borderColor: c.accent, backgroundColor: c.accentBg },
+                  ]}
+                  onPress={() => setAmountUnit('cash')}>
+                  <Text style={[styles.amountModeOptionText, { color: c.text }]}>Cash</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.amountModeOption,
+                    { borderColor: c.border, backgroundColor: c.inputBg },
+                    isChipsMode && { borderColor: c.accent, backgroundColor: c.accentBg },
+                  ]}
+                  onPress={() => setAmountUnit('chips')}>
+                  <Text style={[styles.amountModeOptionText, { color: c.text }]}>Chips</Text>
+                </Pressable>
+              </View>
+              {isChipsMode ? (
+                <View style={styles.chipValueBlock}>
+                  <View style={styles.labelWithRequired}>
+                    <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Dollars per chip</Text>
+                    <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
+                  </View>
+                  <View style={styles.buyInRow}>
+                    <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                    <TextInput
+                      value={dollarsPerChipStr}
+                      onChangeText={setDollarsPerChipStr}
+                      placeholder="0.50"
+                      placeholderTextColor={c.placeholder}
+                      keyboardType="decimal-pad"
+                      style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                    />
+                  </View>
+                  <Text style={[styles.groupSectionHint, { color: c.textHint }]}>
+                    Example: 100 chips for a $50 buy-in → $0.50 per chip.
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
             <View style={styles.blindsSection}>
               <MaterialIcons name="payments" size={20} color={c.textMuted} style={styles.icons} />
               <View style={styles.labelWithRequired}>
-                <Text style={[styles.blindsSectionTitle, { color: c.textMuted }]}>Blinds</Text>
+                <Text style={[styles.blindsSectionTitle, { color: c.textMuted }]}>
+                  Blinds{isChipsMode ? ' (chips)' : ''}
+                </Text>
               </View>
             </View>
             <View style={styles.blindsRow}>
@@ -300,8 +382,7 @@ export default function NewSessionScreen() {
                   <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Small</Text>
                   <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                 </View>
-                <View style={styles.buyInRow}>
-                  <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={smallBlindStr}
                     onChangeText={setSmallBlindStr}
@@ -310,15 +391,14 @@ export default function NewSessionScreen() {
                     keyboardType="decimal-pad"
                     style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
                   />
-                </View>
+                </SessionAmountInputRow>
               </View>
               <View style={styles.blindField}>
                 <View style={styles.labelWithRequired}>
                   <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Big</Text>
                   <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                 </View>
-                <View style={styles.buyInRow}>
-                  <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={bigBlindStr}
                     onChangeText={setBigBlindStr}
@@ -327,7 +407,7 @@ export default function NewSessionScreen() {
                     keyboardType="decimal-pad"
                     style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
                   />
-                </View>
+                </SessionAmountInputRow>
               </View>
             </View>
 
@@ -378,18 +458,17 @@ export default function NewSessionScreen() {
                         </View>
                       ))}
                     </View>
-                    <View style={styles.buyInRow}>
-                      <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                    <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                       <TextInput
                         value={groupBuyIn}
                         onChangeText={setGroupBuyIn}
-                        placeholder="Buy-in per player"
+                        placeholder={isChipsMode ? 'Chips per player' : 'Buy-in per player'}
                         placeholderTextColor={c.placeholder}
                         keyboardType="numeric"
                         onFocus={scrollLowerFormIntoView}
                         style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
                       />
-                    </View>
+                    </SessionAmountInputRow>
                   </>
                 )}
               </View>
@@ -408,7 +487,7 @@ export default function NewSessionScreen() {
                       ) : null}
                     </View>
                     <Text style={[styles.joinHint, { color: c.textMuted }]}>
-                      Add yourself with an initial buy-in
+                      {isChipsMode ? 'Add yourself with chips bought in' : 'Add yourself with an initial buy-in'}
                     </Text>
                   </View>
                   <Switch
@@ -419,12 +498,11 @@ export default function NewSessionScreen() {
                   />
                 </View>
                 {joinSelf && (
-                  <View style={styles.buyInRow}>
-                    <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+                  <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                     <TextInput
                       value={buyInAmount}
                       onChangeText={setBuyInAmount}
-                      placeholder="0.00"
+                      placeholder={isChipsMode ? 'Chips' : '0.00'}
                       placeholderTextColor={c.placeholder}
                       keyboardType="numeric"
                       onFocus={scrollLowerFormIntoView}
@@ -433,7 +511,7 @@ export default function NewSessionScreen() {
                         { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
                       ]}
                     />
-                  </View>
+                  </SessionAmountInputRow>
                 )}
               </View>
             )}
@@ -692,6 +770,39 @@ const styles = StyleSheet.create({
   },
   groupSectionHint: {
     fontSize: 12,
+  },
+  amountModeCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  amountModeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  amountModeTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  amountModeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  amountModeOption: {
+    flex: 1,
+    borderRadius: 8,
+    borderWidth: 2,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  amountModeOptionText: {
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  chipValueBlock: {
+    gap: 6,
   },
   groupPickerBtn: {
     flexDirection: 'row',

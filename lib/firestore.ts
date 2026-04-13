@@ -8,6 +8,7 @@ import type {
   PlayerProfile,
   PokerGroup,
   SavedLocation,
+  SessionAmountUnit,
   SessionRecord,
   SessionResult,
 } from '@/types';
@@ -535,12 +536,26 @@ function sessionBlindsFromDocData(data: Record<string, unknown>): {
   return { smallBlind: sb, bigBlind: bb };
 }
 
+function sessionAmountMetaFromDocData(data: Record<string, unknown>): {
+  amountUnit: SessionAmountUnit;
+  dollarsPerChip?: number;
+} {
+  const amountUnit: SessionAmountUnit = data.amountUnit === 'chips' ? 'chips' : 'cash';
+  if (amountUnit !== 'chips') return { amountUnit: 'cash' };
+  const raw = data.dollarsPerChip;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  const dollarsPerChip = Number.isFinite(n) && n > 0 ? n : undefined;
+  return { amountUnit: 'chips', dollarsPerChip };
+}
+
 export async function createSession(input: {
   hostId: string;
   hostName?: string;
   location?: string;
   smallBlind?: number;
   bigBlind?: number;
+  amountUnit?: SessionAmountUnit;
+  dollarsPerChip?: number;
 }): Promise<string> {
   const db = getFirestoreDb();
   const sessionsRef = collection(db, 'sessions');
@@ -560,6 +575,16 @@ export async function createSession(input: {
     bigBlind = input.bigBlind;
   }
 
+  const amountUnit: SessionAmountUnit = input.amountUnit === 'chips' ? 'chips' : 'cash';
+  let dollarsPerChip: number | null = null;
+  if (amountUnit === 'chips') {
+    const dpc = input.dollarsPerChip;
+    if (dpc == null || !Number.isFinite(dpc) || dpc <= 0) {
+      throw new Error('Chip sessions require a valid dollars-per-chip value.');
+    }
+    dollarsPerChip = dpc;
+  }
+
   await setDoc(sessionRef, {
     hostId: input.hostId,
     date: serverTimestamp(),
@@ -567,6 +592,8 @@ export async function createSession(input: {
     status: 'active',
     smallBlind,
     bigBlind,
+    amountUnit,
+    dollarsPerChip,
   });
 
   const hostLabel = input.hostName?.trim() || input.hostId;
@@ -576,11 +603,14 @@ export async function createSession(input: {
 }
 
 function mapSessionDocToRecord(sessionId: string, data: Record<string, unknown>): SessionRecord {
+  const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
   return {
     id: sessionId,
     hostId: String(data.hostId ?? ''),
     location: data.location ? String(data.location) : undefined,
     ...sessionBlindsFromDocData(data),
+    amountUnit,
+    ...(amountUnit === 'chips' && dollarsPerChip != null ? { dollarsPerChip } : {}),
     status: data.status === 'finished' ? 'finished' : 'active',
     date: toDate(data.date ?? data.createdAt),
     finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
@@ -672,6 +702,15 @@ export async function updateSessionBlinds(
   await updateDoc(ref, { smallBlind: sb, bigBlind: bb });
 }
 
+/** Host-only: dollar value of one chip for chip-mode sessions (e.g. 0.5 for 100 chips = $50). */
+export async function updateSessionDollarsPerChip(sessionId: string, dollarsPerChip: number): Promise<void> {
+  if (!Number.isFinite(dollarsPerChip) || dollarsPerChip <= 0) {
+    throw new Error('Dollars per chip must be a positive number.');
+  }
+  const ref = doc(getFirestoreDb(), 'sessions', sessionId);
+  await updateDoc(ref, { dollarsPerChip });
+}
+
 export async function updatePlayerAvatar(uid: string, avatarEmoji: string): Promise<void> {
   const db = getFirestoreDb();
   const ref = doc(db, 'players', uid);
@@ -727,11 +766,14 @@ export async function getSessionMeta(sessionId: string): Promise<{
   status?: 'active' | 'finished';
   smallBlind?: number;
   bigBlind?: number;
+  amountUnit: SessionAmountUnit;
+  dollarsPerChip?: number;
 }> {
   const ref = doc(getFirestoreDb(), 'sessions', sessionId);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return {};
+  if (!snap.exists()) return { amountUnit: 'cash' };
   const data = snap.data() as Record<string, unknown>;
+  const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
   return {
     date: toDate(data.date ?? data.createdAt),
     finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
@@ -739,6 +781,8 @@ export async function getSessionMeta(sessionId: string): Promise<{
     hostId: data.hostId ? String(data.hostId) : undefined,
     status: data.status === 'finished' ? 'finished' : 'active',
     ...sessionBlindsFromDocData(data),
+    amountUnit,
+    ...(amountUnit === 'chips' && dollarsPerChip != null ? { dollarsPerChip } : {}),
   };
 }
 
@@ -1260,11 +1304,14 @@ async function sessionHistoryEntriesFromDocs(
 
       const data = sessionDoc.data() as Record<string, unknown>;
       const r = resultSnap.data()!;
+      const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
       records.push({
         id: sessionDoc.id,
         hostId: String(data.hostId ?? ''),
         location: data.location ? String(data.location) : undefined,
         ...sessionBlindsFromDocData(data),
+        amountUnit,
+        ...(amountUnit === 'chips' && dollarsPerChip != null ? { dollarsPerChip } : {}),
         status: 'finished',
         date: toDate(data.date ?? data.createdAt),
         finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
