@@ -14,12 +14,14 @@ import { formatDateTimeDMY } from '@/lib/date-format';
 import { getFirestoreDb } from '@/lib/firebase';
 import {
   addBuyIn,
+  deleteSession,
   removeEarlyCashOut,
   removePlayerBuyIns,
   saveEarlyCashOut,
   subscribeBuyIns,
   subscribeEarlyCashOuts,
   subscribeFriends,
+  updatePlayerBuyInTotal,
   updateSessionBlinds,
   updateSessionDollarsPerChip,
   updateSessionLocation,
@@ -178,6 +180,14 @@ export default function ActiveSessionScreen() {
   const [isSavingChipValue, setIsSavingChipValue] = useState(false);
   /** Chip sessions with dollars per chip: ledger section switch toggles chip vs dollar display for all rows. */
   const [ledgerShowDollars, setLedgerShowDollars] = useState(false);
+  const [editBuyInTarget, setEditBuyInTarget] = useState<{
+    playerId: string;
+    playerName: string;
+    currentTotal: number;
+  } | null>(null);
+  const [editBuyInAmount, setEditBuyInAmount] = useState('');
+  const [isSavingEditBuyIn, setIsSavingEditBuyIn] = useState(false);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -606,6 +616,60 @@ export default function ActiveSessionScreen() {
     closeBuyInEditor();
   }
 
+  function openEditBuyIn(playerId: string, playerName: string, currentTotal: number) {
+    setEditBuyInTarget({ playerId, playerName, currentTotal });
+    setEditBuyInAmount(String(currentTotal));
+  }
+
+  function closeEditBuyIn() {
+    Keyboard.dismiss();
+    setEditBuyInTarget(null);
+    setEditBuyInAmount('');
+  }
+
+  async function saveEditBuyIn() {
+    if (!viewerIsHost || !id || !editBuyInTarget) return;
+    const parsed = parseFloat(editBuyInAmount.trim());
+    if (isNaN(parsed) || parsed <= 0) {
+      appAlert('Invalid amount', 'Enter a positive number.');
+      return;
+    }
+    try {
+      setIsSavingEditBuyIn(true);
+      await updatePlayerBuyInTotal(id, editBuyInTarget.playerId, editBuyInTarget.playerName, parsed);
+      closeEditBuyIn();
+    } catch (e) {
+      appAlert('Error', e instanceof Error ? e.message : 'Failed to update buy-in.');
+    } finally {
+      setIsSavingEditBuyIn(false);
+    }
+  }
+
+  function handleDeleteSession() {
+    if (!viewerIsHost || !id) return;
+    appAlert(
+      'Delete Session?',
+      'This will permanently delete the session and all buy-in data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeletingSession(true);
+              await deleteSession(id);
+              router.replace('/(tabs)');
+            } catch (e) {
+              setIsDeletingSession(false);
+              appAlert('Error', e instanceof Error ? e.message : 'Failed to delete session.');
+            }
+          },
+        },
+      ]
+    );
+  }
+
   const sessionAmountUnit = session?.amountUnit ?? 'cash';
   const ledgerCanToggleDollars =
     sessionAmountUnit === 'chips' &&
@@ -819,6 +883,11 @@ export default function ActiveSessionScreen() {
               </Text>
             </View>
           ) : null}
+          {viewerIsHost && session?.status === 'active' && players.length > 0 ? (
+            <Text style={[styles.ledgerTapHint, { color: c.textHint }]}>
+              Tap a player to edit their buy-in.
+            </Text>
+          ) : null}
         </View>
         {ledgerCanToggleDollars ? (
           <View style={styles.ledgerSwitchRow}>
@@ -966,7 +1035,7 @@ export default function ActiveSessionScreen() {
                       accessibilityRole="button">
                       <MaterialIcons name="account-balance-wallet" size={18} color={c.blue} />
                     </Pressable>
-                    <Pressable
+<Pressable
                       style={styles.removePlayerBtn}
                       disabled={removingPlayerId === item.playerId}
                       onPress={() => confirmRemovePlayer(item.playerId, item.name)}
@@ -987,6 +1056,8 @@ export default function ActiveSessionScreen() {
               </>
             );
 
+            const tapEditRow = viewerIsHost && session?.status === 'active' && !isCashedOut;
+
             if (tapCashedOutRow) {
               return (
                 <Pressable
@@ -995,6 +1066,19 @@ export default function ActiveSessionScreen() {
                   onPress={() => setCashedOutDetailPlayerId(item.playerId)}
                   accessibilityRole="button"
                   accessibilityLabel={`${item.name}, early cash-out details`}>
+                  {rowInner}
+                </Pressable>
+              );
+            }
+
+            if (tapEditRow) {
+              return (
+                <Pressable
+                  key={item.playerId}
+                  style={({ pressed }) => [...(Array.isArray(rowStyle) ? rowStyle.flat() : [rowStyle]), pressed && { opacity: 0.85 }]}
+                  onPress={() => openEditBuyIn(item.playerId, item.name, item.total)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit buy-in for ${item.name}`}>
                   {rowInner}
                 </Pressable>
               );
@@ -1013,6 +1097,18 @@ export default function ActiveSessionScreen() {
         {viewerIsHost && session?.status === 'active' && (
           <Pressable style={[styles.endButton, { backgroundColor: c.destructive }]} onPress={handleEndSession}>
             <Text style={styles.endButtonLabel}>End Session & Cash Out</Text>
+          </Pressable>
+        )}
+        {viewerIsHost && session?.status === 'active' && (
+          <Pressable
+            style={[styles.deleteSessionBtn, { borderColor: c.borderDanger }]}
+            onPress={handleDeleteSession}
+            disabled={isDeletingSession}>
+            {isDeletingSession ? (
+              <ActivityIndicator size="small" color={c.lossLight} />
+            ) : (
+              <Text style={[styles.deleteSessionLabel, { color: c.lossLight }]}>Delete Session</Text>
+            )}
           </Pressable>
         )}
         {session?.status === 'finished' && (
@@ -1466,6 +1562,87 @@ export default function ActiveSessionScreen() {
     </Modal>
 
     <Modal
+      visible={!!editBuyInTarget}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={closeEditBuyIn}>
+      {editBuyInTarget ? (
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            onPress={closeEditBuyIn}
+            accessibilityLabel="Dismiss"
+            accessibilityRole="button"
+          />
+          <View pointerEvents="box-none" style={styles.modalCenterWrap}>
+            <KeyboardAvoidingView
+              behavior="padding"
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+              style={[styles.modalKeyboard, styles.sessionModalKav]}>
+              <View style={[styles.cashOutForm, { backgroundColor: c.card, borderColor: c.border }]}>
+                <Text style={[styles.cashOutFormTitle, { color: c.text }]}>
+                  Edit buy-in: {editBuyInTarget.playerName}
+                </Text>
+                <View style={styles.modalBuyInTotalRow}>
+                  <Text style={[styles.cashOutFormSub, { color: c.textMuted }]}>Current total: </Text>
+                  <SessionAmountDisplay
+                    value={editBuyInTarget.currentTotal}
+                    unit={sessionAmountUnit}
+                    color={c.textMuted}
+                    iconSize={14}
+                    valueStyle="ledger"
+                    textStyle={[styles.cashOutFormSub, { color: c.textMuted }]}
+                  />
+                </View>
+                <View style={styles.cashOutInputRow}>
+                  <SessionAmountInputRow
+                    unit={sessionAmountUnit}
+                    color={c.textMuted}
+                    iconSize={16}
+                    style={[
+                      styles.amountInputWrap,
+                      styles.cashOutModalAmountWrap,
+                      { borderColor: c.border, backgroundColor: c.inputBg },
+                    ]}>
+                    <TextInput
+                      value={editBuyInAmount}
+                      onChangeText={setEditBuyInAmount}
+                      placeholder={sessionAmountUnit === 'chips' ? 'Chips' : '0.00'}
+                      placeholderTextColor={c.placeholder}
+                      keyboardType="numeric"
+                      style={[styles.amountInput, { color: c.text }]}
+                      autoFocus
+                    />
+                  </SessionAmountInputRow>
+                </View>
+                <View style={styles.cashOutModalActions}>
+                  <Pressable style={styles.cashOutCancelBtn} onPress={closeEditBuyIn}>
+                    <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.cashOutConfirmBtn,
+                      { backgroundColor: c.accent },
+                      (isSavingEditBuyIn || !editBuyInAmount.trim()) && styles.disabled,
+                    ]}
+                    onPress={() => void saveEditBuyIn()}
+                    disabled={isSavingEditBuyIn || !editBuyInAmount.trim()}>
+                    {isSavingEditBuyIn ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.addButtonLabel}>Save</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </View>
+      ) : null}
+    </Modal>
+
+    <Modal
       visible={blindsEditorVisible}
       transparent
       animationType="fade"
@@ -1864,6 +2041,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     flex: 1,
   },
+  ledgerTapHint: {
+    fontSize: 11,
+    fontStyle: 'italic',
+  },
   playerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2168,6 +2349,16 @@ const styles = StyleSheet.create({
   endButtonLabel: {
     color: '#fff',
     fontWeight: '700',
+  },
+  deleteSessionBtn: {
+    borderRadius: 8,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  deleteSessionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   summaryButton: {
     borderRadius: 8,

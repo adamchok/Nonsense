@@ -158,7 +158,7 @@ service cloud.firestore {
       allow update: if isSessionHost(sessionId)
         && request.resource.data.hostId == resource.data.hostId;
 
-      allow delete: if false;
+      allow delete: if isSessionHost(sessionId);
 
       match /buy_ins/{buyInId} {
         allow read: if signedIn();
@@ -182,7 +182,7 @@ service cloud.firestore {
       match /session_participants/{participantId} {
         allow read: if signedIn();
         allow create, update: if isSessionHost(sessionId);
-        allow delete: if false;
+        allow delete: if isSessionHost(sessionId);
       }
     }
   }

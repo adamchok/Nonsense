@@ -807,6 +807,55 @@ export async function addBuyIn(
   return docRef.id;
 }
 
+/**
+ * Replaces all buy-in entries for a player with a single entry at the given total.
+ * Does NOT clear any early cash-out — this is a correction, not a re-entry.
+ */
+export async function updatePlayerBuyInTotal(
+  sessionId: string,
+  playerId: string,
+  playerName: string,
+  newTotal: number
+): Promise<void> {
+  const db = getFirestoreDb();
+  const q = query(
+    collection(db, 'sessions', sessionId, 'buy_ins'),
+    where('playerId', '==', playerId)
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    for (let i = 0; i < snap.docs.length; i += 500) {
+      const chunk = snap.docs.slice(i, i + 500);
+      const batch = writeBatch(db);
+      chunk.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  await addDoc(collection(db, 'sessions', sessionId, 'buy_ins'), {
+    playerId,
+    playerName,
+    amount: newTotal,
+    createdAt: serverTimestamp(),
+  });
+  await writeSessionParticipant(sessionId, playerId, playerName);
+}
+
+/** Deletes the session document and all its subcollections. */
+export async function deleteSession(sessionId: string): Promise<void> {
+  const db = getFirestoreDb();
+  const subcollections = ['buy_ins', 'early_cashouts', SESSION_PARTICIPANTS_SUBCOLLECTION];
+  for (const sub of subcollections) {
+    const snap = await getDocs(collection(db, 'sessions', sessionId, sub));
+    for (let i = 0; i < snap.docs.length; i += 500) {
+      const chunk = snap.docs.slice(i, i + 500);
+      const batch = writeBatch(db);
+      chunk.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  await deleteDoc(doc(db, 'sessions', sessionId));
+}
+
 /** Deletes all buy-in entries for this player (removes them from the session ledger). */
 export async function removePlayerBuyIns(sessionId: string, playerId: string): Promise<void> {
   const db = getFirestoreDb();
