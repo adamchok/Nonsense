@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nonsense",
     "slug": "nonsense",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
     "scheme": "nonsense",
@@ -46,6 +46,14 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Nonsense to access your photos so you can scan friend QR codes from saved images."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Nonsense to use the microphone so you can add buy-ins by voice during a session.",
+          "speechRecognitionPermission": "Allow Nonsense to use speech recognition so it can turn what you say into buy-ins and cash-outs.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
       ]
     ],

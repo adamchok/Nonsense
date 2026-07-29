@@ -27,6 +27,8 @@ import {
   updateSessionLocation,
 } from '@/lib/firestore';
 import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
+import type { VoiceRosterEntry } from '@/lib/voice-command';
+import { useVoiceSession } from '@/hooks/use-voice-session';
 import type { BuyIn, EarlyCashOut, FriendRecord, SessionAmountUnit } from '@/types';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -751,6 +753,65 @@ export default function ActiveSessionScreen() {
     Boolean(chipValueDraftTrim) && !Number.isNaN(chipValueDraftNum) && chipValueDraftNum > 0;
   const isChipValueSaveDisabled = isSavingChipValue || !isChipValueSaveValid;
 
+  /** Seated players first, so they win name ties against friends who aren't playing. */
+  const voiceRoster = useMemo<VoiceRosterEntry[]>(() => {
+    const entries: VoiceRosterEntry[] = players.map((p) => ({
+      playerId: p.playerId,
+      name: p.name,
+      inSession: true,
+    }));
+    const seen = new Set(entries.map((e) => e.playerId));
+    if (playerProfile && !seen.has(playerProfile.id)) {
+      seen.add(playerProfile.id);
+      entries.push({ playerId: playerProfile.id, name: playerProfile.name, inSession: false });
+    }
+    for (const friend of friends) {
+      if (seen.has(friend.playerId)) continue;
+      seen.add(friend.playerId);
+      entries.push({ playerId: friend.playerId, name: friend.name, inSession: false });
+    }
+    return entries;
+  }, [players, friends, playerProfile]);
+
+  /**
+   * Voice only pre-fills these existing modals — it never writes. The host still
+   * taps Confirm, which runs the same validated handlers as a typed entry.
+   */
+  const voice = useVoiceSession({
+    isHost: viewerIsHost,
+    sessionActive: session?.status === 'active',
+    amountUnit: sessionAmountUnit,
+    roster: voiceRoster,
+    findSeatedPlayer: (playerId) => {
+      const player = players.find((p) => p.playerId === playerId);
+      if (!player) return null;
+      return {
+        playerId: player.playerId,
+        name: player.name,
+        totalBuyIn: player.total,
+        cashedOut: earlyCashOutMap.has(player.playerId),
+      };
+    },
+    prefillBuyIn: ({ playerId, playerName, amount }) => {
+      setPlayerName(playerName);
+      // null keeps the existing typed-name collision prompt in play for new guests.
+      setPickedPlayerId(playerId);
+      setAmount(String(amount));
+      openBuyInEditor();
+    },
+    prefillCashOut: (player, amount) => {
+      startEarlyCashOut(player.playerId, player.name, player.totalBuyIn);
+      // Must follow startEarlyCashOut, which clears this field.
+      setCashOutAmount(String(amount));
+    },
+    prefillManualEntry: ({ playerName, amount }) => {
+      setPlayerName(playerName);
+      setAmount(amount);
+      setPickedPlayerId(null);
+      openBuyInEditor();
+    },
+  });
+
   return (
     <>
     <ScrollView
@@ -768,19 +829,44 @@ export default function ActiveSessionScreen() {
           </Text>
         </View>
         {viewerIsHost ? (
-          <Pressable
-            onPress={openBuyInEditor}
-            style={({ pressed }) => [
-              styles.sessionHeaderBuyIn,
-              {
-                backgroundColor: c.accent,
-                opacity: pressed ? 0.9 : 1,
-                transform: [{ scale: pressed ? 0.98 : 1 }],
-              },
-            ]}>
-            <MaterialIcons name="add" size={18} color="#fff" />
-            <Text style={styles.sessionHeaderBuyInLabel}>Buy-In</Text>
-          </Pressable>
+          <View style={styles.sessionHeaderActions}>
+            {voice.showMic ? (
+              <Pressable
+                onPress={voice.onMicPress}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={voice.isListening ? 'Stop listening' : 'Add buy-in by voice'}
+                accessibilityHint={`Say a command like ${voice.example}`}
+                style={({ pressed }) => [
+                  styles.voiceMicButton,
+                  {
+                    backgroundColor: voice.isListening ? c.card : c.accentBg,
+                    borderColor: voice.isListening ? c.loss : c.accentBorder,
+                    opacity: pressed ? 0.9 : 1,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
+                ]}>
+                <MaterialIcons
+                  name={voice.isListening ? 'stop' : 'mic'}
+                  size={20}
+                  color={voice.isListening ? c.loss : c.profit}
+                />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={openBuyInEditor}
+              style={({ pressed }) => [
+                styles.sessionHeaderBuyIn,
+                {
+                  backgroundColor: c.accent,
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                },
+              ]}>
+              <MaterialIcons name="add" size={18} color="#fff" />
+              <Text style={styles.sessionHeaderBuyInLabel}>Buy-In</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>
       <View style={styles.metaRow}>
@@ -1169,6 +1255,37 @@ export default function ActiveSessionScreen() {
       </View>
     </ScrollView>
 
+    {voice.status !== 'idle' ? (
+      // A banner rather than a Modal: an RN Modal takes window focus on Android and
+      // can pull audio focus away from the recogniser, and this screen's invariant
+      // is that only one Modal is ever on screen at a time.
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View
+          style={[styles.voiceBanner, { backgroundColor: c.card, borderColor: c.borderAccent }]}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite">
+          <MaterialIcons name="mic" size={20} color={c.profit} />
+          <View style={styles.voiceBannerText}>
+            <Text
+              style={[styles.voiceBannerTranscript, { color: c.textSecondary }]}
+              numberOfLines={2}>
+              {voice.transcript || (voice.isListening ? 'Listening…' : 'Starting…')}
+            </Text>
+            <Text style={[styles.voiceBannerHint, { color: c.textHint }]} numberOfLines={1}>
+              {`e.g. “${voice.example}”`}
+            </Text>
+          </View>
+          <Pressable
+            onPress={voice.cancel}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel voice input">
+            <Text style={[styles.removePlayerLabel, { color: c.lossLight }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    ) : null}
+
     <Modal
       visible={!!cashOutTarget}
       transparent
@@ -1309,43 +1426,87 @@ export default function ActiveSessionScreen() {
                     const sessionPlayerIds = new Set(players.map((p) => p.playerId));
                     const activePlayers = players.filter((p) => !earlyCashOutMap.has(p.playerId));
                     const friendsNotInSession = friends.filter((f) => !sessionPlayerIds.has(f.playerId));
-                    const hasChips = activePlayers.length > 0 || friendsNotInSession.length > 0;
-                    if (!hasChips) return null;
+                    if (activePlayers.length === 0 && friendsNotInSession.length === 0) return null;
                     return (
                       <View style={styles.rebuyBlock}>
-                        <ScrollView
-                          horizontal
-                          nestedScrollEnabled
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.rebuyChips}
-                          keyboardShouldPersistTaps="handled">
-                          {activePlayers.map((p) => {
-                            const isMe = playerProfile && p.playerId === playerProfile.id;
-                            return (
-                              <Pressable
-                                key={p.playerId}
-                                style={[styles.rebuyChip, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}
-                                onPress={() => selectRebuyForPlayer(p.playerId, p.name)}>
-                                <Text style={[styles.rebuyChipText, { color: c.chipText }]}>
-                                  {p.name}
-                                  {isMe ? ' (You)' : ''}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                          {friendsNotInSession.map((f) => (
-                            <Pressable
-                              key={f.playerId}
-                              style={[
-                                styles.friendChip,
-                                { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder },
-                              ]}
-                              onPress={() => selectRebuyForPlayer(f.playerId, f.name)}>
-                              <MaterialIcons name="person-add" size={14} color={c.blue} />
-                              <Text style={[styles.friendChipText, { color: c.blue }]}>{f.name}</Text>
-                            </Pressable>
-                          ))}
-                        </ScrollView>
+                        {activePlayers.length > 0 ? (
+                          <View style={styles.pickerGroup}>
+                            <Text style={[styles.pickerGroupLabel, { color: c.textHint }]}>
+                              IN THIS SESSION
+                            </Text>
+                            <View style={styles.rebuyChips}>
+                              {activePlayers.map((p) => {
+                                const isMe = playerProfile && p.playerId === playerProfile.id;
+                                const picked = pickedPlayerId === p.playerId;
+                                return (
+                                  <Pressable
+                                    key={p.playerId}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: picked }}
+                                    style={[
+                                      styles.rebuyChip,
+                                      {
+                                        backgroundColor: picked ? c.accentBg : c.chipBg,
+                                        borderColor: picked ? c.accentBorder : c.chipBorder,
+                                      },
+                                    ]}
+                                    onPress={() => selectRebuyForPlayer(p.playerId, p.name)}>
+                                    {picked ? (
+                                      <MaterialIcons name="check" size={14} color={c.profit} />
+                                    ) : null}
+                                    <Text
+                                      style={[
+                                        styles.rebuyChipText,
+                                        { color: picked ? c.profit : c.chipText },
+                                      ]}>
+                                      {p.name}
+                                      {isMe ? ' (You)' : ''}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          </View>
+                        ) : null}
+                        {friendsNotInSession.length > 0 ? (
+                          <View style={styles.pickerGroup}>
+                            <Text style={[styles.pickerGroupLabel, { color: c.textHint }]}>
+                              ADD A FRIEND
+                            </Text>
+                            <View style={styles.rebuyChips}>
+                              {friendsNotInSession.map((f) => {
+                                const picked = pickedPlayerId === f.playerId;
+                                return (
+                                  <Pressable
+                                    key={f.playerId}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: picked }}
+                                    style={[
+                                      styles.friendChip,
+                                      {
+                                        backgroundColor: picked ? c.accentBg : c.friendChipBg,
+                                        borderColor: picked ? c.accentBorder : c.friendChipBorder,
+                                      },
+                                    ]}
+                                    onPress={() => selectRebuyForPlayer(f.playerId, f.name)}>
+                                    <MaterialIcons
+                                      name={picked ? 'check' : 'person-add'}
+                                      size={14}
+                                      color={picked ? c.profit : c.blue}
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.friendChipText,
+                                        { color: picked ? c.profit : c.blue },
+                                      ]}>
+                                      {f.name}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          </View>
+                        ) : null}
                       </View>
                     );
                   })()}
@@ -1830,6 +1991,43 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 26,
   },
+  sessionHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  voiceMicButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+  },
+  voiceBannerText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  voiceBannerTranscript: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  voiceBannerHint: {
+    fontSize: 11,
+  },
   sessionHeaderBuyIn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2128,14 +2326,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   rebuyBlock: {
+    gap: 10,
+  },
+  pickerGroup: {
     gap: 6,
   },
+  pickerGroupLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  /** Wraps rather than scrolling: a horizontal strip hides players past the fourth. */
   rebuyChips: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     paddingVertical: 2,
   },
   rebuyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     borderRadius: 20,
     borderWidth: 1,
     paddingVertical: 8,
