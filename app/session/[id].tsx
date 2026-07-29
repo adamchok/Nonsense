@@ -357,6 +357,13 @@ export default function ActiveSessionScreen() {
 
     const trimmed = name.trim();
     const resolvedId = resolvePlayerId(name);
+    if (earlyCashOutMap.has(resolvedId)) {
+      appAlert(
+        `${trimmed} already cashed out`,
+        'Buy them back in first before adding another buy-in.'
+      );
+      return;
+    }
     // A typed (non-picked) name colliding with an existing ledger entry is ambiguous:
     // a re-buy for that person, or a second guest with the same name. Ask.
     const typedNameCollision =
@@ -2272,12 +2279,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
     textAlign: 'right',
-    maxWidth: '55%',
   },
   cashOutDetailValueMuted: {
     fontSize: 13,
     textAlign: 'right',
-    maxWidth: '55%',
   },
   cashedOutDetailBuyBackBtn: {
     flexDirection: 'row',
