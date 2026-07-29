@@ -9,7 +9,7 @@ import type { EarlyCashOut, SessionAmountUnit, SessionResult } from '@/types';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -38,12 +38,14 @@ export default function SessionSummaryScreen() {
   const [sessionDollarsPerChip, setSessionDollarsPerChip] = useState<number | undefined>();
   const [sessionHostName, setSessionHostName] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const goToHistory = useCallback(() => {
     router.replace('/(tabs)/history');
   }, []);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     (async () => {
       try {
         const [data, early, meta] = await Promise.all([
@@ -51,6 +53,13 @@ export default function SessionSummaryScreen() {
           getEarlyCashOuts(id),
           getSessionMeta(id),
         ]);
+        if (cancelled) return;
+        if (!meta) {
+          setLoadError('Session not found. It may have been deleted.');
+          appAlert('Session not found', 'This session no longer exists.');
+          return;
+        }
+        setLoadError(null);
         setResults(data.sort((a, b) => b.profit - a.profit));
         setEarlyCashOuts(early);
         setSessionDate(meta.date);
@@ -66,21 +75,31 @@ export default function SessionSummaryScreen() {
             const prof = await getPlayerProfile(meta.hostId);
             hostName = prof?.name;
           }
-          setSessionHostName(hostName);
+          if (!cancelled) setSessionHostName(hostName);
         } else {
           setSessionHostName(undefined);
         }
       } catch (e) {
+        if (cancelled) return;
+        setLoadError(e instanceof Error ? e.message : 'Failed to load results.');
         appAlert('Error', e instanceof Error ? e.message : 'Failed to load results.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  const earlyPlayerIds = new Set(earlyCashOuts.map((ec) => ec.playerId));
+  const earlyPlayerIds = useMemo(
+    () => new Set(earlyCashOuts.map((ec) => ec.playerId)),
+    [earlyCashOuts]
+  );
 
-  const settlements = computeSettlements(results);
+  // Subset-DP settlement solve is exponential in player count — never re-run it for an
+  // unrelated re-render, and keep its identity stable for the header layout effect.
+  const settlements = useMemo(() => computeSettlements(results), [results]);
   const durationMs =
     sessionDate && sessionFinishedAt
       ? Math.max(0, sessionFinishedAt.getTime() - sessionDate.getTime())
@@ -194,9 +213,11 @@ export default function SessionSummaryScreen() {
         <View style={[styles.emptyIconWrap, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
           <MaterialCommunityIcons name="clipboard-text-outline" size={40} color={c.accent} />
         </View>
-        <Text style={[styles.emptyTitle, { color: c.text }]}>No results yet</Text>
+        <Text style={[styles.emptyTitle, { color: c.text }]}>
+          {loadError ? "Couldn't load summary" : 'No results yet'}
+        </Text>
         <Text style={[styles.emptySubtitle, { color: c.textMuted }]}>
-          Finish cash-out for this session to see standings and settlement here.
+          {loadError ?? 'Finish cash-out for this session to see standings and settlement here.'}
         </Text>
         <Pressable
           style={({ pressed }) => [

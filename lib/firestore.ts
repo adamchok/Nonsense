@@ -14,6 +14,7 @@ import type {
 } from '@/types';
 import {
   addDoc,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -53,22 +54,37 @@ function normalizeAvatarEmoji(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/**
+ * Reads a numeric doc field, warning when it is missing or non-finite so a corrupted record
+ * stays distinguishable (in logs) from a legitimate zero instead of silently defaulting.
+ */
+function numOrZero(data: Record<string, unknown>, key: string, ctx: string): number {
+  const v = data[key];
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  console.warn(
+    `[Firestore] ${ctx}: numeric field "${key}" is ${v === undefined ? 'missing' : String(v)}; treating as 0`
+  );
+  return 0;
+}
+
 /** Subcollection under each session for participant membership checks. */
 const SESSION_PARTICIPANTS_SUBCOLLECTION = 'session_participants';
 
-async function writeSessionParticipant(
+/**
+ * Appends the participant doc write to the caller's batch and mirrors the id into
+ * `sessions/{id}.participantIds`, which security rules and participant-scoped queries rely on.
+ * Pass `skipSessionUpdate` when the session doc in the same batch already contains the id.
+ */
+function appendSessionParticipantWrites(
+  batch: ReturnType<typeof writeBatch>,
   sessionId: string,
   playerId: string,
-  playerName: string
-): Promise<void> {
-  const ref = doc(
-    getFirestoreDb(),
-    'sessions',
-    sessionId,
-    SESSION_PARTICIPANTS_SUBCOLLECTION,
-    playerId
-  );
-  await setDoc(
+  playerName: string,
+  options?: { skipSessionUpdate?: boolean }
+): void {
+  const db = getFirestoreDb();
+  const ref = doc(db, 'sessions', sessionId, SESSION_PARTICIPANTS_SUBCOLLECTION, playerId);
+  batch.set(
     ref,
     {
       playerId,
@@ -77,6 +93,9 @@ async function writeSessionParticipant(
     },
     { merge: true }
   );
+  if (!options?.skipSessionUpdate) {
+    batch.update(doc(db, 'sessions', sessionId), { participantIds: arrayUnion(playerId) });
+  }
 }
 
 export async function getPlayerProfile(uid: string): Promise<PlayerProfile | null> {
@@ -118,13 +137,14 @@ export async function upsertPlayerProfile(uid: string, name: string): Promise<Pl
     }
   } else {
     refCode = generateRefCode();
+    // Reserve the code first; rules only accept a profile refCode that `refCodes/{code}` maps back to us.
+    await setDoc(doc(db, 'refCodes', refCode), { playerId: uid });
     await setDoc(ref, {
       name,
       anonymousUid: uid,
       refCode,
       createdAt: serverTimestamp(),
     });
-    await setDoc(doc(db, 'refCodes', refCode), { playerId: uid });
   }
 
   return {
@@ -155,8 +175,9 @@ export async function ensureRefCode(uid: string): Promise<string> {
   if (data.refCode) return String(data.refCode);
 
   const code = generateRefCode();
-  await updateDoc(ref, { refCode: code });
+  // Reserve the code first; rules only accept a profile refCode that `refCodes/{code}` maps back to us.
   await setDoc(doc(db, 'refCodes', code), { playerId: uid });
+  await updateDoc(ref, { refCode: code });
   return code;
 }
 
@@ -211,8 +232,7 @@ export async function sendFriendRequest(
   const incomingFromThem = doc(db, 'players', fromUid, FRIEND_REQUESTS, toProfile.id);
   const incomingSnap = await getDoc(incomingFromThem);
   if (incomingSnap.exists()) {
-    await clearFriendRequestPairBetween(db, fromUid, toProfile.id);
-    await addFriend(fromUid, toProfile);
+    await commitFriendAccept(fromUid, toProfile.id);
     return { ok: true, outcome: 'now_friends' };
   }
 
@@ -242,12 +262,7 @@ export async function sendFriendRequest(
 }
 
 export async function acceptFriendRequest(receiverUid: string, senderUid: string): Promise<void> {
-  const senderProfile = await getPlayerProfile(senderUid);
-  if (!senderProfile) throw new Error('Player not found');
-
-  const db = getFirestoreDb();
-  await clearFriendRequestPairBetween(db, senderUid, receiverUid);
-  await addFriend(receiverUid, senderProfile);
+  await commitFriendAccept(receiverUid, senderUid);
 }
 
 export async function declineFriendRequest(receiverUid: string, senderUid: string): Promise<void> {
@@ -314,24 +329,37 @@ export async function lookupPlayerByRefCode(code: string): Promise<PlayerProfile
   return getPlayerProfile(playerId);
 }
 
-async function addFriend(myUid: string, friendProfile: PlayerProfile): Promise<void> {
+/**
+ * Accepts a pending friend request atomically: deletes the request pair and writes both
+ * friend docs in ONE batch. Security rules verify the pending incoming request against
+ * pre-batch state and pin the written display fields to each player's canonical profile,
+ * so friendship entries cannot be forged outside this flow.
+ */
+async function commitFriendAccept(myUid: string, friendUid: string): Promise<void> {
   const db = getFirestoreDb();
-  const myProfile = await getPlayerProfile(myUid);
+  const [myProfile, friendProfile] = await Promise.all([
+    getPlayerProfile(myUid),
+    getPlayerProfile(friendUid),
+  ]);
   if (!myProfile) throw new Error('Your profile not found');
+  if (!friendProfile) throw new Error('Player not found');
 
-  const myFriendRef = doc(db, 'players', myUid, 'friends', friendProfile.id);
-  const theirFriendRef = doc(db, 'players', friendProfile.id, 'friends', myUid);
-
-  await setDoc(myFriendRef, {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'players', myUid, FRIEND_REQUESTS, friendUid));
+  batch.delete(doc(db, 'players', friendUid, FRIEND_REQUESTS_SENT, myUid));
+  batch.delete(doc(db, 'players', myUid, FRIEND_REQUESTS_SENT, friendUid));
+  batch.delete(doc(db, 'players', friendUid, FRIEND_REQUESTS, myUid));
+  batch.set(doc(db, 'players', myUid, 'friends', friendUid), {
     name: friendProfile.name,
     avatarEmoji: friendProfile.avatarEmoji ?? null,
     addedAt: serverTimestamp(),
   });
-  await setDoc(theirFriendRef, {
+  batch.set(doc(db, 'players', friendUid, 'friends', myUid), {
     name: myProfile.name,
     avatarEmoji: myProfile.avatarEmoji ?? null,
     addedAt: serverTimestamp(),
   });
+  await batch.commit();
 }
 
 /** Max operations per Firestore batch (stay under 500). */
@@ -448,75 +476,89 @@ export async function fetchFriendsList(uid: string): Promise<FriendRecord[]> {
   return friends.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Sessions the viewer can read under participant-scoped security rules: ones they host plus
+ * ones whose `participantIds` contains them. Fetched once, deduped by id.
+ */
+async function getAccessibleSessionDocs(uid: string): Promise<QueryDocumentSnapshot[]> {
+  const db = getFirestoreDb();
+  const [hostedSnap, participantSnap] = await Promise.all([
+    getDocs(query(collection(db, 'sessions'), where('hostId', '==', uid))),
+    getDocs(query(collection(db, 'sessions'), where('participantIds', 'array-contains', uid))),
+  ]);
+  const byId = new Map<string, QueryDocumentSnapshot>();
+  for (const d of hostedSnap.docs) byId.set(d.id, d);
+  for (const d of participantSnap.docs) byId.set(d.id, d);
+  return [...byId.values()];
+}
+
+/** Sums each player's `results` profit across the viewer's sessions, one parallel read per session. */
+async function sumProfitsAcrossSessions(uid: string): Promise<Map<string, number>> {
+  const db = getFirestoreDb();
+  const sessionDocs = await getAccessibleSessionDocs(uid);
+  const profitById = new Map<string, number>();
+  await Promise.all(
+    sessionDocs.map(async (sDoc) => {
+      const resultsSnap = await getDocs(collection(db, 'sessions', sDoc.id, 'results'));
+      for (const r of resultsSnap.docs) {
+        const profit = numOrZero(r.data(), 'profit', `sessions/${sDoc.id}/results/${r.id}`);
+        profitById.set(r.id, (profitById.get(r.id) ?? 0) + profit);
+      }
+    })
+  );
+  return profitById;
+}
+
+/** Leaderboard over sessions the viewer participates in (rules deny reading other sessions). */
 export async function getFriendLeaderboard(
   uid: string
 ): Promise<{ playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[]> {
   const db = getFirestoreDb();
-  const friendsSnap = await getDocs(collection(db, 'players', uid, 'friends'));
-  const friendIds = friendsSnap.docs.map((d) => d.id);
-  const allIds = [uid, ...friendIds];
+  const [friendsSnap, myProfile, profitById] = await Promise.all([
+    getDocs(collection(db, 'players', uid, 'friends')),
+    getPlayerProfile(uid),
+    sumProfitsAcrossSessions(uid),
+  ]);
 
-  const leaderboard: { playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[] = [];
-
-  for (const pid of allIds) {
-    const profile = await getPlayerProfile(pid);
-    if (!profile) continue;
-
-    const sessionsSnap = await getDocs(collection(db, 'sessions'));
-    let totalProfit = 0;
-    for (const sDoc of sessionsSnap.docs) {
-      const resultRef = doc(db, 'sessions', sDoc.id, 'results', pid);
-      const resultSnap = await getDoc(resultRef);
-      if (resultSnap.exists()) {
-        totalProfit += Number(resultSnap.data().profit ?? 0);
-      }
-    }
+  const leaderboard = friendsSnap.docs.map((d) => ({
+    playerId: d.id,
+    name: String(d.data().name ?? ''),
+    avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
+    totalProfit: profitById.get(d.id) ?? 0,
+  }));
+  if (myProfile) {
     leaderboard.push({
-      playerId: pid,
-      name: profile.name,
-      avatarEmoji: profile.avatarEmoji,
-      totalProfit,
+      playerId: uid,
+      name: myProfile.name,
+      avatarEmoji: myProfile.avatarEmoji,
+      totalProfit: profitById.get(uid) ?? 0,
     });
   }
 
   return leaderboard.sort((a, b) => b.totalProfit - a.totalProfit);
 }
 
+/** Leaderboard over sessions the viewer participates in (rules deny reading other sessions). */
 export async function getGroupLeaderboard(
   uid: string,
   groupId: string
 ): Promise<{ playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[]> {
-  const db = getFirestoreDb();
-  const members = await getGroupMembers(uid, groupId);
+  const [members, profitById] = await Promise.all([
+    getGroupMembers(uid, groupId),
+    sumProfitsAcrossSessions(uid),
+  ]);
+  if (members.length === 0) return [];
 
-  const memberById = new Map<string, { name: string }>();
-  for (const m of members) memberById.set(m.id, { name: m.name });
-
-  const playerIds = [...new Set(members.map((m) => m.id))];
-  if (playerIds.length === 0) return [];
-
-  // Fetch all sessions once; then sum each player's profit from session results.
-  const sessionsSnap = await getDocs(collection(db, 'sessions'));
-
+  const seen = new Set<string>();
   const leaderboard: { playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[] = [];
-
-  for (const pid of playerIds) {
-    const profile = await getPlayerProfile(pid);
-    let totalProfit = 0;
-
-    for (const sDoc of sessionsSnap.docs) {
-      const resultRef = doc(db, 'sessions', sDoc.id, 'results', pid);
-      const resultSnap = await getDoc(resultRef);
-      if (resultSnap.exists()) {
-        totalProfit += Number(resultSnap.data().profit ?? 0);
-      }
-    }
-
+  for (const m of members) {
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
     leaderboard.push({
-      playerId: pid,
-      name: profile?.name ?? memberById.get(pid)?.name ?? pid,
-      avatarEmoji: profile?.avatarEmoji,
-      totalProfit,
+      playerId: m.id,
+      name: m.name,
+      avatarEmoji: m.avatarEmoji,
+      totalProfit: profitById.get(m.id) ?? 0,
     });
   }
 
@@ -556,6 +598,8 @@ export async function createSession(input: {
   bigBlind?: number;
   amountUnit?: SessionAmountUnit;
   dollarsPerChip?: number;
+  /** Written atomically with the session doc so a failure can never leave a partial roster. */
+  initialBuyIns?: { playerId: string; playerName: string; amount: number }[];
 }): Promise<string> {
   const db = getFirestoreDb();
   const sessionsRef = collection(db, 'sessions');
@@ -585,7 +629,16 @@ export async function createSession(input: {
     dollarsPerChip = dpc;
   }
 
-  await setDoc(sessionRef, {
+  const initialBuyIns = input.initialBuyIns ?? [];
+  for (const b of initialBuyIns) {
+    if (!Number.isFinite(b.amount) || b.amount <= 0) {
+      throw new Error('Buy-in amounts must be positive numbers.');
+    }
+  }
+
+  const participantIds = [...new Set([input.hostId, ...initialBuyIns.map((b) => b.playerId)])];
+  const batch = writeBatch(db);
+  batch.set(sessionRef, {
     hostId: input.hostId,
     date: serverTimestamp(),
     location: input.location?.trim() || null,
@@ -594,10 +647,25 @@ export async function createSession(input: {
     bigBlind,
     amountUnit,
     dollarsPerChip,
+    participantIds,
   });
 
   const hostLabel = input.hostName?.trim() || input.hostId;
-  await writeSessionParticipant(sessionRef.id, input.hostId, hostLabel);
+  appendSessionParticipantWrites(batch, sessionRef.id, input.hostId, hostLabel, {
+    skipSessionUpdate: true,
+  });
+  for (const b of initialBuyIns) {
+    batch.set(doc(collection(db, 'sessions', sessionRef.id, 'buy_ins')), {
+      playerId: b.playerId,
+      playerName: b.playerName,
+      amount: b.amount,
+      createdAt: serverTimestamp(),
+    });
+    appendSessionParticipantWrites(batch, sessionRef.id, b.playerId, b.playerName, {
+      skipSessionUpdate: true,
+    });
+  }
+  await batch.commit();
 
   return sessionRef.id;
 }
@@ -618,49 +686,35 @@ function mapSessionDocToRecord(sessionId: string, data: Record<string, unknown>)
 }
 
 /**
- * Recent sessions the player participates in (host or member with buy-in / participant row).
- * Uses direct per-session participant doc checks to avoid collection-group index requirements.
+ * Recent sessions the player participates in (host or member). Uses the `participantIds`
+ * mirror so the query itself is participant-scoped — security rules deny scanning sessions
+ * the player isn't part of.
  */
 export async function getRecentSessionsForPlayer(playerId: string): Promise<SessionRecord[]> {
   const db = getFirestoreDb();
-  const [hostedSnap, recentSnap] = await Promise.all([
+  const [hostedSnap, participantSnap] = await Promise.all([
     getDocs(query(collection(db, 'sessions'), where('hostId', '==', playerId), limit(200))),
-    getDocs(query(collection(db, 'sessions'), orderBy('date', 'desc'), limit(200))),
+    getDocs(
+      query(
+        collection(db, 'sessions'),
+        where('participantIds', 'array-contains', playerId),
+        orderBy('date', 'desc'),
+        limit(200)
+      )
+    ),
   ]);
 
   const sessionsById = new Map<string, Record<string, unknown>>();
   for (const snap of hostedSnap.docs) {
     sessionsById.set(snap.id, snap.data() as Record<string, unknown>);
   }
-  for (const snap of recentSnap.docs) {
+  for (const snap of participantSnap.docs) {
     sessionsById.set(snap.id, snap.data() as Record<string, unknown>);
   }
 
-  if (sessionsById.size === 0) return [];
-
-  const records: SessionRecord[] = [];
-  await Promise.all(
-    [...sessionsById.entries()].map(async ([sessionId, data]) => {
-      const isHost = String(data.hostId ?? '') === playerId;
-      if (isHost) {
-        records.push(mapSessionDocToRecord(sessionId, data));
-        return;
-      }
-
-      const participantRef = doc(
-        db,
-        'sessions',
-        sessionId,
-        SESSION_PARTICIPANTS_SUBCOLLECTION,
-        playerId
-      );
-      const participantSnap = await getDoc(participantRef);
-      if (participantSnap.exists()) {
-        records.push(mapSessionDocToRecord(sessionId, data));
-      }
-    })
+  const records = [...sessionsById.entries()].map(([sessionId, data]) =>
+    mapSessionDocToRecord(sessionId, data)
   );
-
   return records.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 20);
 }
 
@@ -758,6 +812,7 @@ export async function removeSavedLocation(uid: string, locationId: string): Prom
   await deleteDoc(ref);
 }
 
+/** Returns null when the session doesn't exist so callers can show a real not-found state. */
 export async function getSessionMeta(sessionId: string): Promise<{
   date?: Date;
   finishedAt?: Date;
@@ -768,10 +823,10 @@ export async function getSessionMeta(sessionId: string): Promise<{
   bigBlind?: number;
   amountUnit: SessionAmountUnit;
   dollarsPerChip?: number;
-}> {
+} | null> {
   const ref = doc(getFirestoreDb(), 'sessions', sessionId);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return { amountUnit: 'cash' };
+  if (!snap.exists()) return null;
   const data = snap.data() as Record<string, unknown>;
   const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
   return {
@@ -794,17 +849,20 @@ export async function addBuyIn(
   sessionId: string,
   input: { playerId: string; playerName: string; amount: number }
 ): Promise<string> {
-  const colRef = collection(getFirestoreDb(), 'sessions', sessionId, 'buy_ins');
-  const docRef = await addDoc(colRef, {
+  const db = getFirestoreDb();
+  const buyInRef = doc(collection(db, 'sessions', sessionId, 'buy_ins'));
+  const batch = writeBatch(db);
+  batch.set(buyInRef, {
     playerId: input.playerId,
     playerName: input.playerName,
     amount: input.amount,
     createdAt: serverTimestamp(),
   });
-  await writeSessionParticipant(sessionId, input.playerId, input.playerName);
-  /** New chips for this playerId = re-entry; clear early cash-out so ledger/UI stay consistent. */
-  await removeEarlyCashOutIfExists(sessionId, input.playerId);
-  return docRef.id;
+  appendSessionParticipantWrites(batch, sessionId, input.playerId, input.playerName);
+  /** New chips for this playerId = re-entry; clear early cash-out so ledger/UI stay consistent (no-op when absent). */
+  batch.delete(doc(db, 'sessions', sessionId, 'early_cashouts', input.playerId));
+  await batch.commit();
+  return buyInRef.id;
 }
 
 /**
@@ -823,37 +881,37 @@ export async function updatePlayerBuyInTotal(
     where('playerId', '==', playerId)
   );
   const snap = await getDocs(q);
-  if (!snap.empty) {
-    for (let i = 0; i < snap.docs.length; i += 500) {
-      const chunk = snap.docs.slice(i, i + 500);
-      const batch = writeBatch(db);
-      chunk.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-    }
-  }
-  await addDoc(collection(db, 'sessions', sessionId, 'buy_ins'), {
+  // ponytail: single batch caps at ~495 old docs per player; a real session never gets close.
+  // One atomic commit so a failure can never delete the old buy-ins without writing the new one.
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  batch.set(doc(collection(db, 'sessions', sessionId, 'buy_ins')), {
     playerId,
     playerName,
     amount: newTotal,
     createdAt: serverTimestamp(),
   });
-  await writeSessionParticipant(sessionId, playerId, playerName);
+  appendSessionParticipantWrites(batch, sessionId, playerId, playerName);
+  await batch.commit();
 }
 
 /** Deletes the session document and all its subcollections. */
 export async function deleteSession(sessionId: string): Promise<void> {
   const db = getFirestoreDb();
   const subcollections = ['buy_ins', 'early_cashouts', SESSION_PARTICIPANTS_SUBCOLLECTION];
+  const refs = [];
   for (const sub of subcollections) {
     const snap = await getDocs(collection(db, 'sessions', sessionId, sub));
-    for (let i = 0; i < snap.docs.length; i += 500) {
-      const chunk = snap.docs.slice(i, i + 500);
-      const batch = writeBatch(db);
-      chunk.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-    }
+    refs.push(...snap.docs.map((d) => d.ref));
   }
-  await deleteDoc(doc(db, 'sessions', sessionId));
+  // Parent doc goes in the final batch, so a failure partway leaves the session doc (and
+  // access to retry the delete) intact instead of orphaning half-deleted subcollections.
+  refs.push(doc(db, 'sessions', sessionId));
+  for (let i = 0; i < refs.length; i += 500) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + 500).forEach((r) => batch.delete(r));
+    await batch.commit();
+  }
 }
 
 /** Deletes all buy-in entries for this player (removes them from the session ledger). */
@@ -893,7 +951,7 @@ export function subscribeBuyIns(
           sessionId,
           playerId: String(data.playerId ?? ''),
           playerName: String(data.playerName ?? ''),
-          amount: Number(data.amount ?? 0),
+          amount: numOrZero(data, 'amount', `sessions/${sessionId}/buy_ins/${d.id}`),
           createdAt: toDate(data.createdAt),
         };
       });
@@ -915,7 +973,7 @@ export async function getBuyIns(sessionId: string): Promise<BuyIn[]> {
       sessionId,
       playerId: String(data.playerId ?? ''),
       playerName: String(data.playerName ?? ''),
-      amount: Number(data.amount ?? 0),
+      amount: numOrZero(data, 'amount', `sessions/${sessionId}/buy_ins/${d.id}`),
       createdAt: toDate(data.createdAt),
     };
   });
@@ -951,7 +1009,7 @@ export function subscribeEarlyCashOuts(
         return {
           playerId: d.id,
           playerName: String(data.playerName ?? ''),
-          amount: Number(data.amount ?? 0),
+          amount: numOrZero(data, 'amount', `sessions/${sessionId}/early_cashouts/${d.id}`),
           cashedOutAt: toDate(data.cashedOutAt),
         };
       });
@@ -969,7 +1027,7 @@ export async function getEarlyCashOuts(sessionId: string): Promise<EarlyCashOut[
     return {
       playerId: d.id,
       playerName: String(data.playerName ?? ''),
-      amount: Number(data.amount ?? 0),
+      amount: numOrZero(data, 'amount', `sessions/${sessionId}/early_cashouts/${d.id}`),
       cashedOutAt: toDate(data.cashedOutAt),
     };
   });
@@ -999,17 +1057,19 @@ export async function saveResults(
   results: SessionResult[]
 ): Promise<void> {
   const db = getFirestoreDb();
-  const promises = results.map((r) => {
-    const ref = doc(db, 'sessions', sessionId, 'results', r.playerId);
-    return setDoc(ref, {
+  // Single atomic batch: either every player's result lands or none do, so a transient
+  // failure can never leave a partially-settled session behind.
+  const batch = writeBatch(db);
+  for (const r of results) {
+    batch.set(doc(db, 'sessions', sessionId, 'results', r.playerId), {
       playerName: r.playerName,
       totalBuyIn: r.totalBuyIn,
       cashOut: r.cashOut,
       profit: r.profit,
       settledAt: serverTimestamp(),
     });
-  });
-  await Promise.all(promises);
+  }
+  await batch.commit();
 }
 
 export async function getResults(sessionId: string): Promise<SessionResult[]> {
@@ -1018,12 +1078,13 @@ export async function getResults(sessionId: string): Promise<SessionResult[]> {
 
   return snapshots.docs.map<SessionResult>((d) => {
     const data = d.data();
+    const ctx = `sessions/${sessionId}/results/${d.id}`;
     return {
       playerId: d.id,
       playerName: String(data.playerName ?? ''),
-      totalBuyIn: Number(data.totalBuyIn ?? 0),
-      cashOut: Number(data.cashOut ?? 0),
-      profit: Number(data.profit ?? 0),
+      totalBuyIn: numOrZero(data, 'totalBuyIn', ctx),
+      cashOut: numOrZero(data, 'cashOut', ctx),
+      profit: numOrZero(data, 'profit', ctx),
     };
   });
 }
@@ -1352,7 +1413,8 @@ async function sessionHistoryEntriesFromDocs(
       if (!resultSnap.exists()) return;
 
       const data = sessionDoc.data() as Record<string, unknown>;
-      const r = resultSnap.data()!;
+      const r = resultSnap.data();
+      const resultCtx = `sessions/${sessionDoc.id}/results/${playerId}`;
       const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
       records.push({
         id: sessionDoc.id,
@@ -1364,9 +1426,9 @@ async function sessionHistoryEntriesFromDocs(
         status: 'finished',
         date: toDate(data.date ?? data.createdAt),
         finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
-        totalBuyIn: Number(r.totalBuyIn ?? 0),
-        cashOut: Number(r.cashOut ?? 0),
-        profit: Number(r.profit ?? 0),
+        totalBuyIn: numOrZero(r, 'totalBuyIn', resultCtx),
+        cashOut: numOrZero(r, 'cashOut', resultCtx),
+        profit: numOrZero(r, 'profit', resultCtx),
       });
     })
   );
@@ -1398,6 +1460,7 @@ export async function getSessionHistoryPage(
     cursor
       ? query(
           collection(db, 'sessions'),
+          where('participantIds', 'array-contains', playerId),
           where('status', '==', 'finished'),
           orderBy('date', 'desc'),
           orderBy(documentId(), 'desc'),
@@ -1406,6 +1469,7 @@ export async function getSessionHistoryPage(
         )
       : query(
           collection(db, 'sessions'),
+          where('participantIds', 'array-contains', playerId),
           where('status', '==', 'finished'),
           orderBy('date', 'desc'),
           orderBy(documentId(), 'desc'),
@@ -1444,6 +1508,7 @@ async function getFullSessionHistoryForPlayer(playerId: string): Promise<Session
       cursor
         ? query(
             collection(db, 'sessions'),
+            where('participantIds', 'array-contains', playerId),
             where('status', '==', 'finished'),
             orderBy('date', 'desc'),
             orderBy(documentId(), 'desc'),
@@ -1452,6 +1517,7 @@ async function getFullSessionHistoryForPlayer(playerId: string): Promise<Session
           )
         : query(
             collection(db, 'sessions'),
+            where('participantIds', 'array-contains', playerId),
             where('status', '==', 'finished'),
             orderBy('date', 'desc'),
             orderBy(documentId(), 'desc'),

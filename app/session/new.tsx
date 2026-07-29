@@ -3,7 +3,7 @@ import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { addBuyIn, createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
+import { createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
 import type { GroupMember, PokerGroup, SavedLocation, SessionAmountUnit } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
@@ -129,10 +129,11 @@ export default function NewSessionScreen() {
   }
 
   async function handleSelectGroup(group: PokerGroup) {
+    if (!playerProfile) return;
     setSelectedGroup(group);
     setShowGroupPicker(false);
     try {
-      const members = await getGroupMembers(playerProfile!.id, group.id);
+      const members = await getGroupMembers(playerProfile.id, group.id);
       setGroupMembers(members);
     } catch {
       setGroupMembers([]);
@@ -169,26 +170,38 @@ export default function NewSessionScreen() {
     const shouldAddGroupMembers = Boolean(selectedGroup && membersForCreate.length > 0);
     const shouldAddSelf = joinSelf && (!selectedGroup || !userInGroupForCreate);
 
+    // Validated amounts are snapshotted here and used for the write — never re-read from
+    // the still-editable inputs after an await.
+    const initialBuyIns: { playerId: string; playerName: string; amount: number }[] = [];
+
     if (shouldAddGroupMembers) {
       const parsed = parseFloat(groupBuyIn);
-      if (!groupBuyIn.trim() || isNaN(parsed) || parsed <= 0) {
+      if (!groupBuyIn.trim() || !Number.isFinite(parsed) || parsed <= 0) {
         appAlert(
           'Invalid buy-in',
           isChipsMode ? 'Enter a valid chip buy-in for the group.' : 'Enter a valid buy-in amount for the group.'
         );
         return;
       }
+      for (const member of membersForCreate) {
+        initialBuyIns.push({ playerId: member.id, playerName: member.name, amount: parsed });
+      }
     }
 
     if (shouldAddSelf) {
       const parsed = parseFloat(buyInAmount);
-      if (!buyInAmount.trim() || isNaN(parsed) || parsed <= 0) {
+      if (!buyInAmount.trim() || !Number.isFinite(parsed) || parsed <= 0) {
         appAlert(
           'Invalid buy-in',
           isChipsMode ? 'Enter a valid chip amount to join the session.' : 'Enter a valid buy-in amount to join the session.'
         );
         return;
       }
+      initialBuyIns.push({
+        playerId: playerProfile.id,
+        playerName: playerProfile.name,
+        amount: parsed,
+      });
     }
 
     const selectedLocation =
@@ -223,6 +236,7 @@ export default function NewSessionScreen() {
 
     try {
       setIsSaving(true);
+      // One atomic write: session + every initial buy-in. No partial roster on failure.
       const sessionId = await createSession({
         hostId: playerProfile.id,
         hostName: playerProfile.name,
@@ -231,28 +245,8 @@ export default function NewSessionScreen() {
         bigBlind: bb,
         amountUnit,
         ...(isChipsMode && dollarsPerChip != null ? { dollarsPerChip } : {}),
+        initialBuyIns,
       });
-
-      if (shouldAddGroupMembers) {
-        const amount = parseFloat(groupBuyIn);
-        await Promise.all(
-          membersForCreate.map((member) =>
-            addBuyIn(sessionId, {
-              playerId: member.id,
-              playerName: member.name,
-              amount,
-            })
-          )
-        );
-      }
-
-      if (shouldAddSelf) {
-        await addBuyIn(sessionId, {
-          playerId: playerProfile.id,
-          playerName: playerProfile.name,
-          amount: parseFloat(buyInAmount),
-        });
-      }
 
       router.replace(`/session/${sessionId}`);
     } catch (error) {
@@ -301,6 +295,7 @@ export default function NewSessionScreen() {
                 <TextInput
                   value={otherLocation}
                   onChangeText={setOtherLocation}
+                  accessibilityLabel="Session location"
                   placeholder="Location (e.g. Adam's place)"
                   placeholderTextColor={c.placeholder}
                   style={[
@@ -355,6 +350,7 @@ export default function NewSessionScreen() {
                     <TextInput
                       value={dollarsPerChipStr}
                       onChangeText={setDollarsPerChipStr}
+                      accessibilityLabel="Dollars per chip"
                       placeholder="0.50"
                       placeholderTextColor={c.placeholder}
                       keyboardType="decimal-pad"
@@ -386,6 +382,7 @@ export default function NewSessionScreen() {
                   <TextInput
                     value={smallBlindStr}
                     onChangeText={setSmallBlindStr}
+                    accessibilityLabel="Small blind"
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
@@ -402,6 +399,7 @@ export default function NewSessionScreen() {
                   <TextInput
                     value={bigBlindStr}
                     onChangeText={setBigBlindStr}
+                    accessibilityLabel="Big blind"
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
@@ -433,7 +431,11 @@ export default function NewSessionScreen() {
                         ({groupMembers.length} {groupMembers.length === 1 ? 'player' : 'players'})
                       </Text>
                     </View>
-                    <Pressable hitSlop={8} onPress={clearGroup}>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={clearGroup}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove selected group">
                       <MaterialIcons name="close" size={20} color={c.textHint} />
                     </Pressable>
                   </View>
@@ -462,6 +464,7 @@ export default function NewSessionScreen() {
                       <TextInput
                         value={groupBuyIn}
                         onChangeText={setGroupBuyIn}
+                        accessibilityLabel={isChipsMode ? 'Chip buy-in per group player' : 'Buy-in per group player'}
                         placeholder={isChipsMode ? 'Chips per player' : 'Buy-in per player'}
                         placeholderTextColor={c.placeholder}
                         keyboardType="numeric"
@@ -502,6 +505,7 @@ export default function NewSessionScreen() {
                     <TextInput
                       value={buyInAmount}
                       onChangeText={setBuyInAmount}
+                      accessibilityLabel={isChipsMode ? 'Your chip buy-in' : 'Your buy-in amount'}
                       placeholder={isChipsMode ? 'Chips' : '0.00'}
                       placeholderTextColor={c.placeholder}
                       keyboardType="numeric"

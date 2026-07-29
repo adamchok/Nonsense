@@ -229,7 +229,11 @@ export default function GroupMembersScreen() {
                     )}
                   </View>
                   {isOwner ? (
-                    <Pressable hitSlop={10} onPress={() => handleRemove(member.id)}>
+                    <Pressable
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${member.name} from group`}
+                      onPress={() => handleRemove(member.id)}>
                       <MaterialIcons name="close" size={20} color={c.textHint} />
                     </Pressable>
                   ) : (

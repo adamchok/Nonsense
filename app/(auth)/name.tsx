@@ -114,6 +114,7 @@ export default function NameScreen() {
             <TextInput
               value={name}
               onChangeText={setName}
+              accessibilityLabel="Display name"
               placeholder="Enter display name"
               placeholderTextColor={c.placeholder}
               autoCapitalize="words"

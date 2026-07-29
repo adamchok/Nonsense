@@ -7,7 +7,7 @@ import { formatChipsLedger, formatSessionAmountValue } from '@/lib/currency-form
 import { finishSession, getBuyIns, getEarlyCashOuts, getSessionMeta, saveResults } from '@/lib/firestore';
 import type { SessionAmountUnit, SessionResult } from '@/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -78,6 +78,7 @@ export default function CashOutScreen() {
   const { playerProfile } = useAuth();
   const [players, setPlayers] = useState<PlayerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [amountUnit, setAmountUnit] = useState<SessionAmountUnit>('cash');
@@ -87,6 +88,7 @@ export default function CashOutScreen() {
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     (async () => {
       try {
         const [buyIns, earlyCashOuts, sessionMeta] = await Promise.all([
@@ -94,6 +96,13 @@ export default function CashOutScreen() {
           getEarlyCashOuts(id),
           getSessionMeta(id),
         ]);
+        if (cancelled) return;
+        if (!sessionMeta) {
+          setLoadError('Session not found. It may have been deleted.');
+          appAlert('Session not found', 'This session no longer exists.');
+          return;
+        }
+        setLoadError(null);
         setCanEdit(Boolean(playerProfile?.id && sessionMeta.hostId === playerProfile.id));
         setAmountUnit(sessionMeta.amountUnit);
         setDollarsPerChip(sessionMeta.dollarsPerChip);
@@ -116,20 +125,25 @@ export default function CashOutScreen() {
           })
         );
       } catch (e) {
+        if (cancelled) return;
+        setLoadError(e instanceof Error ? e.message : 'Failed to load buy-ins.');
         appAlert('Error', e instanceof Error ? e.message : 'Failed to load buy-ins.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [id, playerProfile?.id]);
 
-  function updateCashOut(playerId: string, value: string) {
+  const updateCashOut = useCallback((playerId: string, value: string) => {
     setPlayers((prev) =>
       prev.map((p) => (p.playerId === playerId ? { ...p, cashOutInput: value } : p))
     );
-  }
+  }, []);
 
-  function adjustCashOut(playerId: string, delta: number) {
+  const adjustCashOut = useCallback((playerId: string, delta: number) => {
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.playerId !== playerId) return p;
@@ -138,9 +152,9 @@ export default function CashOutScreen() {
         return { ...p, cashOutInput: next.toString() };
       })
     );
-  }
+  }, []);
 
-  function focusPlayerRow(index: number) {
+  const focusPlayerRow = useCallback((index: number) => {
     setTimeout(() => {
       listRef.current?.scrollToIndex({
         index,
@@ -148,7 +162,7 @@ export default function CashOutScreen() {
         viewPosition: 0.65,
       });
     }, 120);
-  }
+  }, []);
 
   function distributeRemainingEqually() {
     const unlocked = players.filter((p) => !p.locked);
@@ -240,7 +254,7 @@ export default function CashOutScreen() {
 
     for (const p of players) {
       const val = parseFloat(p.cashOutInput);
-      if (isNaN(val) || val < 0) {
+      if (!Number.isFinite(val) || val < 0) {
         appAlert('Invalid entry', `Enter a valid cash-out for ${p.playerName}.`);
         return;
       }
@@ -294,6 +308,103 @@ export default function CashOutScreen() {
     }
   }
 
+  // Stable renderItem so editing one player's amount doesn't re-render every mounted card.
+  const renderItem = useCallback(
+    ({ item, index }: { item: PlayerEntry; index: number }) => {
+      const cashOut = parseFloat(item.cashOutInput) || 0;
+      const profit = cashOut - item.totalBuyIn;
+      return (
+        <View
+          style={[
+            styles.playerCard,
+            { backgroundColor: c.card, borderColor: c.border },
+            item.locked && [styles.playerCardLocked, { borderColor: c.borderDanger }],
+          ]}>
+          <View style={styles.playerHeader}>
+            <View style={styles.playerNameRow}>
+              <Text style={[styles.playerName, { color: c.text }]}>{item.playerName}</Text>
+              {item.locked && (
+                <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
+                  <Text style={[styles.earlyBadgeText, { color: '#fff' }]}>EARLY CASH OUT</Text>
+                </View>
+              )}
+            </View>
+            <PlayerBuyInCaption
+              totalBuyIn={item.totalBuyIn}
+              isChipsMode={isChipsMode}
+              amountUnit={amountUnit}
+              mutedColor={c.textMuted}
+            />
+          </View>
+
+          <View
+            style={[
+              styles.cashOutRow,
+              item.locked
+                ? { backgroundColor: c.card, borderColor: c.borderDanger }
+                : { backgroundColor: c.inputBg, borderColor: c.border },
+            ]}>
+            <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
+            <TextInput
+              value={item.cashOutInput}
+              onChangeText={(v) => updateCashOut(item.playerId, v)}
+              onFocus={() => focusPlayerRow(index)}
+              placeholder={isChipsMode ? 'Chips' : '0.00'}
+              placeholderTextColor={c.placeholder}
+              keyboardType="numeric"
+              accessibilityLabel={`Cash-out amount for ${item.playerName}`}
+              style={[
+                styles.cashOutInput,
+                { color: c.text },
+                item.locked && { color: c.textMuted },
+              ]}
+              selectTextOnFocus
+              editable={!item.locked}
+            />
+          </View>
+
+          {!item.locked && (
+            <View style={styles.chipRow}>
+              {NEGATIVE_CHIP_AMOUNTS.map((chip) => (
+                <Pressable
+                  key={`minus-${chip}`}
+                  style={[styles.chipMinus, { backgroundColor: c.chipMinusBg }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Subtract ${chip} from ${item.playerName}`}
+                  onPress={() => adjustCashOut(item.playerId, -chip)}>
+                  <Text style={[styles.chipLabel, { color: c.chipValueText }]}>-{chip}</Text>
+                </Pressable>
+              ))}
+              {POSITIVE_CHIP_AMOUNTS.map((chip) => (
+                <Pressable
+                  key={`plus-${chip}`}
+                  style={[styles.chipPlus, { backgroundColor: c.chipPlusBg }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${chip} to ${item.playerName}`}
+                  onPress={() => adjustCashOut(item.playerId, chip)}>
+                  <Text style={[styles.chipLabel, { color: c.chipValueText }]}>+{chip}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          <View style={[styles.profitRow, { borderTopColor: c.border }]}>
+            <Text style={[styles.profitLabel, { color: c.textHint }]}>P/L</Text>
+            <Text
+              style={[
+                styles.profitValue,
+                profit > 0 ? { color: c.profit } : profit < 0 ? { color: c.loss } : { color: c.textMuted },
+              ]}>
+              {profit >= 0 ? '+' : ''}
+              {isChipsMode ? formatChipsLedger(profit) : `$${profit.toFixed(2)}`}
+            </Text>
+          </View>
+        </View>
+      );
+    },
+    [c, amountUnit, isChipsMode, updateCashOut, adjustCashOut, focusPlayerRow]
+  );
+
   if (loading) {
     return (
       <View style={[styles.screen, { backgroundColor: c.bg }]}>
@@ -308,7 +419,9 @@ export default function CashOutScreen() {
       <View style={[styles.screen, { backgroundColor: c.bg }]}>
         <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
         <Text style={[styles.meta, { color: c.textMuted }]}>
-          No players found for this session. Add buy-ins first.
+          {loadError
+            ? `Couldn't load this session: ${loadError}`
+            : 'No players found for this session. Add buy-ins first.'}
         </Text>
         <Pressable style={[styles.backButton, { backgroundColor: c.chipBg }]} onPress={() => router.back()}>
           <Text style={[styles.buttonLabel, { color: '#fff' }]}>Go Back</Text>
@@ -375,12 +488,12 @@ export default function CashOutScreen() {
             <SessionAmountDisplay
               value={Math.abs(remaining)}
               unit={amountUnit}
-              color={balanced ? c.profit : remaining > 0 ? c.warning : c.loss}
+              color={balanced && allFilled ? c.profit : remaining > 0 ? c.warning : c.loss}
               iconSize={18}
               valueStyle="fixed2"
               textStyle={[
                 styles.trackerValue,
-                { color: balanced ? c.profit : remaining > 0 ? c.warning : c.loss },
+                { color: balanced && allFilled ? c.profit : remaining > 0 ? c.warning : c.loss },
               ]}
               rowStyle={styles.trackerValueRow}
             />
@@ -401,6 +514,11 @@ export default function CashOutScreen() {
             {isChipsMode
               ? `${formatChipsLedger(Math.abs(remaining))} chips over-distributed. Reduce some stacks.`
               : `$${Math.abs(remaining).toFixed(2)} over-distributed. Reduce some cash-outs.`}
+          </Text>
+        )}
+        {!allFilled && (
+          <Text style={[styles.splitHint, { color: c.textHint }]}>
+            Blank cash-outs count as 0 until entered.
           </Text>
         )}
         {players.some((p) => p.locked) && (
@@ -432,93 +550,7 @@ export default function CashOutScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
         onScrollToIndexFailed={() => listRef.current?.scrollToEnd({ animated: true })}
-        renderItem={({ item, index }) => {
-          const cashOut = parseFloat(item.cashOutInput) || 0;
-          const profit = cashOut - item.totalBuyIn;
-          return (
-            <View
-              style={[
-                styles.playerCard,
-                { backgroundColor: c.card, borderColor: c.border },
-                item.locked && [styles.playerCardLocked, { borderColor: c.borderDanger }],
-              ]}>
-              <View style={styles.playerHeader}>
-                <View style={styles.playerNameRow}>
-                  <Text style={[styles.playerName, { color: c.text }]}>{item.playerName}</Text>
-                  {item.locked && (
-                    <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
-                      <Text style={[styles.earlyBadgeText, { color: '#fff' }]}>EARLY CASH OUT</Text>
-                    </View>
-                  )}
-                </View>
-                <PlayerBuyInCaption
-                  totalBuyIn={item.totalBuyIn}
-                  isChipsMode={isChipsMode}
-                  amountUnit={amountUnit}
-                  mutedColor={c.textMuted}
-                />
-              </View>
-
-              <View
-                style={[
-                  styles.cashOutRow,
-                  item.locked
-                    ? { backgroundColor: c.card, borderColor: c.borderDanger }
-                    : { backgroundColor: c.inputBg, borderColor: c.border },
-                ]}>
-                <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
-                <TextInput
-                  value={item.cashOutInput}
-                  onChangeText={(v) => updateCashOut(item.playerId, v)}
-                  onFocus={() => focusPlayerRow(index)}
-                  placeholder={isChipsMode ? 'Chips' : '0.00'}
-                  placeholderTextColor={c.placeholder}
-                  keyboardType="numeric"
-                  style={[
-                    styles.cashOutInput,
-                    { color: c.text },
-                    item.locked && { color: c.textMuted },
-                  ]}
-                  selectTextOnFocus
-                  editable={!item.locked}
-                />
-              </View>
-
-              {!item.locked && (
-                <View style={styles.chipRow}>
-                  {NEGATIVE_CHIP_AMOUNTS.map((chip) => (
-                    <Pressable
-                      key={`minus-${chip}`}
-                      style={[styles.chipMinus, { backgroundColor: c.chipMinusBg }]}
-                      onPress={() => adjustCashOut(item.playerId, -chip)}>
-                      <Text style={[styles.chipLabel, { color: c.chipValueText }]}>-{chip}</Text>
-                    </Pressable>
-                  ))}
-                  {POSITIVE_CHIP_AMOUNTS.map((chip) => (
-                    <Pressable
-                      key={`plus-${chip}`}
-                      style={[styles.chipPlus, { backgroundColor: c.chipPlusBg }]}
-                      onPress={() => adjustCashOut(item.playerId, chip)}>
-                      <Text style={[styles.chipLabel, { color: c.chipValueText }]}>+{chip}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-
-              <View style={[styles.profitRow, { borderTopColor: c.border }]}>
-                <Text style={[styles.profitLabel, { color: c.textHint }]}>P/L</Text>
-                <Text
-                  style={[
-                    styles.profitValue,
-                    profit > 0 ? { color: c.profit } : profit < 0 ? { color: c.loss } : { color: c.textMuted },
-                  ]}>
-                  {profit >= 0 ? '+' : ''}
-                  {isChipsMode ? formatChipsLedger(profit) : `$${profit.toFixed(2)}`}
-                </Text>
-              </View>
-            </View>
-          );
-        }}
+        renderItem={renderItem}
       />
 
       <Pressable

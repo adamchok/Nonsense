@@ -445,7 +445,9 @@ export default function FriendsScreen() {
               </Pressable>
               <Pressable
                 style={[styles.scanBtn, { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder }]}
-                onPress={() => router.push('../qr-code?tab=scan')}>
+                onPress={() => router.push('../qr-code?tab=scan')}
+                accessibilityRole="button"
+                accessibilityLabel="Scan a friend's QR code">
                 <MaterialIcons name="qr-code-scanner" size={20} color={c.blue} />
               </Pressable>
               <Pressable
@@ -461,6 +463,7 @@ export default function FriendsScreen() {
               styles.friendSearchInput,
               { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
             ]}
+            accessibilityLabel="Search friends by name"
             placeholder="Search friend name"
             placeholderTextColor={c.placeholder}
             value={friendSearchQuery}
@@ -484,8 +487,9 @@ export default function FriendsScreen() {
                     <Pressable
                       style={[styles.requestAcceptBtn, { backgroundColor: c.accent }]}
                       onPress={async () => {
+                        if (!user) return;
                         try {
-                          await acceptFriendRequest(user!.uid, req.playerId);
+                          await acceptFriendRequest(user.uid, req.playerId);
                         } catch (e) {
                           appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
                         }
@@ -494,9 +498,12 @@ export default function FriendsScreen() {
                     </Pressable>
                     <Pressable
                       hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Decline friend request from ${req.name}`}
                       onPress={async () => {
+                        if (!user) return;
                         try {
-                          await declineFriendRequest(user!.uid, req.playerId);
+                          await declineFriendRequest(user.uid, req.playerId);
                         } catch (e) {
                           appAlert('Error', e instanceof Error ? e.message : 'Failed to decline.');
                         }
@@ -532,8 +539,9 @@ export default function FriendsScreen() {
                           text: 'Cancel request',
                           style: 'destructive',
                           onPress: async () => {
+                            if (!user) return;
                             try {
-                              await cancelOutgoingFriendRequest(user!.uid, req.playerId);
+                              await cancelOutgoingFriendRequest(user.uid, req.playerId);
                             } catch (e) {
                               appAlert('Error', e instanceof Error ? e.message : 'Failed to cancel.');
                             }
@@ -571,7 +579,11 @@ export default function FriendsScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Pressable hitSlop={8} onPress={() => handleRemoveFriend(item.playerId, item.name)}>
+                  <Pressable
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${item.name} from friends`}
+                    onPress={() => handleRemoveFriend(item.playerId, item.name)}>
                     <MaterialIcons name="close" size={20} color={c.textHint} />
                   </Pressable>
                 </View>
@@ -661,16 +673,26 @@ export default function FriendsScreen() {
                     <View style={styles.groupHeaderRight}>
                       {isGroupOwner ? (
                         <>
-                          <Pressable hitSlop={8} onPress={() => openRenameGroupModal(group)}>
+                          <Pressable
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Rename group ${group.name}`}
+                            onPress={() => openRenameGroupModal(group)}>
                             <MaterialIcons name="edit" size={20} color={c.textHint} />
                           </Pressable>
-                          <Pressable hitSlop={8} onPress={() => handleDeleteGroup(group.id, group.name)}>
+                          <Pressable
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Delete group ${group.name}`}
+                            onPress={() => handleDeleteGroup(group.id, group.name)}>
                             <MaterialIcons name="delete-outline" size={20} color={c.textHint} />
                           </Pressable>
                         </>
                       ) : null}
                       <Pressable
                         hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={isExpanded ? `Collapse group ${group.name}` : `Expand group ${group.name}`}
                         onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
                         <MaterialIcons
                           name={isExpanded ? 'expand-less' : 'expand-more'}
@@ -898,6 +920,7 @@ export default function FriendsScreen() {
                   <TextInput
                     value={refCodeInput}
                     onChangeText={(t) => setRefCodeInput(t.toUpperCase())}
+                    accessibilityLabel="Friend's 6-character ref code"
                     placeholder="e.g. A3X7KP"
                     placeholderTextColor={c.placeholder}
                     maxLength={6}
@@ -958,7 +981,9 @@ export default function FriendsScreen() {
                 </Text>
                 <Pressable
                   onPress={() => setShowGroupLeaderboardModal(false)}
-                  hitSlop={10}>
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close leaderboard">
                   <MaterialIcons name="close" size={20} color={c.textHint} />
                 </Pressable>
               </View>

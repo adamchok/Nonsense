@@ -37,6 +37,9 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
         if (!cancelled && (stored === 'light' || stored === 'dark' || stored === 'system')) {
           setPreferenceState(stored);
         }
+      } catch (err) {
+        // Fall back to the default preference; without this the rejection would be unhandled.
+        console.warn('Failed to load theme preference:', err);
       } finally {
         if (!cancelled) setIsReady(true);
       }
@@ -54,7 +57,13 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
 
   const setPreference = useCallback(async (p: ThemePreference) => {
     setPreferenceState(p);
-    await AsyncStorage.setItem(STORAGE_KEY, p);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, p);
+    } catch (err) {
+      // Theme is applied in memory but won't survive a restart; let callers surface it.
+      console.warn('Failed to persist theme preference:', err);
+      throw err;
+    }
   }, []);
 
   const value = useMemo(

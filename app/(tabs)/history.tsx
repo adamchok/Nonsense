@@ -131,12 +131,15 @@ export default function HistoryScreen() {
   const filterScrollRef = useRef<ScrollView>(null);
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
+  /** Bumped on every fresh load and on blur so a stale response (or its cursor) can't land. */
+  const loadGenerationRef = useRef(0);
 
   const loadHistory = useCallback(async () => {
     if (!playerProfile) {
       setLoading(false);
       return;
     }
+    const generation = ++loadGenerationRef.current;
     try {
       setError(null);
       historyPageCursorRef.current = null;
@@ -145,14 +148,18 @@ export default function HistoryScreen() {
         HISTORY_TAB_PAGE_SIZE,
         null
       );
+      if (generation !== loadGenerationRef.current) return;
       setHistory(page.entries);
       historyPageCursorRef.current = page.lastDoc;
       setHasMoreHistory(page.hasMore);
     } catch (e) {
+      if (generation !== loadGenerationRef.current) return;
       setError(e instanceof Error ? e.message : 'Failed to load history.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [playerProfile]);
 
@@ -160,6 +167,7 @@ export default function HistoryScreen() {
     if (!playerProfile || loadingMore || !hasMoreHistory) return;
     const cursor = historyPageCursorRef.current;
     if (!cursor) return;
+    const generation = loadGenerationRef.current;
     try {
       setLoadingMore(true);
       setError(null);
@@ -168,10 +176,12 @@ export default function HistoryScreen() {
         HISTORY_TAB_PAGE_SIZE,
         cursor
       );
+      if (generation !== loadGenerationRef.current) return;
       setHistory((prev) => mergeHistoryPages(prev, page.entries));
       historyPageCursorRef.current = page.lastDoc;
       setHasMoreHistory(page.hasMore);
     } catch (e) {
+      if (generation !== loadGenerationRef.current) return;
       setError(e instanceof Error ? e.message : 'Failed to load more history.');
     } finally {
       setLoadingMore(false);
@@ -182,6 +192,10 @@ export default function HistoryScreen() {
     useCallback(() => {
       setLoading(true);
       void loadHistory();
+      return () => {
+        // Invalidate in-flight loads when the screen blurs.
+        loadGenerationRef.current += 1;
+      };
     }, [loadHistory])
   );
 
@@ -574,7 +588,11 @@ export default function HistoryScreen() {
             <View style={[styles.filterCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={styles.filterHeaderRow}>
                 <Text style={[styles.filterTitle, { color: c.text }]}>Filters</Text>
-                <Pressable onPress={() => setShowFilterModal(false)} hitSlop={10}>
+                <Pressable
+                  onPress={() => setShowFilterModal(false)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close filters">
                   <MaterialIcons name="close" size={20} color={c.textHint} />
                 </Pressable>
               </View>
@@ -624,6 +642,8 @@ export default function HistoryScreen() {
                         {draftFilters.startDate ? (
                           <Pressable
                             style={[styles.dateClearBtn]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear start date"
                             onPress={(event) => {
                               event.stopPropagation();
                               setDraftFilters((prev) => ({ ...prev, startDate: '' }));
@@ -654,6 +674,8 @@ export default function HistoryScreen() {
                         {draftFilters.endDate ? (
                           <Pressable
                             style={[styles.dateClearBtn, { borderColor: c.border }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Clear end date"
                             onPress={(event) => {
                               event.stopPropagation();
                               setDraftFilters((prev) => ({ ...prev, endDate: '' }));
@@ -712,6 +734,7 @@ export default function HistoryScreen() {
                         styles.input,
                         { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
                       ]}
+                      accessibilityLabel="Minimum buy-in"
                       placeholder="Min"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.buyInMin}
@@ -725,6 +748,7 @@ export default function HistoryScreen() {
                         styles.input,
                         { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
                       ]}
+                      accessibilityLabel="Maximum buy-in"
                       placeholder="Max"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.buyInMax}
@@ -743,6 +767,7 @@ export default function HistoryScreen() {
                         styles.input,
                         { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
                       ]}
+                      accessibilityLabel="Minimum profit"
                       placeholder="Min"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.profitMin}
@@ -756,6 +781,7 @@ export default function HistoryScreen() {
                         styles.input,
                         { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
                       ]}
+                      accessibilityLabel="Maximum profit"
                       placeholder="Max"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.profitMax}
@@ -809,7 +835,9 @@ export default function HistoryScreen() {
                     setShowLocationModal(false);
                     setLocationSearch('');
                   }}
-                  hitSlop={10}>
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close location picker">
                   <MaterialIcons name="close" size={20} color={c.textHint} />
                 </Pressable>
               </View>

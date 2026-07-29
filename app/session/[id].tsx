@@ -245,28 +245,35 @@ export default function ActiveSessionScreen() {
   const earlyCashOutMap = new Map(earlyCashOuts.map((ec) => [ec.playerId, ec]));
   const friendAvatarMap = new Map(friends.map((f) => [f.playerId, f.avatarEmoji]));
 
-  const playerTotals = buyIns.reduce<Record<string, { name: string; total: number }>>(
-    (acc, b) => {
-      if (!acc[b.playerId]) acc[b.playerId] = { name: b.playerName, total: 0 };
-      acc[b.playerId].total += b.amount;
-      return acc;
-    },
-    {}
+  // Memoized: this screen re-renders on every modal keystroke, and the ledger reduce/sort
+  // only depends on the buy-in data.
+  const playerTotals = useMemo(
+    () =>
+      buyIns.reduce<Record<string, { name: string; total: number }>>((acc, b) => {
+        if (!acc[b.playerId]) acc[b.playerId] = { name: b.playerName, total: 0 };
+        acc[b.playerId].total += b.amount;
+        return acc;
+      }, {}),
+    [buyIns]
   );
   const hostId = session?.hostId;
-  const players = Object.entries(playerTotals)
-    .map(([playerId, v]) => ({
-      playerId,
-      ...v,
-    }))
-    .sort((a, b) => {
-      if (hostId) {
-        if (a.playerId === hostId) return -1;
-        if (b.playerId === hostId) return 1;
-      }
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-    });
-  const totalPot = players.reduce((sum, p) => sum + p.total, 0);
+  const players = useMemo(
+    () =>
+      Object.entries(playerTotals)
+        .map(([playerId, v]) => ({
+          playerId,
+          ...v,
+        }))
+        .sort((a, b) => {
+          if (hostId) {
+            if (a.playerId === hostId) return -1;
+            if (b.playerId === hostId) return 1;
+          }
+          return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        }),
+    [playerTotals, hostId]
+  );
+  const totalPot = useMemo(() => players.reduce((sum, p) => sum + p.total, 0), [players]);
   const selfInSession = Boolean(playerProfile && playerTotals[playerProfile.id]);
 
   function pickGuestAvatar(seed: string): string {
@@ -309,25 +316,21 @@ export default function ActiveSessionScreen() {
     return trimmed.toLowerCase().replace(/\s+/g, '_');
   }
 
-  async function handleAddBuyIn(name: string, amt: string) {
-    Keyboard.dismiss();
-    if (!viewerIsHost) {
-      appAlert('Host only', 'Only the host can add buy-ins.');
-      return;
-    }
-    if (!id || !name.trim() || !amt.trim()) return;
-    const parsed = parseFloat(amt);
-    if (isNaN(parsed) || parsed <= 0) {
-      appAlert('Invalid amount', 'Enter a positive number.');
-      return;
-    }
+  /** First unused `name_2` / `name_3` … id, so two guests typed with the same name stay separate. */
+  function firstFreeGuestId(base: string): string {
+    let n = 2;
+    while (playerTotals[`${base}_${n}`]) n += 1;
+    return `${base}_${n}`;
+  }
 
+  async function commitBuyIn(playerId: string, name: string, parsedAmount: number) {
+    if (!id) return;
     try {
       setIsAdding(true);
       await addBuyIn(id, {
-        playerId: resolvePlayerId(name),
-        playerName: name.trim(),
-        amount: parsed,
+        playerId,
+        playerName: name,
+        amount: parsedAmount,
       });
       setPlayerName('');
       setAmount('');
@@ -337,6 +340,46 @@ export default function ActiveSessionScreen() {
     } finally {
       setIsAdding(false);
     }
+  }
+
+  async function handleAddBuyIn(name: string, amt: string) {
+    Keyboard.dismiss();
+    if (!viewerIsHost) {
+      appAlert('Host only', 'Only the host can add buy-ins.');
+      return;
+    }
+    if (!id || !name.trim() || !amt.trim()) return;
+    const parsed = parseFloat(amt);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      appAlert('Invalid amount', 'Enter a positive number.');
+      return;
+    }
+
+    const trimmed = name.trim();
+    const resolvedId = resolvePlayerId(name);
+    // A typed (non-picked) name colliding with an existing ledger entry is ambiguous:
+    // a re-buy for that person, or a second guest with the same name. Ask.
+    const typedNameCollision =
+      !pickedPlayerId &&
+      Boolean(playerTotals[resolvedId]) &&
+      !(playerProfile && resolvedId === playerProfile.id);
+    if (typedNameCollision) {
+      appAlert(
+        `${trimmed} is already in this session`,
+        'Add this buy-in to the existing player, or add a new player with the same name?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Same player', onPress: () => void commitBuyIn(resolvedId, trimmed, parsed) },
+          {
+            text: 'New player',
+            onPress: () => void commitBuyIn(firstFreeGuestId(resolvedId), trimmed, parsed),
+          },
+        ]
+      );
+      return;
+    }
+
+    await commitBuyIn(resolvedId, trimmed, parsed);
   }
 
   function onPlayerNameChange(text: string) {
@@ -415,7 +458,7 @@ export default function ActiveSessionScreen() {
     }
     if (!id || !cashOutTarget) return;
     const parsed = parseFloat(cashOutAmount);
-    if (isNaN(parsed) || parsed < 0) {
+    if (!Number.isFinite(parsed) || parsed < 0) {
       appAlert('Invalid', 'Enter a valid amount.');
       return;
     }
@@ -630,7 +673,7 @@ export default function ActiveSessionScreen() {
   async function saveEditBuyIn() {
     if (!viewerIsHost || !id || !editBuyInTarget) return;
     const parsed = parseFloat(editBuyInAmount.trim());
-    if (isNaN(parsed) || parsed <= 0) {
+    if (!Number.isFinite(parsed) || parsed <= 0) {
       appAlert('Invalid amount', 'Enter a positive number.');
       return;
     }
@@ -1062,7 +1105,7 @@ export default function ActiveSessionScreen() {
               return (
                 <Pressable
                   key={item.playerId}
-                  style={({ pressed }) => [...(Array.isArray(rowStyle) ? rowStyle.flat() : [rowStyle]), pressed && { opacity: 0.85, backgroundColor: c.pressedRow }]}
+                  style={({ pressed }) => [...rowStyle, pressed && { opacity: 0.85, backgroundColor: c.pressedRow }]}
                   onPress={() => setCashedOutDetailPlayerId(item.playerId)}
                   accessibilityRole="button"
                   accessibilityLabel={`${item.name}, early cash-out details`}>
@@ -1075,7 +1118,7 @@ export default function ActiveSessionScreen() {
               return (
                 <Pressable
                   key={item.playerId}
-                  style={({ pressed }) => [...(Array.isArray(rowStyle) ? rowStyle.flat() : [rowStyle]), pressed && { opacity: 0.85 }]}
+                  style={({ pressed }) => [...rowStyle, pressed && { opacity: 0.85 }]}
                   onPress={() => openEditBuyIn(item.playerId, item.name, item.total)}
                   accessibilityRole="button"
                   accessibilityLabel={`Edit buy-in for ${item.name}`}>

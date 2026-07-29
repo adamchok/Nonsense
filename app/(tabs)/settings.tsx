@@ -35,7 +35,16 @@ export default function SettingsScreen() {
   const c = useAppColors();
   const { preference, resolvedColorScheme, setPreference } = useThemePreference();
   const isDark = resolvedColorScheme === 'dark';
-  const t = isDark ? theme.dark : theme.light;
+  // Shared surface colors come from the app-wide palette so this screen can't drift from it;
+  // only the settings-specific accents below stay local.
+  const t = {
+    ...(isDark ? theme.dark : theme.light),
+    bg: c.bg,
+    card: c.card,
+    border: c.border,
+    text: c.text,
+    muted: c.textMuted,
+  };
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [pendingAvatarEmoji, setPendingAvatarEmoji] = useState<string | null>(null);
@@ -65,6 +74,16 @@ export default function SettingsScreen() {
       cancelled = true;
     };
   }, [showStatsModal, user]);
+
+  function onSelectTheme(p: 'system' | 'light' | 'dark') {
+    // Theme applies in memory even if persisting fails; tell the user it won't stick.
+    void setPreference(p).catch(() => {
+      appAlert(
+        'Theme not saved',
+        'The theme changed for this session but could not be saved to device storage.'
+      );
+    });
+  }
 
   async function onPickAvatar(emoji: string) {
     if (savingAvatar) return;
@@ -167,7 +186,7 @@ export default function SettingsScreen() {
           label="System"
           description="Match device setting"
           selected={preference === 'system'}
-          onPress={() => setPreference('system')}
+          onPress={() => onSelectTheme('system')}
           t={t}
         />
         <ThemeOption
@@ -175,7 +194,7 @@ export default function SettingsScreen() {
           label="Light"
           description="Always light theme"
           selected={preference === 'light'}
-          onPress={() => setPreference('light')}
+          onPress={() => onSelectTheme('light')}
           t={t}
         />
         <ThemeOption
@@ -183,7 +202,7 @@ export default function SettingsScreen() {
           label="Dark"
           description="Always dark theme"
           selected={preference === 'dark'}
-          onPress={() => setPreference('dark')}
+          onPress={() => onSelectTheme('dark')}
           t={t}
         />
       </View>
@@ -203,7 +222,11 @@ export default function SettingsScreen() {
             <View style={[styles.statsCard, { backgroundColor: t.card, borderColor: t.border }]}>
               <View style={styles.statsHeaderRow}>
                 <Text style={[styles.statsTitle, { color: t.text }]}>Your statistics</Text>
-                <Pressable onPress={() => setShowStatsModal(false)} hitSlop={10}>
+                <Pressable
+                  onPress={() => setShowStatsModal(false)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close statistics">
                   <MaterialIcons name="close" size={22} color={t.muted} />
                 </Pressable>
               </View>

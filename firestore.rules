@@ -1,9 +1,12 @@
 rules_version = '2';
 
 // Nonsense Poker — aligned with lib/firestore.ts
-// - Session *metadata* and ledger *reads*: any signed-in user (needed for shared session links,
-//   live spectators, and queries like friend/group leaderboards that scan sessions).
-// - Session *writes* (doc + subcollections): host only, except symmetric friend/social paths below.
+// - Session docs and ledger subcollections are readable only by the host and participants
+//   (via the `participantIds` mirror on the session doc, with a `session_participants`
+//   fallback for docs written before the mirror existed).
+// - Session writes (doc + subcollections): host only, with numeric range validation.
+// - Friend docs can only be written through the request → accept flow (batched client-side;
+//   exists() sees pre-batch state), with display fields pinned to canonical profiles.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -14,39 +17,109 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == playerId;
     }
 
-    function sessionExists(sessionId) {
-      return exists(/databases/$(database)/documents/sessions/$(sessionId));
+    function sessionData(sessionId) {
+      return get(/databases/$(database)/documents/sessions/$(sessionId)).data;
     }
 
-    function sessionHostId(sessionId) {
-      return get(/databases/$(database)/documents/sessions/$(sessionId)).data.hostId;
+    function sessionExists(sessionId) {
+      return exists(/databases/$(database)/documents/sessions/$(sessionId));
     }
 
     function isSessionHost(sessionId) {
       return signedIn()
         && sessionExists(sessionId)
-        && sessionHostId(sessionId) == request.auth.uid;
+        && sessionData(sessionId).hostId == request.auth.uid;
+    }
+
+    // Host check that also holds when the session doc is created in the same batch.
+    function isSessionHostAfter(sessionId) {
+      return signedIn()
+        && getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.hostId == request.auth.uid;
+    }
+
+    // Ledger read access: host, participantIds mirror, or (legacy sessions written before
+    // the mirror existed) a session_participants row for this user.
+    function canReadSession(sessionId) {
+      return signedIn()
+        && (
+          sessionData(sessionId).hostId == request.auth.uid
+          || ('participantIds' in sessionData(sessionId)
+            && request.auth.uid in sessionData(sessionId).participantIds)
+          || exists(/databases/$(database)/documents/sessions/$(sessionId)/session_participants/$(request.auth.uid))
+        );
+    }
+
+    // Money fields must be real numbers in a sane range (NaN fails every comparison).
+    function validAmount(v) {
+      return v is number && v > 0 && v < 100000000;
+    }
+
+    function validNonNegativeAmount(v) {
+      return v is number && v >= 0 && v < 100000000;
+    }
+
+    function validSignedAmount(v) {
+      return v is number && v > -100000000 && v < 100000000;
+    }
+
+    function validSessionShape(d) {
+      return (d.status == 'active' || d.status == 'finished')
+        && (d.get('amountUnit', 'cash') == 'cash' || d.amountUnit == 'chips')
+        && (d.get('smallBlind', null) == null
+          || (validAmount(d.smallBlind) && validAmount(d.bigBlind) && d.bigBlind >= d.smallBlind))
+        && (d.get('dollarsPerChip', null) == null || validAmount(d.dollarsPerChip))
+        && d.get('participantIds', []) is list;
+    }
+
+    // Written display fields must match the canonical profile of the player the doc describes.
+    function friendDocMatchesProfile(describedId) {
+      return request.resource.data.name
+          == get(/databases/$(database)/documents/players/$(describedId)).data.name
+        && (request.resource.data.get('avatarEmoji', null) == null
+          || request.resource.data.avatarEmoji
+            == get(/databases/$(database)/documents/players/$(describedId)).data.get('avatarEmoji', null));
+    }
+
+    // A profile refCode must be reserved in `refCodes/{code}` and map back to this player.
+    function refCodeReserved(playerId) {
+      return !request.resource.data.keys().hasAny(['refCode'])
+        || get(/databases/$(database)/documents/refCodes/$(request.resource.data.refCode)).data.playerId == playerId;
     }
 
     match /players/{playerId} {
-      // Display names / avatars for friends, ref-code lookup targets, etc.
+      // Display-only profile (name / avatar / ref code) used across friends lists, ref-code
+      // lookups, and group member rendering. Financial data lives under /sessions and is
+      // participant-scoped there.
       allow read: if signedIn();
 
       allow create: if isPlayerOwner(playerId)
         && request.resource.data.keys().hasAll(['name', 'anonymousUid'])
         && request.resource.data.anonymousUid == playerId
-        && request.resource.data.name is string;
+        && request.resource.data.name is string
+        && refCodeReserved(playerId);
 
-      // Keep profile anchored to this auth user; refCode is immutable once set (backfill allowed).
+      // Keep profile anchored to this auth user; refCode is immutable once set, and adding
+      // one (creation or backfill) requires the refCodes reservation to exist first.
       allow update: if isPlayerOwner(playerId)
         && request.resource.data.anonymousUid == playerId
-        && (!resource.data.keys().hasAny(['refCode'])
-          || request.resource.data.refCode == resource.data.refCode);
+        && (
+          (resource.data.keys().hasAny(['refCode'])
+            && request.resource.data.refCode == resource.data.refCode)
+          || (!resource.data.keys().hasAny(['refCode']) && refCodeReserved(playerId))
+        );
 
       match /friends/{friendId} {
         allow read: if isPlayerOwner(playerId);
-        allow create, update: if signedIn()
-          && (request.auth.uid == playerId || request.auth.uid == friendId);
+        // Only creatable by accepting a pending request: the client batches the request-doc
+        // deletes with both friend-doc writes, and exists() here evaluates pre-batch state.
+        allow create: if signedIn()
+          && (request.auth.uid == playerId || request.auth.uid == friendId)
+          && exists(/databases/$(database)/documents/players/$(request.auth.uid)/friend_requests/$(request.auth.uid == playerId ? friendId : playerId))
+          && friendDocMatchesProfile(friendId);
+        // Display-sync only: a player may refresh their own denormalized copy in a friend's list.
+        allow update: if signedIn()
+          && request.auth.uid == friendId
+          && friendDocMatchesProfile(friendId);
         allow delete: if signedIn()
           && (request.auth.uid == playerId || request.auth.uid == friendId);
       }
@@ -55,7 +128,9 @@ service cloud.firestore {
         allow read: if isPlayerOwner(playerId);
         allow create: if signedIn()
           && request.auth.uid == senderId
-          && senderId != playerId;
+          && senderId != playerId
+          && request.resource.data.name
+            == get(/databases/$(database)/documents/players/$(senderId)).data.name;
         allow delete: if signedIn()
           && (request.auth.uid == playerId || request.auth.uid == senderId);
       }
@@ -86,10 +161,16 @@ service cloud.firestore {
             )
             || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
           );
+        // A member may update their own cached row, but not to change role/ownerId — those
+        // only sync from the canonical group via its owner.
         allow update: if signedIn()
           && (
-            request.auth.uid == playerId
-            || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+            || (
+              request.auth.uid == playerId
+              && request.resource.data.role == resource.data.role
+              && request.resource.data.ownerId == resource.data.ownerId
+            )
           );
         allow delete: if signedIn()
           && (
@@ -149,39 +230,62 @@ service cloud.firestore {
     }
 
     match /sessions/{sessionId} {
-      allow read: if signedIn();
+      // Host or participant only. Collection queries must filter on hostId or
+      // participantIds so one of the first two disjuncts is provable; the exists()
+      // fallback keeps direct links working for legacy pre-participantIds sessions.
+      allow read: if signedIn()
+        && (
+          resource.data.hostId == request.auth.uid
+          || ('participantIds' in resource.data
+            && request.auth.uid in resource.data.participantIds)
+          || exists(/databases/$(database)/documents/sessions/$(sessionId)/session_participants/$(request.auth.uid))
+        );
 
       allow create: if signedIn()
         && request.resource.data.hostId == request.auth.uid
-        && request.resource.data.status == 'active';
+        && request.resource.data.status == 'active'
+        && validSessionShape(request.resource.data);
 
       allow update: if isSessionHost(sessionId)
-        && request.resource.data.hostId == resource.data.hostId;
+        && request.resource.data.hostId == resource.data.hostId
+        && validSessionShape(request.resource.data);
 
       allow delete: if isSessionHost(sessionId);
 
       match /buy_ins/{buyInId} {
-        allow read: if signedIn();
-        allow create: if isSessionHost(sessionId);
+        allow read: if canReadSession(sessionId);
+        allow create: if isSessionHostAfter(sessionId)
+          && validAmount(request.resource.data.amount)
+          && request.resource.data.playerId is string
+          && request.resource.data.playerName is string;
         allow update: if false;
         allow delete: if isSessionHost(sessionId);
       }
 
       match /early_cashouts/{cashOutPlayerId} {
-        allow read: if signedIn();
-        allow create, update: if isSessionHost(sessionId);
+        allow read: if canReadSession(sessionId);
+        allow create, update: if isSessionHost(sessionId)
+          && validNonNegativeAmount(request.resource.data.amount);
         allow delete: if isSessionHost(sessionId);
       }
 
       match /results/{resultPlayerId} {
-        allow read: if signedIn();
-        allow create, update: if isSessionHost(sessionId);
+        allow read: if canReadSession(sessionId);
+        // Settlement is written while the session is still active (the cash-out flow runs
+        // saveResults before finishSession); once finished, results are immutable.
+        allow create, update: if isSessionHost(sessionId)
+          && sessionData(sessionId).status == 'active'
+          && request.resource.data.playerName is string
+          && validNonNegativeAmount(request.resource.data.totalBuyIn)
+          && validNonNegativeAmount(request.resource.data.cashOut)
+          && validSignedAmount(request.resource.data.profit);
         allow delete: if false;
       }
 
       match /session_participants/{participantId} {
-        allow read: if signedIn();
-        allow create, update: if isSessionHost(sessionId);
+        allow read: if signedIn()
+          && (participantId == request.auth.uid || canReadSession(sessionId));
+        allow create, update: if isSessionHostAfter(sessionId);
         allow delete: if isSessionHost(sessionId);
       }
     }

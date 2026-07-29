@@ -29,8 +29,21 @@ export default function SavedLocationsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void load();
-    }, [load])
+      let active = true;
+      (async () => {
+        if (!user) return;
+        try {
+          setError(null);
+          const data = await getSavedLocations(user.uid);
+          if (active) setLocations(data);
+        } catch (e) {
+          if (active) setError(e instanceof Error ? e.message : 'Failed to load saved locations.');
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [user])
   );
 
   async function onAddLocation() {
@@ -77,6 +90,7 @@ export default function SavedLocationsScreen() {
           <TextInput
             value={newLocation}
             onChangeText={setNewLocation}
+            accessibilityLabel="New location name"
             placeholder="e.g. Adam's place"
             placeholderTextColor={c.placeholder}
             style={[
@@ -87,6 +101,8 @@ export default function SavedLocationsScreen() {
           <Pressable
             style={[styles.addBtn, { backgroundColor: c.accent }, isSaving && styles.disabled]}
             onPress={onAddLocation}
+            accessibilityRole="button"
+            accessibilityLabel="Save location"
             disabled={isSaving || !newLocation.trim()}>
             <MaterialIcons name="add" size={20} color="#fff" />
           </Pressable>
@@ -105,7 +121,11 @@ export default function SavedLocationsScreen() {
               <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
                 {item.name}
               </Text>
-              <Pressable hitSlop={8} onPress={() => onDeleteLocation(item)}>
+              <Pressable
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete saved location ${item.name}`}
+                onPress={() => onDeleteLocation(item)}>
                 <MaterialIcons name="delete-outline" size={20} color={c.lossLight} />
               </Pressable>
             </View>

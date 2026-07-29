@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { type User, onAuthStateChanged, signInAnonymously, signOut } from 'firebase/auth';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { ensureRefCode, getPlayerProfile, updatePlayerAvatar, upsertPlayerProfile } from '@/lib/firestore';
@@ -67,32 +75,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        playerProfile,
-        isReady,
-        saveDisplayName: async (name: string) => {
-          if (!user) {
-            throw new Error('You need to be signed in before saving your display name.');
-          }
-          const nextProfile = await upsertPlayerProfile(user.uid, name);
-          setPlayerProfile(nextProfile);
-        },
-        saveAvatarEmoji: async (emoji: string) => {
-          if (!user) {
-            throw new Error('You need to be signed in before saving your avatar.');
-          }
-          await updatePlayerAvatar(user.uid, emoji);
-          setPlayerProfile((prev) => (prev ? { ...prev, avatarEmoji: emoji.trim() } : prev));
-        },
-        signOutUser: async () => {
-          const auth = getFirebaseAuth();
-          await signOut(auth);
-        },
-      }}>
-      {children}
-    </AuthContext.Provider>
+  const saveDisplayName = useCallback(
+    async (name: string) => {
+      if (!user) {
+        throw new Error('You need to be signed in before saving your display name.');
+      }
+      const nextProfile = await upsertPlayerProfile(user.uid, name);
+      setPlayerProfile(nextProfile);
+    },
+    [user]
   );
+
+  const saveAvatarEmoji = useCallback(
+    async (emoji: string) => {
+      if (!user) {
+        throw new Error('You need to be signed in before saving your avatar.');
+      }
+      await updatePlayerAvatar(user.uid, emoji);
+      setPlayerProfile((prev) => (prev ? { ...prev, avatarEmoji: emoji.trim() } : prev));
+    },
+    [user]
+  );
+
+  const signOutUser = useCallback(async () => {
+    await signOut(getFirebaseAuth());
+  }, []);
+
+  // Stable identity so unrelated ancestor re-renders don't cascade through every consumer.
+  const value = useMemo(
+    () => ({ user, playerProfile, isReady, saveDisplayName, saveAvatarEmoji, signOutUser }),
+    [user, playerProfile, isReady, saveDisplayName, saveAvatarEmoji, signOutUser]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

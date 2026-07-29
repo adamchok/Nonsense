@@ -45,3 +45,6 @@ app-example
 
 # cursor
 .cursor/
+
+# service account
+service-account.json

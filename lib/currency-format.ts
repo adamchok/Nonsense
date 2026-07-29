@@ -1,7 +1,14 @@
 import type { SessionAmountUnit } from '@/types';
 
+/**
+ * Rendered for corrupt/non-finite amounts so bad data reads as "no value" instead of
+ * masquerading as a legitimate zero.
+ */
+export const INVALID_AMOUNT_PLACEHOLDER = '—';
+
 /** Full dollars until > 9999.99, then K; above 999.99K use M (no B). */
 export function formatCompactCurrency(amount: number): string {
+  if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
   const abs = Math.abs(amount);
   if (abs <= 9999.99) {
     return `$${abs.toFixed(2)}`;
@@ -25,7 +32,7 @@ export function formatBlinds(small?: number, big?: number): string | null {
 
 /** Trimmed string for a blind/stake in chip units (used in chip-mode UI next to icons). */
 export function formatBlindChipStakeNumber(n: number): string {
-  if (!Number.isFinite(n)) return '0';
+  if (!Number.isFinite(n)) return INVALID_AMOUNT_PLACEHOLDER;
   if (Number.isInteger(n)) return String(n);
   const s = n.toFixed(2);
   return s.replace(/\.?0+$/, '');
@@ -42,12 +49,13 @@ export function formatBlindsChips(small?: number, big?: number): string | null {
 
 /** Ledger-style chip count (no currency symbol). */
 export function formatChipsLedger(amount: number): string {
-  if (!Number.isFinite(amount)) return '0';
+  if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
 }
 
 /** Compact pot-style chip total (no symbol). */
 export function formatChipsCompact(amount: number): string {
+  if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
   const abs = Math.abs(amount);
   if (abs <= 9999.99) {
     return formatBlindChipStakeNumber(amount);
@@ -76,12 +84,14 @@ export function formatSessionBlindsForDisplay(
 
 /** Compact currency with explicit + / - sign. */
 export function formatSignedCompactCurrency(amount: number): string {
+  if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
   const sign = amount >= 0 ? '+' : '-';
   return `${sign}${formatCompactCurrency(amount)}`;
 }
 
 /** USD currency with commas (e.g. $12,345.67). */
 export function formatCurrency(amount: number): string {
+  if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -96,6 +106,7 @@ export function formatSessionAmountValue(
   unit: SessionAmountUnit,
   valueStyle: SessionAmountValueStyle
 ): string {
+  if (!Number.isFinite(value)) return INVALID_AMOUNT_PLACEHOLDER;
   if (unit === 'chips') {
     return valueStyle === 'compact' ? formatChipsCompact(value) : formatChipsLedger(value);
   }
@@ -106,6 +117,7 @@ export function formatSessionAmountValue(
 
 /** Dollar currency with explicit + / - sign and commas. */
 export function formatSignedCurrency(amount: number): string {
+  if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
   const sign = amount >= 0 ? '+' : '-';
   return `${sign}${formatCurrency(Math.abs(amount))}`;
 }
@@ -115,6 +127,7 @@ export function formatTightCompactNumber(
   amount: number,
   options?: { signed?: boolean; currency?: boolean }
 ): string {
+  if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
   const abs = Math.abs(amount);
   const signed = options?.signed ?? false;
   const currency = options?.currency ?? false;

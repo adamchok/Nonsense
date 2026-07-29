@@ -38,6 +38,7 @@ export default function NewGroupScreen() {
       <TextInput
         value={name}
         onChangeText={setName}
+        accessibilityLabel="Group name"
         placeholder="Group name"
         placeholderTextColor={c.placeholder}
         autoFocus

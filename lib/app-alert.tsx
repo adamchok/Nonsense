@@ -27,6 +27,9 @@ type AlertPayload = {
 type ShowAlert = (payload: AlertPayload) => void;
 
 let globalShowAlert: ShowAlert | null = null;
+/** Alerts fired while the provider is unmounted (startup, fast refresh) — flushed on mount. */
+let pendingAlerts: AlertPayload[] = [];
+const MAX_PENDING_ALERTS = 5;
 
 /**
  * Imperative API matching `Alert.alert` overloads so you can replace calls in place.
@@ -55,7 +58,10 @@ export function appAlert(
   }
 
   if (!globalShowAlert) {
-    console.warn('[appAlert] AppAlertProvider is not mounted; alert was dropped:', title);
+    console.warn('[appAlert] AppAlertProvider is not mounted; alert buffered:', title);
+    if (pendingAlerts.length < MAX_PENDING_ALERTS) {
+      pendingAlerts.push({ title, message, buttons: resolvedButtons });
+    }
     return;
   }
 
@@ -91,6 +97,12 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     globalShowAlert = show;
+    if (pendingAlerts.length > 0) {
+      // The modal shows one payload at a time; surface the most recent buffered alert.
+      const latest = pendingAlerts[pendingAlerts.length - 1];
+      pendingAlerts = [];
+      show(latest);
+    }
     return () => {
       globalShowAlert = null;
     };

@@ -184,35 +184,40 @@ export default function QrCodeScreen() {
       return;
     }
 
+    // The lock stays held until the user dismisses whatever alert we show; dismissing also
+    // starts the cooldown above so a code still in frame can't instantly re-trigger.
+    const releaseWithCooldown = () => {
+      lastDismissedRef.current = { code, at: Date.now() };
+      scanLock.current = false;
+    };
+    const alertThenRelease = (title: string, message: string) => {
+      appAlert(title, message, [{ text: 'OK', onPress: releaseWithCooldown }]);
+    };
+
     if (code.length !== 6) {
-      appAlert('Invalid QR', 'This QR code does not contain a valid ref code.', [
-        { text: 'OK', onPress: () => { scanLock.current = false; } },
-      ]);
+      alertThenRelease('Invalid QR', 'This QR code does not contain a valid ref code.');
       return;
     }
     if (code === playerProfile?.refCode) {
-      appAlert('Oops', "That's your own code!", [
-        { text: 'OK', onPress: () => { scanLock.current = false; } },
-      ]);
+      alertThenRelease('Oops', "That's your own code!");
       return;
     }
 
-    let shouldReleaseLock = true;
     try {
       const found = await lookupPlayerByRefCode(code);
       if (!found) {
-        appAlert('Not found', 'No player found with that code.');
+        alertThenRelease('Not found', 'No player found with that code.');
         return;
       }
       if (friendsRef.current.some((f) => f.playerId === found.id)) {
-        appAlert('Already friends', `You're already friends with ${found.name}.`);
+        alertThenRelease('Already friends', `You're already friends with ${found.name}.`);
         return;
       }
 
       const incoming = incomingRef.current.some((r) => r.playerId === found.id);
       if (incoming) {
         appAlert(`${found.name} invited you`, 'Accept their friend request?', [
-          { text: 'Not now', onPress: () => { scanLock.current = false; } },
+          { text: 'Not now', onPress: releaseWithCooldown },
           {
             text: 'Accept',
             onPress: async () => {
@@ -223,7 +228,7 @@ export default function QrCodeScreen() {
               } catch (e) {
                 appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
               } finally {
-                scanLock.current = false;
+                releaseWithCooldown();
               }
             },
           },
@@ -232,20 +237,16 @@ export default function QrCodeScreen() {
       }
 
       if (outgoingRef.current.some((r) => r.playerId === found.id)) {
-        appAlert('Request pending', `You already sent a request to ${found.name}.`, [
-          { text: 'OK', onPress: () => { scanLock.current = false; } },
-        ]);
+        alertThenRelease('Request pending', `You already sent a request to ${found.name}.`);
         return;
       }
 
-      // Pause scanning and ask for confirmation before sending a request.
+      // Pause scanning and ask for confirmation before sending a request (lock stays held;
+      // dismissAddFriendModal releases it).
       setPendingFriend(found);
       setPendingRefCode(code);
-      shouldReleaseLock = false;
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to add friend.');
-    } finally {
-      if (shouldReleaseLock) scanLock.current = false;
+      alertThenRelease('Error', e instanceof Error ? e.message : 'Failed to add friend.');
     }
   }
 
