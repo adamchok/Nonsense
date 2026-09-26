@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth-context';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
 import { Icon, type IconName } from '@/components/icon';
+import { GoogleLogo } from '@/components/google-button';
+import { EnvelopeSimpleIcon } from 'phosphor-react-native/src/icons/EnvelopeSimple';
 import { StatsBody, StatsSkeleton } from '@/components/stats-body';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -207,7 +209,7 @@ export default function SettingsScreen() {
             style={styles.linkedRow}
             accessible
             accessibilityLabel={`${signInMethodLabel}${accountEmail ? `, ${accountEmail}` : ''}`}>
-            <Icon name="check-circle" size={22} color={c.accentText} />
+            {isLinked ? <GoogleLogo size={22} /> : <EnvelopeSimpleIcon size={22} color={c.accentText} />}
             <View style={styles.linkedTextCol}>
               <Text style={[styles.linkedText, { color: t.text }]}>{signInMethodLabel}</Text>
               {accountEmail ? (
