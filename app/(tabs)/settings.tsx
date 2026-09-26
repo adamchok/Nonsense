@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { GoogleButton } from '@/components/google-button';
+import { EditNameModal } from '@/components/edit-name-modal';
 
 function formatPlayTime(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000);
@@ -37,7 +38,7 @@ function signedMetricColor(
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, playerProfile, saveAvatarEmoji, isLinked, linkedEmail, linkWithGoogle } = useAuth();
+  const { user, playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, linkWithGoogle } = useAuth();
   const c = useAppColors();
   const layout = usePageLayout(40);
   const { preference, resolvedColorScheme, setPreference } = useThemePreference();
@@ -53,6 +54,7 @@ export default function SettingsScreen() {
     muted: c.textMuted,
   };
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showNameEditor, setShowNameEditor] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [pendingAvatarEmoji, setPendingAvatarEmoji] = useState<string | null>(null);
   const [showStatsModal, setShowStatsModal] = useState(false);
@@ -166,14 +168,13 @@ export default function SettingsScreen() {
                 </Text>
                 <Pressable
                   style={styles.editNameBtn}
-                  onPress={() => router.push('../(auth)/name')}
+                  onPress={() => setShowNameEditor(true)}
                   hitSlop={4}
                   accessibilityRole="button"
                   accessibilityLabel="Edit display name">
                   <Icon name="edit" size={18} color={t.muted} />
                 </Pressable>
               </View>
-              <Text style={[styles.displayHint, { color: t.muted }]}>Display name</Text>
             </View>
           </View>
           <Pressable
@@ -240,8 +241,7 @@ export default function SettingsScreen() {
           ) : (
             <>
               <Text style={[styles.appearanceHint, { color: t.muted }]}>
-                Your data is tied to this install. Back up with Google so you can restore it after
-                reinstalling or on a new phone.
+                Sign in with Google to keep your data when you reinstall or switch phones.
               </Text>
               <GoogleButton label="Back up with Google" onPress={onBackUpWithGoogle} busy={isLinking} />
             </>
@@ -455,6 +455,14 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {showNameEditor ? (
+        <EditNameModal
+          initialName={playerProfile?.name ?? ''}
+          onClose={() => setShowNameEditor(false)}
+          onSave={saveDisplayName}
+        />
+      ) : null}
 
       <Modal
         visible={showAvatarPicker}
@@ -707,9 +715,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 26,
     fontWeight: '700',
-  },
-  displayHint: {
-    fontSize: 13,
   },
   primaryBtn: {
     flexDirection: 'row',
