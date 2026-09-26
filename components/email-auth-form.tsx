@@ -2,7 +2,14 @@ import { FieldError, errorBorder, invalidProps } from '@/components/field-error'
 import { Animated, PressableScale, fadeIn } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { authErrorInfo, emailInputError, passwordInputError } from '@/lib/auth-errors';
+import {
+  MAX_PASSWORD_LENGTH,
+  PASSWORD_RULES,
+  authErrorInfo,
+  emailInputError,
+  passwordInputError,
+} from '@/lib/auth-errors';
+import { Icon } from '@/components/icon';
 import { EyeIcon } from 'phosphor-react-native/src/icons/Eye';
 import { EyeSlashIcon } from 'phosphor-react-native/src/icons/EyeSlash';
 import { useRef, useState } from 'react';
@@ -145,14 +152,19 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
               clearMessages();
             }}
             accessibilityLabel="Password"
-            placeholder={isCreate ? 'At least 6 characters' : 'Your password'}
+            placeholder={isCreate ? 'Create a password' : 'Your password'}
             placeholderTextColor={c.placeholder}
             secureTextEntry={!isPasswordVisible}
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete={isCreate ? 'new-password' : 'current-password'}
             textContentType={isCreate ? 'newPassword' : 'password'}
-            passwordRules={isCreate ? 'minlength: 6;' : undefined}
+            passwordRules={
+              isCreate
+                ? `minlength: 8; maxlength: ${MAX_PASSWORD_LENGTH}; required: upper; required: lower; required: digit; required: special;`
+                : undefined
+            }
+            maxLength={isCreate ? MAX_PASSWORD_LENGTH : undefined}
             returnKeyType="go"
             onSubmitEditing={handleSubmit}
             editable={!isBusy}
@@ -169,6 +181,28 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
           </PressableScale>
         </View>
         <FieldError message={passwordError} />
+        {isCreate ? (
+          <View style={styles.rules} accessibilityLabel="Password requirements">
+            {PASSWORD_RULES.map((rule) => {
+              const met = rule.test(password);
+              return (
+                <View
+                  key={rule.key}
+                  style={styles.rule}
+                  accessible
+                  accessibilityLabel={`${rule.label}, ${met ? 'done' : 'not yet'}`}>
+                  <Icon
+                    name={met ? 'check-circle' : 'check-circle-outline'}
+                    size={14}
+                    color={met ? c.profit : c.textHint}
+                    weight={met ? 'fill' : 'regular'}
+                  />
+                  <Text style={[styles.ruleText, { color: met ? c.text : c.textMuted }]}>{rule.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
         {showForgot && !isCreate ? (
           <PressableScale
             onPress={handleForgot}
@@ -235,6 +269,9 @@ const eyeA11yHidden: object =
   Platform.OS === 'web' ? { 'aria-hidden': true } : { importantForAccessibility: 'no', accessibilityElementsHidden: true };
 
 const styles = StyleSheet.create({
+  rules: { marginTop: 10, gap: 4 },
+  rule: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  ruleText: { fontSize: 12, lineHeight: 16 },
   root: { gap: 14 },
   label: { fontSize: 13, lineHeight: 18, fontWeight: '500', marginBottom: 6 },
   input: {

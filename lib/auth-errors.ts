@@ -16,7 +16,7 @@ const BY_CODE: Record<string, AuthErrorInfo> = {
   'auth/weak-password': { field: 'password', message: 'Use at least 8 characters' },
   'auth/password-does-not-meet-requirements': {
     field: 'password',
-    message: 'Use at least 8 characters, mixing letters and numbers',
+    message: 'Use 8–50 characters with upper and lower case letters, a number and a symbol',
   },
   'auth/email-already-in-use': {
     field: 'email',
@@ -50,6 +50,32 @@ export function authErrorInfo(err: unknown): AuthErrorInfo {
 }
 
 export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 50;
+
+export interface PasswordRule {
+  key: 'length' | 'upper' | 'lower' | 'number' | 'symbol';
+  label: string;
+  missing: string;
+  test: (password: string) => boolean;
+}
+
+export const PASSWORD_RULES: PasswordRule[] = [
+  {
+    key: 'length',
+    label: `${MIN_PASSWORD_LENGTH}–${MAX_PASSWORD_LENGTH} characters`,
+    missing: `${MIN_PASSWORD_LENGTH}–${MAX_PASSWORD_LENGTH} characters`,
+    test: (p) => p.length >= MIN_PASSWORD_LENGTH && p.length <= MAX_PASSWORD_LENGTH,
+  },
+  { key: 'upper', label: 'An uppercase letter', missing: 'an uppercase letter', test: (p) => /[A-Z]/.test(p) },
+  { key: 'lower', label: 'A lowercase letter', missing: 'a lowercase letter', test: (p) => /[a-z]/.test(p) },
+  { key: 'number', label: 'A number', missing: 'a number', test: (p) => /[0-9]/.test(p) },
+  { key: 'symbol', label: 'A symbol, like ! or #', missing: 'a symbol', test: (p) => /[^A-Za-z0-9\s]/.test(p) },
+];
+
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
 
 export function emailInputError(email: string): string | null {
   const trimmed = email.trim();
@@ -60,8 +86,9 @@ export function emailInputError(email: string): string | null {
 
 export function passwordInputError(password: string, mode: 'signin' | 'create'): string | null {
   if (!password) return 'Enter your password';
-  if (mode === 'create' && password.length < MIN_PASSWORD_LENGTH) {
-    return `Use at least ${MIN_PASSWORD_LENGTH} characters`;
-  }
-  return null;
+  if (mode === 'signin') return null;
+  if (password.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters`;
+  if (password.length > MAX_PASSWORD_LENGTH) return `Use ${MAX_PASSWORD_LENGTH} characters or fewer`;
+  const missing = PASSWORD_RULES.filter((r) => r.key !== 'length' && !r.test(password)).map((r) => r.missing);
+  return missing.length ? `Add ${joinList(missing)}` : null;
 }
