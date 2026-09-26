@@ -1,3 +1,4 @@
+import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { Animated, PressableScale, SPRING, fadeIn, fadeOut, layoutTransition, listItemEntering, usePop } from '@/components/motion';
 import { SessionAmountPrefix } from '@/components/session-amount-prefix';
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
@@ -51,6 +52,13 @@ function splitCents(totalCents: number, n: number): number[] {
   const base = Math.floor(totalCents / n);
   const rem = totalCents % n;
   return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0));
+}
+
+/** Inline error for a cash-out input, or null when it's a valid amount (0 or more). */
+function cashOutError(input: string): string | null {
+  const val = parseAmount(input);
+  if (val == null) return input.trim() ? 'Enter a number, like 120' : 'Enter a cash-out, like 120';
+  return val < 0 ? 'Must be 0 or more' : null;
 }
 
 /** Entering animation only for the first screenful; rows mounted later by scrolling just appear. */
@@ -136,6 +144,7 @@ export default function CashOutScreen() {
   const [canEdit, setCanEdit] = useState(false);
   const [amountUnit, setAmountUnit] = useState<SessionAmountUnit>('cash');
   const [dollarsPerChip, setDollarsPerChip] = useState<number | undefined>();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const listRef = useRef<FlatList<PlayerEntry>>(null);
   const isChipsMode = amountUnit === 'chips';
 
@@ -190,13 +199,23 @@ export default function CashOutScreen() {
     };
   }, [id, playerProfile?.id]);
 
+  const clearFieldError = useCallback((playerId: string) => {
+    setFieldErrors((prev) => {
+      if (!(playerId in prev)) return prev;
+      const { [playerId]: _cleared, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
   const updateCashOut = useCallback((playerId: string, value: string) => {
+    clearFieldError(playerId);
     setPlayers((prev) =>
       prev.map((p) => (p.playerId === playerId ? { ...p, cashOutInput: value } : p))
     );
-  }, []);
+  }, [clearFieldError]);
 
   const adjustCashOut = useCallback((playerId: string, delta: number) => {
+    clearFieldError(playerId);
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.playerId !== playerId) return p;
@@ -206,7 +225,7 @@ export default function CashOutScreen() {
       })
     );
     void Haptics.selectionAsync().catch(() => {});
-  }, []);
+  }, [clearFieldError]);
 
   const focusPlayerRow = useCallback((index: number) => {
     setTimeout(() => {
@@ -267,26 +286,14 @@ export default function CashOutScreen() {
       const parts = splitCents(overCents, unlockedPrev.length);
       const subById = new Map<string, number>();
       unlockedPrev.forEach((p, i) => subById.set(p.playerId, parts[i] / 100));
-      const next = prev.map((p) => {
+      // Anything left over (a player hit 0) stays visible in the over-distributed banner.
+      return prev.map((p) => {
         if (p.locked) return p;
         const sub = subById.get(p.playerId) ?? 0;
         const current = parseAmount(p.cashOutInput) ?? 0;
         const nextVal = Math.max(0, current - sub);
         return { ...p, cashOutInput: nextVal.toFixed(2) };
       });
-      const newTotalCashOut = next.reduce((s, p) => s + (parseAmount(p.cashOutInput) ?? 0), 0);
-      const newRem = totalBuyInLocal - newTotalCashOut;
-      if (newRem < -0.01) {
-        queueMicrotask(() =>
-          appAlert(
-            'Still over-distributed',
-            isChipsMode
-              ? `${formatChipsLedger(Math.abs(newRem))} chips still over. Some players could not absorb an equal share. Adjust manually.`
-              : `$${Math.abs(newRem).toFixed(2)} still over. Some players could not absorb an equal share. Adjust manually.`
-          )
-        );
-      }
-      return next;
     });
   }
 
@@ -321,23 +328,20 @@ export default function CashOutScreen() {
     }
     if (!id) return;
 
+    const errors: Record<string, string> = {};
     for (const p of players) {
-      const val = parseAmount(p.cashOutInput);
-      if (val == null || val < 0) {
-        appAlert('Invalid entry', `Enter a valid cash-out for ${p.playerName}.`);
-        return;
-      }
+      const error = cashOutError(p.cashOutInput);
+      if (error) errors[p.playerId] = error;
     }
-
-    if (!balanced) {
-      appAlert(
-        'Totals don\'t match',
-        isChipsMode
-          ? `${formatChipsLedger(Math.abs(remaining))} chips ${remaining > 0 ? 'left to distribute' : 'over-distributed'}. Totals must balance.`
-          : `$${Math.abs(remaining).toFixed(2)} ${remaining > 0 ? 'left to distribute' : 'over-distributed'}. Totals must balance.`
-      );
+    setFieldErrors(errors);
+    const firstInvalid = players.findIndex((p) => p.playerId in errors);
+    if (firstInvalid >= 0) {
+      listRef.current?.scrollToIndex({ index: firstInvalid, animated: true, viewPosition: 0.3 });
       return;
     }
+
+    // The button is disabled until balanced; the tracker banner already explains the gap.
+    if (!balanced) return;
 
     if (isChipsMode && (dollarsPerChip == null || !Number.isFinite(dollarsPerChip) || dollarsPerChip <= 0)) {
       appAlert('Session error', 'This chip session is missing a valid dollars-per-chip value.');
@@ -402,6 +406,7 @@ export default function CashOutScreen() {
       const profitText = isChipsMode
         ? `${profit >= 0 ? '+' : '-'}${formatChipsLedger(Math.abs(profit))}`
         : formatSignedCurrency(profit);
+      const fieldError = fieldErrors[item.playerId];
       return (
         <Animated.View
           entering={index < MAX_ANIMATED_ROWS ? listItemEntering(index) : undefined}
@@ -433,6 +438,7 @@ export default function CashOutScreen() {
               item.locked
                 ? { backgroundColor: c.card, borderColor: c.borderDanger }
                 : { backgroundColor: c.inputBg, borderColor: c.inputBorder },
+              errorBorder(c, fieldError),
             ]}>
             <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
             <TextInput
@@ -451,8 +457,10 @@ export default function CashOutScreen() {
               ]}
               selectTextOnFocus
               editable={!item.locked}
+              {...invalidProps(fieldError)}
             />
           </View>
+          <FieldError message={fieldError} />
 
           {!item.locked && (
             <View style={styles.chipRow}>
@@ -488,7 +496,7 @@ export default function CashOutScreen() {
         </Animated.View>
       );
     },
-    [c, amountUnit, isChipsMode, updateCashOut, adjustCashOut, focusPlayerRow]
+    [c, amountUnit, isChipsMode, fieldErrors, updateCashOut, adjustCashOut, focusPlayerRow]
   );
 
   if (loading) {

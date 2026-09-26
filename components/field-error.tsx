@@ -1,7 +1,7 @@
 import { Icon } from '@/components/icon';
 import { Animated, fadeIn } from '@/components/motion';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
-import { Platform, StyleSheet, Text, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 
 /**
  * Inline validation, used instead of an alert for input mistakes (missing or invalid values):
@@ -20,7 +20,7 @@ export function FieldError({ message }: { message?: string | null }) {
 }
 
 /** Red border for a field (or its bordered wrapper) while it has an error. */
-export function errorBorder(c: AppColors, message?: string | null): ViewStyle | null {
+export function errorBorder(c: AppColors, message?: string | null): { borderColor: string } | null {
   return message ? { borderColor: c.lossLight } : null;
 }
 
