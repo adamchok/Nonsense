@@ -263,3 +263,9 @@
     scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 }
+
+/* Charts (components/pl-chart.tsx): the library's focusable wrappers span the whole plot, so a
+   hover tint there reads as a grey box. Selection dimming is the chart's own feedback. */
+#pl-chart [tabindex] {
+  box-shadow: none !important;
+}
