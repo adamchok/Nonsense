@@ -1,5 +1,6 @@
+import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 type Props = {
   /** Host viewing an active session. */
@@ -15,21 +16,21 @@ export function SessionFooterActions({ canManage, isFinished, onEndSession, onVi
   return (
     <View style={styles.actions}>
       {canManage ? (
-        <Pressable
+        <PressableScale
           style={[styles.button, { backgroundColor: c.destructive }]}
           onPress={onEndSession}
           accessibilityRole="button"
           accessibilityHint="Opens the cash-out screen. You can go back.">
           <Text style={styles.label}>End Session & Cash Out</Text>
-        </Pressable>
+        </PressableScale>
       ) : null}
       {isFinished ? (
-        <Pressable
+        <PressableScale
           style={[styles.button, { backgroundColor: c.accent }]}
           onPress={onViewSummary}
           accessibilityRole="button">
           <Text style={[styles.label, { color: c.onAccent }]}>View Summary</Text>
-        </Pressable>
+        </PressableScale>
       ) : null}
     </View>
   );

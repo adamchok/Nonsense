@@ -34,9 +34,10 @@ import { formatDateTimeDMY } from '@/lib/date-format';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { VoiceRosterEntry } from '@/lib/voice-command';
 import { Icon } from '@/components/icon';
+import { PressableScale } from '@/components/motion';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
 /** Only one Modal is ever on screen, so a single discriminated state drives them all. */
@@ -218,7 +219,8 @@ export default function ActiveSessionScreen() {
 
   const headerRight = canAct
     ? () => (
-        <Pressable
+        <PressableScale
+          pressedScale={0.9}
           onPress={actions.confirmDeleteSession}
           disabled={actions.isDeletingSession}
           style={styles.headerIconBtn}
@@ -230,7 +232,7 @@ export default function ActiveSessionScreen() {
           ) : (
             <Icon name="delete-outline" size={24} color={c.lossLight} />
           )}
-        </Pressable>
+        </PressableScale>
       )
     : undefined;
 
@@ -275,12 +277,12 @@ export default function ActiveSessionScreen() {
         {live.error ? (
           <View style={styles.errorRow} accessibilityLiveRegion="polite">
             <Text style={[styles.errorText, { color: c.loss }]}>{live.error}</Text>
-            <Pressable
+            <PressableScale
               onPress={live.retry}
               style={[ui.button, ui.buttonSecondary, { backgroundColor: c.card, borderColor: c.inputBorder }]}
               accessibilityRole="button">
               <Text style={[type.button, { color: c.text }]}>Retry</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         ) : null}
         {live.isActive && !viewerIsHost ? (

@@ -1,8 +1,24 @@
+import { Animated, PressableScale, EXIT_AND_LAYOUT_ANIMATIONS } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import {
+  Easing,
+  FadeInDown,
+  FadeOutDown,
+  ReduceMotion,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 export const UNDO_WINDOW_MS = 5000;
+
+const enter = FadeInDown.duration(220).reduceMotion(ReduceMotion.System);
+const exit = EXIT_AND_LAYOUT_ANIMATIONS
+  ? FadeOutDown.duration(180).reduceMotion(ReduceMotion.System)
+  : undefined;
 
 type Props = {
   message: string;
@@ -10,9 +26,27 @@ type Props = {
   onDismiss: () => void;
 };
 
-/** Bottom snackbar with an Undo action; dismisses itself after UNDO_WINDOW_MS. Remount (key) per message. */
+/** Thin bar along the bottom edge that drains over the undo window. */
+function UndoCountdown({ color }: { color: string }) {
+  const remaining = useSharedValue(1);
+  useEffect(() => {
+    remaining.value = withTiming(0, { duration: UNDO_WINDOW_MS, easing: Easing.linear });
+  }, [remaining]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleX: remaining.value }] }));
+  return (
+    <View style={styles.track} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+      <Animated.View style={[styles.progress, { backgroundColor: color }, style]} />
+    </View>
+  );
+}
+
+/**
+ * Bottom snackbar with an Undo action; dismisses itself after UNDO_WINDOW_MS. Remount (key)
+ * per message: the old one slides out as the new one slides in.
+ */
 export function UndoSnackbar({ message, onUndo, onDismiss }: Props) {
   const c = useAppColors();
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const timer = setTimeout(onDismiss, UNDO_WINDOW_MS);
@@ -20,22 +54,24 @@ export function UndoSnackbar({ message, onUndo, onDismiss }: Props) {
   }, [onDismiss]);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <View
-        style={[styles.bar, { backgroundColor: c.card, borderColor: c.border }]}
-        accessibilityLiveRegion="polite">
-        <Text style={[styles.message, { color: c.text }]} numberOfLines={2}>
-          {message}
-        </Text>
-        <Pressable
-          onPress={onUndo}
-          style={styles.undoBtn}
-          accessibilityRole="button"
-          accessibilityLabel={`Undo: ${message}`}>
-          <Text style={[styles.undoLabel, { color: c.accentText }]}>UNDO</Text>
-        </Pressable>
-      </View>
-    </View>
+    <Animated.View
+      entering={enter}
+      exiting={exit}
+      style={[styles.bar, { backgroundColor: c.card, borderColor: c.border }]}
+      accessibilityLiveRegion="polite">
+      <Text style={[styles.message, { color: c.text }]} numberOfLines={2}>
+        {message}
+      </Text>
+      <PressableScale
+        onPress={onUndo}
+        style={styles.undoBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Undo: ${message}`}>
+        <Text style={[styles.undoLabel, { color: c.accentText }]}>UNDO</Text>
+      </PressableScale>
+      {/* A draining bar is motion; with reduce-motion the timeout alone still applies. */}
+      {reduceMotion ? null : <UndoCountdown color={c.accent} />}
+    </Animated.View>
   );
 }
 
@@ -75,5 +111,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  track: {
+    position: 'absolute',
+    // Inset past the bar's rounded corners so it runs along the straight bottom edge.
+    left: 14,
+    right: 14,
+    bottom: 0,
+    height: 2,
+    borderRadius: 1,
+    overflow: 'hidden',
+  },
+  progress: {
+    flex: 1,
+    transformOrigin: 'left',
+    opacity: 0.7,
   },
 });

@@ -3,7 +3,9 @@ import { useAppColors } from '@/lib/app-theme';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
 import { text as type, ui } from '@/lib/ui';
-import { Text, View } from 'react-native';
+import { Animated, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
+import { useRef } from 'react';
+import { View } from 'react-native';
 
 type Props = LedgerRowHandlers & {
   players: LedgerPlayer[];
@@ -32,25 +34,40 @@ export function PlayerTotalsList({
   ...handlers
 }: Props) {
   const c = useAppColors();
+  // Rows present at the first non-empty render stagger in; later arrivals enter at once.
+  // `entering` only runs on mount, so snapshot updates to existing keys never re-animate.
+  const initialIds = useRef<Set<string> | null>(null);
+  if (initialIds.current === null && players.length > 0) {
+    initialIds.current = new Set(players.map((p) => p.playerId));
+  }
   if (players.length === 0) {
-    return <Text style={[type.body, { color: c.textMuted }]}>No buy-ins yet. Add a player above.</Text>;
+    return (
+      <Animated.Text entering={fadeIn} style={[type.body, { color: c.textMuted }]}>
+        No buy-ins yet. Add a player above.
+      </Animated.Text>
+    );
   }
   return (
     <View style={[ui.card, { backgroundColor: c.card, borderColor: c.border }]}>
       {players.map((p, i) => (
-        <PlayerLedgerRow
+        <Animated.View
           key={p.playerId}
-          player={p}
-          cashOut={earlyCashOutMap.get(p.playerId)}
-          avatar={getAvatar(p.playerId)}
-          isHostRow={p.playerId === hostId}
-          canAct={canAct}
-          isRemoving={removingPlayerId === p.playerId}
-          showDivider={i > 0}
-          displayUnit={displayUnit}
-          dollarsPerChip={dollarsPerChip}
-          {...handlers}
-        />
+          entering={listItemEntering(initialIds.current?.has(p.playerId) ? i : 0)}
+          exiting={fadeOut}
+          layout={layoutTransition}>
+          <PlayerLedgerRow
+            player={p}
+            cashOut={earlyCashOutMap.get(p.playerId)}
+            avatar={getAvatar(p.playerId)}
+            isHostRow={p.playerId === hostId}
+            canAct={canAct}
+            isRemoving={removingPlayerId === p.playerId}
+            showDivider={i > 0}
+            displayUnit={displayUnit}
+            dollarsPerChip={dollarsPerChip}
+            {...handlers}
+          />
+        </Animated.View>
       ))}
     </View>
   );

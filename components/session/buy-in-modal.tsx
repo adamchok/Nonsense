@@ -1,3 +1,4 @@
+import { PressableScale } from '@/components/motion';
 import { ModalShell } from '@/components/session/modal-shell';
 import { PlayerPicker } from '@/components/session/player-picker';
 import { formStyles } from '@/components/session/session-form-styles';
@@ -9,7 +10,7 @@ import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { FriendRecord, PlayerProfile, SessionAmountUnit } from '@/types';
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { sanitizeAmountInput } from '@/lib/parse-amount';
 
 type Props = {
@@ -100,7 +101,8 @@ export function BuyInModal({
         showsVerticalScrollIndicator={false}>
         <View style={[styles.addSection, { borderColor: c.border, backgroundColor: c.cardAlt }]}>
           {playerProfile && !selfInSession && !draft.isBuyBack && (
-            <Pressable
+            <PressableScale
+              pressedScale={0.95}
               style={[styles.quickAddButton, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
               onPress={() => pick(playerProfile.id, playerProfile.name)}
               accessibilityRole="button"
@@ -108,7 +110,7 @@ export function BuyInModal({
               <Text style={[styles.quickAddLabel, { color: c.accentText }]}>
                 + Add myself ({playerProfile.name})
               </Text>
-            </Pressable>
+            </PressableScale>
           )}
           <View style={styles.inputRow}>
             <TextInput
@@ -150,14 +152,15 @@ export function BuyInModal({
               {quickAmounts.map((v) => {
                 const label = formatSessionAmountValue(v, unit, 'ledger');
                 return (
-                  <Pressable
+                  <PressableScale
+                    pressedScale={0.95}
                     key={v}
                     onPress={() => setDraft((d) => ({ ...d, amount: String(v) }))}
                     accessibilityRole="button"
                     accessibilityLabel={`Amount ${label}${unit === 'chips' ? ' chips' : ''}`}
                     style={[styles.quickAmount, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}>
                     <Text style={[styles.quickAmountText, { color: c.chipText }]}>{label}</Text>
-                  </Pressable>
+                  </PressableScale>
                 );
               })}
             </View>

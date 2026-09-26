@@ -1,8 +1,9 @@
+import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { FriendRecord } from '@/types';
 import { Icon } from '@/components/icon';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 type Props = {
   /** Seated players who haven't cashed out. */
@@ -28,7 +29,8 @@ export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, picke
               const isMe = p.playerId === selfId;
               const picked = pickedPlayerId === p.playerId;
               return (
-                <Pressable
+                <PressableScale
+                  pressedScale={0.95}
                   key={p.playerId}
                   accessibilityRole="button"
                   accessibilityLabel={`Rebuy ${p.name}${isMe ? ', you' : ''}`}
@@ -46,7 +48,7 @@ export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, picke
                     {p.name}
                     {isMe ? ' (You)' : ''}
                   </Text>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>
@@ -59,7 +61,8 @@ export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, picke
             {friendsNotInSession.map((f) => {
               const picked = pickedPlayerId === f.playerId;
               return (
-                <Pressable
+                <PressableScale
+                  pressedScale={0.95}
                   key={f.playerId}
                   accessibilityRole="button"
                   accessibilityLabel={`Add ${f.name}`}
@@ -79,7 +82,7 @@ export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, picke
                     color={picked ? c.accentText : c.blue}
                   />
                   <Text style={[styles.chipText, { color: picked ? c.accentText : c.blue }]}>{f.name}</Text>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>

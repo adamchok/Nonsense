@@ -1,7 +1,8 @@
+import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { Icon } from '@/components/icon';
 import type { ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 type Props = {
   title: string;
@@ -22,7 +23,7 @@ export function SessionHeader({ title, hostActions }: Props) {
       {hostActions ? (
         <View style={styles.actions}>
           {hostActions.micSlot}
-          <Pressable
+          <PressableScale
             onPress={hostActions.onBuyIn}
             accessibilityRole="button"
             accessibilityLabel="Add buy-in"
@@ -31,12 +32,11 @@ export function SessionHeader({ title, hostActions }: Props) {
               {
                 backgroundColor: c.accent,
                 opacity: pressed ? 0.9 : 1,
-                transform: [{ scale: pressed ? 0.98 : 1 }],
               },
             ]}>
             <Icon name="add" size={18} color={c.onAccent} importantForAccessibility="no" />
             <Text style={[styles.buyInLabel, { color: c.onAccent }]}>Buy-In</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       ) : null}
     </View>

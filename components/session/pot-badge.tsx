@@ -1,21 +1,29 @@
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { useAppColors } from '@/lib/app-theme';
 import { formatSessionAmountValue } from '@/lib/currency-format';
+import { Animated, useCountUp, usePop } from '@/components/motion';
 import type { SessionAmountUnit } from '@/types';
 import { StyleSheet, Text, View } from 'react-native';
 
+/** Round a mid-count value to the target's precision so it never shows stray decimals. */
+function settle(value: number, target: number): number {
+  return Number.isInteger(target) ? Math.round(value) : Math.round(value * 100) / 100;
+}
+
 export function PotBadge({ total, unit }: { total: number; unit: SessionAmountUnit }) {
   const c = useAppColors();
+  const shown = settle(useCountUp(total), total);
+  const popStyle = usePop(total);
   return (
     <View style={styles.row}>
-      <View
-        style={[styles.badge, { backgroundColor: c.card, borderColor: c.borderAccent }]}
+      <Animated.View
+        style={[styles.badge, { backgroundColor: c.card, borderColor: c.borderAccent }, popStyle]}
         accessible
         accessibilityLabel={`Pot ${formatSessionAmountValue(total, unit, 'ledger')}${unit === 'chips' ? ' chips' : ''}`}
         accessibilityLiveRegion="polite">
         <Text style={[styles.label, { color: c.accentText }]}>POT</Text>
         <SessionAmountDisplay
-          value={total}
+          value={shown}
           unit={unit}
           color={c.text}
           iconSize={14}
@@ -23,7 +31,7 @@ export function PotBadge({ total, unit }: { total: number; unit: SessionAmountUn
           textStyle={[styles.value, { color: c.text }]}
           rowStyle={styles.valueRow}
         />
-      </View>
+      </Animated.View>
     </View>
   );
 }

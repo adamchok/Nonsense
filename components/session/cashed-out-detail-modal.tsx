@@ -1,3 +1,4 @@
+import { PressableScale } from '@/components/motion';
 import { ModalShell } from '@/components/session/modal-shell';
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { useAppColors } from '@/lib/app-theme';
@@ -5,7 +6,7 @@ import { formatCashOutTimestamp } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
 import { Icon } from '@/components/icon';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 export type CashedOutDetail = {
   playerId: string;
@@ -57,7 +58,7 @@ export function CashedOutDetailModal({ detail, unit, canBuyBack, onClose, onBuyB
           </View>
 
           {canBuyBack ? (
-            <Pressable
+            <PressableScale
               style={[styles.buyBackBtn, { backgroundColor: c.chipBg, borderColor: c.borderAmber }]}
               onPress={() => onBuyBackIn(detail.playerId, detail.name)}
               accessibilityRole="button"
@@ -65,7 +66,7 @@ export function CashedOutDetailModal({ detail, unit, canBuyBack, onClose, onBuyB
               accessibilityHint="Opens the buy-in form for their new chips">
               <Icon name="replay" size={18} color={c.warning} />
               <Text style={[styles.buyBackLabel, { color: c.warning }]}>Buy Back In</Text>
-            </Pressable>
+            </PressableScale>
           ) : null}
         </>
       ) : null}

@@ -5,9 +5,11 @@ import { text as type, pressBg, ui } from '@/lib/ui';
 import { ledgerRowValues, type LedgerPlayer } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
 import { Icon } from '@/components/icon';
+import { Animated, PressableScale } from '@/components/motion';
+import { LedgerSwipeRow } from '@/components/session/ledger-swipe-row';
+import { useAmountFlash } from '@/components/session/use-amount-flash';
 import { memo } from 'react';
 import {
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -39,6 +41,9 @@ type Props = LedgerRowHandlers & {
   /** Set when the ledger is converting chips to dollars. */
   dollarsPerChip: number | undefined;
 };
+
+/** Full-width rows squish less than buttons. */
+const ROW_PRESSED_SCALE = 0.985;
 
 function spoken(value: number, unit: SessionAmountUnit): string {
   const text = formatSessionAmountValue(value, unit, 'ledger');
@@ -84,6 +89,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   const values = ledgerRowValues(player.total, cashOut?.amount, dollarsPerChip);
   const resultColor = values.result >= 0 ? c.profit : c.lossLight;
   const label = rowLabel(player, isHostRow, values, isCashedOut, displayUnit);
+  const flashStyle = useAmountFlash(player.total);
 
   const rowBg = isHostRow ? c.accentBg : c.card;
   const rowStyle: ViewStyle[] = [ui.row, styles.row, { backgroundColor: rowBg, borderColor: c.border }];
@@ -122,6 +128,10 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
           ) : null}
         </View>
         <View style={styles.amounts}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.flash, { backgroundColor: c.accent }, flashStyle]}
+          />
           <SessionAmountDisplay
             value={values.buyIn}
             unit={displayUnit}
@@ -161,13 +171,15 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
       {canAct && !isCashedOut ? (
         // Hidden from screen readers: the same actions are on the row's accessibilityActions.
         <View style={styles.actions} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          <Pressable
+          <PressableScale
+            pressedScale={0.92}
             style={[styles.iconBtn, { backgroundColor: c.blueBg }]}
             hitSlop={4}
             onPress={() => onCashOut(player)}>
             <Icon name="account-balance-wallet" size={20} color={c.blue} />
-          </Pressable>
-          <Pressable
+          </PressableScale>
+          <PressableScale
+            pressedScale={0.92}
             style={[styles.iconBtn, { borderColor: c.borderDanger }, styles.iconBtnOutline]}
             disabled={isRemoving}
             hitSlop={4}
@@ -177,7 +189,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             ) : (
               <Icon name="delete-outline" size={20} color={c.lossLight} />
             )}
-          </Pressable>
+          </PressableScale>
         </View>
       ) : null}
       {canAct && isCashedOut ? (
@@ -188,14 +200,15 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
 
   if (canAct && isCashedOut) {
     return (
-      <Pressable
+      <PressableScale
+        pressedScale={ROW_PRESSED_SCALE}
         style={(state) => [...rowStyle, pressBg(c, state, rowBg)]}
         onPress={() => onOpenCashedOut(player.playerId)}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityHint="Opens early cash-out details">
         {inner}
-      </Pressable>
+      </PressableScale>
     );
   }
 
@@ -215,21 +228,33 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
       }
     };
     return (
-      <Pressable
-        style={(state) => [...rowStyle, pressBg(c, state, rowBg)]}
-        onPress={() => onRebuy(player)}
-        onLongPress={() => onCorrectTotal(player)}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityHint="Double tap to add a rebuy"
-        accessibilityActions={[
-          { name: 'cashOut', label: `Cash out ${player.name}` },
-          { name: 'remove', label: `Remove ${player.name}` },
-          { name: 'correctTotal', label: 'Correct total' },
-        ]}
-        onAccessibilityAction={onAction}>
-        {inner}
-      </Pressable>
+      <LedgerSwipeRow
+        isRemoving={isRemoving}
+        onCashOut={() => onCashOut(player)}
+        onRemove={() => onRemove(player)}>
+        {(canPress) => (
+          <PressableScale
+            pressedScale={ROW_PRESSED_SCALE}
+            style={(state) => [...rowStyle, pressBg(c, state, rowBg)]}
+            onPress={() => {
+              if (canPress()) onRebuy(player);
+            }}
+            onLongPress={() => {
+              if (canPress()) onCorrectTotal(player);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityHint="Double tap to add a rebuy"
+            accessibilityActions={[
+              { name: 'cashOut', label: `Cash out ${player.name}` },
+              { name: 'remove', label: `Remove ${player.name}` },
+              { name: 'correctTotal', label: 'Correct total' },
+            ]}
+            onAccessibilityAction={onAction}>
+            {inner}
+          </PressableScale>
+        )}
+      </LedgerSwipeRow>
     );
   }
 
@@ -290,6 +315,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginLeft: 8,
     minWidth: 80,
+  },
+  /** Accent tint behind the amounts, faded in and out by useAmountFlash. */
+  flash: {
+    position: 'absolute',
+    top: -4,
+    bottom: -4,
+    left: -8,
+    right: -8,
+    borderRadius: 8,
+    opacity: 0,
   },
   cashOutSubline: {
     flexDirection: 'row',

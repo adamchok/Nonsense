@@ -1,7 +1,9 @@
+import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { pressBg } from '@/lib/ui';
 import { BREAKPOINT_MD, gutterFor } from '@/lib/spacing';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -37,6 +39,29 @@ type Props = {
   cardStyle?: StyleProp<ViewStyle>;
 };
 
+/** Phones: how far below its resting place the card starts before springing up. */
+const PHONE_RISE_PX = 28;
+/** Wide screens: the card grows from this scale while the Modal fades in. */
+const WIDE_START_SCALE = 0.96;
+
+/**
+ * Card entrance on open. The RN Modal's own fade drives backdrop + card opacity (and the
+ * exit, since the Modal unmounts its content on close); this only adds the card's motion.
+ */
+function useCardEntrance(visible: boolean, isWide: boolean) {
+  const progress = useSharedValue(visible ? 0 : 1);
+  useEffect(() => {
+    if (!visible) return;
+    progress.value = 0;
+    progress.value = withSpring(1, SPRING);
+  }, [visible, progress]);
+  return useAnimatedStyle(() =>
+    isWide
+      ? { transform: [{ scale: WIDE_START_SCALE + (1 - WIDE_START_SCALE) * progress.value }] }
+      : { transform: [{ translateY: (1 - progress.value) * PHONE_RISE_PX }] }
+  );
+}
+
 /** Overlay, keyboard handling, card and Cancel / primary row shared by the live-session modals. */
 export function ModalShell({
   visible,
@@ -50,11 +75,13 @@ export function ModalShell({
   const c = useAppColors();
   const { width } = useWindowDimensions();
   // Phones: near full width inside the gutter; tablet/desktop: a centred 480 column.
-  const frame = { maxWidth: width >= BREAKPOINT_MD ? 480 : 400 };
+  const isWide = width >= BREAKPOINT_MD;
+  const frame = { maxWidth: isWide ? 480 : 400 };
   const primaryDisabled = Boolean(primary?.disabled || primary?.busy);
+  const entrance = useCardEntrance(visible, isWide);
 
   const card = (
-    <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }, cardStyle]}>
+    <Animated.View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }, cardStyle, entrance]}>
       {title != null ? (
         <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
           {title}
@@ -62,7 +89,7 @@ export function ModalShell({
       ) : null}
       {children}
       <View style={styles.actions}>
-        <Pressable
+        <PressableScale
           style={(state) => [styles.cancelBtn, { borderColor: c.inputBorder }, pressBg(c, state, c.card)]}
           onPress={onClose}
           accessibilityRole="button"
@@ -70,9 +97,9 @@ export function ModalShell({
           <Text style={[styles.cancelLabel, { color: c.text }]}>
             {primary ? 'Cancel' : 'Close'}
           </Text>
-        </Pressable>
+        </PressableScale>
         {primary ? (
-          <Pressable
+          <PressableScale
             style={[styles.primaryBtn, { backgroundColor: c.accent }, primaryDisabled && styles.disabled]}
             onPress={primary.onPress}
             disabled={primaryDisabled}
@@ -84,10 +111,10 @@ export function ModalShell({
             ) : (
               <Text style={[styles.primaryLabel, { color: c.onAccent }]}>{primary.label}</Text>
             )}
-          </Pressable>
+          </PressableScale>
         ) : null}
       </View>
-    </View>
+    </Animated.View>
   );
 
   return (

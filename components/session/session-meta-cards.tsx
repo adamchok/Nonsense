@@ -1,3 +1,4 @@
+import { PressableScale } from '@/components/motion';
 import { SessionAmountPrefix } from '@/components/session-amount-prefix';
 import { useAppColors } from '@/lib/app-theme';
 import {
@@ -10,7 +11,7 @@ import { sessionBlindsAreSet, type SessionView } from '@/lib/session-view';
 import { Icon, type IconName } from '@/components/icon';
 import type { ReactNode } from 'react';
 import { pressBg } from '@/lib/ui';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 type Props = {
   session: SessionView | null;
@@ -121,7 +122,8 @@ function MetaCard({
     );
   }
   return (
-    <Pressable
+    <PressableScale
+      pressedScale={0.985}
       onPress={onEdit}
       style={(state) => [...cardStyle, pressBg(c, state)]}
       accessibilityRole="button"
@@ -129,7 +131,7 @@ function MetaCard({
       accessibilityHint={`Edit ${label.toLowerCase()}`}>
       {body}
       <Icon name="edit" size={18} color={c.textHint} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
