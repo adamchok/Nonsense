@@ -3,6 +3,7 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
   acceptFriendRequest,
+  ensureRefCode,
   lookupPlayerByRefCode,
   sendFriendRequest,
   subscribeFriends,
@@ -50,7 +51,31 @@ export default function QrCodeScreen() {
   const outgoingRef = useRef<FriendRequestRecord[]>([]);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
 
-  const refCode = playerProfile?.refCode ?? '';
+  // Profiles created before referral codes (or whose back-fill failed at sign-in) have no
+  // code yet: create it here rather than showing an empty card.
+  const [backfilledCode, setBackfilledCode] = useState<string | null>(null);
+  const [codeStatus, setCodeStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [codeAttempt, setCodeAttempt] = useState(0);
+  const refCode = playerProfile?.refCode ?? backfilledCode ?? '';
+
+  useEffect(() => {
+    const uid = playerProfile?.id;
+    if (!uid || playerProfile?.refCode) return;
+    let cancelled = false;
+    setCodeStatus('loading');
+    ensureRefCode(uid)
+      .then((code) => {
+        if (cancelled) return;
+        setBackfilledCode(code);
+        setCodeStatus('idle');
+      })
+      .catch(() => {
+        if (!cancelled) setCodeStatus('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [playerProfile?.id, playerProfile?.refCode, codeAttempt]);
 
   useEffect(() => {
     if (!user) return;
@@ -361,9 +386,38 @@ export default function QrCodeScreen() {
                     <QRCode value={refCode} size={210} backgroundColor={c.qrBg} color={c.qrFg} />
                   </View>
                 ) : (
-                  <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>
-                    Set your display name to generate a referral code.
-                  </Text>
+                  <View style={styles.qrPlaceholderBox}>
+                    {!playerProfile ? (
+                      <>
+                        <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>
+                          Set your display name to generate a referral code.
+                        </Text>
+                        <Pressable
+                          onPress={() => router.push('/name')}
+                          accessibilityRole="button"
+                          style={[styles.qrRetry, { borderColor: c.inputBorder }]}>
+                          <Text style={[styles.qrRetryLabel, { color: c.text }]}>Set display name</Text>
+                        </Pressable>
+                      </>
+                    ) : codeStatus === 'error' ? (
+                      <>
+                        <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>
+                          Couldn&apos;t create your code.
+                        </Text>
+                        <Pressable
+                          onPress={() => setCodeAttempt((n) => n + 1)}
+                          accessibilityRole="button"
+                          style={[styles.qrRetry, { borderColor: c.inputBorder }]}>
+                          <Text style={[styles.qrRetryLabel, { color: c.text }]}>Try again</Text>
+                        </Pressable>
+                      </>
+                    ) : (
+                      <>
+                        <ActivityIndicator color={c.textMuted} />
+                        <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>Creating your code…</Text>
+                      </>
+                    )}
+                  </View>
                 )}
 
                 <Text style={[styles.code, styles.codeExport, { color: c.text }]}>
@@ -631,6 +685,21 @@ const styles = StyleSheet.create({
   qrInner: {
     borderRadius: 16,
     padding: 12,
+  },
+  qrPlaceholderBox: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  qrRetry: {
+    minHeight: 40,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  qrRetryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   qrPlaceholder: {
     fontSize: 13,
