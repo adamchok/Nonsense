@@ -269,8 +269,8 @@ const eyeA11yHidden: object =
   Platform.OS === 'web' ? { 'aria-hidden': true } : { importantForAccessibility: 'no', accessibilityElementsHidden: true };
 
 const styles = StyleSheet.create({
-  rules: { marginTop: 10, gap: 4 },
-  rule: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rules: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 },
+  rule: { width: '50%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
   ruleText: { fontSize: 12, lineHeight: 16 },
   root: { gap: 14 },
   label: { fontSize: 13, lineHeight: 18, fontWeight: '500', marginBottom: 6 },
