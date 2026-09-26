@@ -284,50 +284,6 @@ export default function NewSessionScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag">
             <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
-            <View style={styles.amountModeHeader}>
-              <Icon name="place" size={20} color={c.textMuted} style={styles.icons} />
-              <Text style={[styles.amountModeTitle, { color: c.text }]}>Location</Text>
-              <Text style={[styles.optionalTag, { color: c.textHint }]}>Optional</Text>
-            </View>
-            {hasSavedLocations ? (
-              <Pressable
-                style={[styles.locationPickerBtn, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}
-                accessibilityRole="button"
-                accessibilityLabel={`Location: ${locationMode === 'saved' ? getSelectedSavedLocationName() ?? 'not selected' : 'Other'}. Change`}
-                onPress={() => setShowLocationPicker(true)}>
-                <Icon name="place" size={18} color={c.textMuted} />
-                <Text style={[styles.locationPickerText, { color: c.text }]}>
-                  {locationMode === 'saved'
-                    ? getSelectedSavedLocationName() ?? 'Select a saved location'
-                    : 'Other'}
-                </Text>
-                <Icon name="expand-more" size={20} color={c.textMuted} />
-              </Pressable>
-            ) : null}
-
-            {(locationMode === 'other' || !hasSavedLocations) && (
-              <View style={styles.locationInputGroup}>
-                <TextInput
-                  value={otherLocation}
-                  onChangeText={setOtherLocation}
-                  accessibilityLabel="Session location"
-                  placeholder="Location (e.g. Adam's place)"
-                  placeholderTextColor={c.placeholder}
-                  style={[
-                    styles.input,
-                    { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
-                  ]}
-                />
-                {!hasSavedLocations ? (
-                  <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
-                    No saved locations yet. Enter the session location above.
-                  </Text>
-                ) : null}
-              </View>
-            )}
-            </View>
-
-            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={styles.amountModeHeader}>
                 <Icon name="tune" size={20} color={c.textMuted} style={styles.icons} />
                 <Text style={[styles.amountModeTitle, { color: c.text }]}>Amounts</Text>
@@ -523,6 +479,51 @@ export default function NewSessionScreen() {
                 )}
               </View>
             )}
+
+            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={styles.amountModeHeader}>
+              <Icon name="place" size={20} color={c.textMuted} style={styles.icons} />
+              <Text style={[styles.amountModeTitle, { color: c.text }]}>Location</Text>
+              <Text style={[styles.optionalTag, { color: c.textHint }]}>Optional</Text>
+            </View>
+            {hasSavedLocations ? (
+              <Pressable
+                style={[styles.locationPickerBtn, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Location: ${locationMode === 'saved' ? getSelectedSavedLocationName() ?? 'not selected' : 'Other'}. Change`}
+                onPress={() => setShowLocationPicker(true)}>
+                <Icon name="place" size={18} color={c.textMuted} />
+                <Text style={[styles.locationPickerText, { color: c.text }]}>
+                  {locationMode === 'saved'
+                    ? getSelectedSavedLocationName() ?? 'Select a saved location'
+                    : 'Other'}
+                </Text>
+                <Icon name="expand-more" size={20} color={c.textMuted} />
+              </Pressable>
+            ) : null}
+
+            {(locationMode === 'other' || !hasSavedLocations) && (
+              <View style={styles.locationInputGroup}>
+                <TextInput
+                  value={otherLocation}
+                  onChangeText={setOtherLocation}
+                  accessibilityLabel="Session location"
+                  placeholder="Location (e.g. Adam's place)"
+                  onFocus={scrollLowerFormIntoView}
+                  placeholderTextColor={c.placeholder}
+                  style={[
+                    styles.input,
+                    { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                  ]}
+                />
+                {!hasSavedLocations ? (
+                  <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
+                    No saved locations yet. Enter the session location above.
+                  </Text>
+                ) : null}
+              </View>
+            )}
+            </View>
 
             <Pressable
               onPress={onCreate}
