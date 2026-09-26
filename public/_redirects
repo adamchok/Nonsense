@@ -1,0 +1,8 @@
+# Cloudflare Pages: serve expo-router's pre-rendered dynamic routes ([id].html) for real ids.
+# Static siblings are listed first so /session/new is not captured by /session/:id.
+/session/new /session/new 200
+/session/cashout/:id /session/cashout/[id] 200
+/session/summary/:id /session/summary/[id] 200
+/session/:id /session/[id] 200
+/group/new /group/new 200
+/group/:id/members /group/[id]/members 200

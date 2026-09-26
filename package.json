@@ -16,7 +16,9 @@
     "build:preview": "eas build -p android --profile preview",
     "build:production": "eas build -p android --profile production",
     "update:preview": "eas update --branch preview --environment preview --platform android --message",
-    "update:production": "eas update --branch production --environment production --platform android --message"
+    "update:production": "eas update --branch production --environment production --platform android --message",
+    "deploy:web": "expo export -p web --output-dir dist && npx wrangler pages deploy dist --project-name nonsense --branch main",
+    "deploy:web:preview": "expo export -p web --output-dir dist && npx wrangler pages deploy dist --project-name nonsense --branch preview"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
