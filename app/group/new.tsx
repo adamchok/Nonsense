@@ -4,8 +4,9 @@ import { useAuth } from '@/lib/auth-context';
 import { createGroup } from '@/lib/firestore';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
+import { PressableScale } from '@/components/motion';
 
 export default function NewGroupScreen() {
   const c = useAppColors();
@@ -32,35 +33,27 @@ export default function NewGroupScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <Text style={[styles.heading, { color: c.text }]}>Name your group</Text>
-      <Text style={[styles.hint, { color: c.textMuted }]}>
-        Choose a name for your poker group, like &ldquo;Friday Boys&rdquo; or &ldquo;High Stakes Crew&rdquo;.
-      </Text>
 
       <TextInput
         value={name}
         onChangeText={setName}
         accessibilityLabel="Group name"
-        placeholder="Group name"
+        placeholder="Friday Boys"
         placeholderTextColor={c.placeholder}
         autoFocus
         style={[styles.input, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
       />
 
-      <Pressable
+      <PressableScale
         onPress={handleNext}
         disabled={!canSubmit}
-        style={({ pressed }) => [
-          styles.nextBtn,
-          { backgroundColor: c.accent },
-          !canSubmit && styles.disabled,
-          pressed && canSubmit && styles.pressed,
-        ]}>
+        style={[styles.nextBtn, { backgroundColor: c.accent }, !canSubmit && styles.disabled]}>
         {isSaving ? (
           <ActivityIndicator size="small" color={c.onAccent} />
         ) : (
           <Text style={[styles.nextLabel, { color: c.onAccent }]}>Next</Text>
         )}
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }
@@ -77,10 +70,6 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     fontWeight: '700',
     letterSpacing: -0.2,
-  },
-  hint: {
-    fontSize: 15,
-    lineHeight: 21,
   },
   input: {
     minHeight: 48,
@@ -104,8 +93,5 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.85,
   },
 });

@@ -11,6 +11,7 @@ import {
 } from '@/lib/firestore';
 import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
 import { Icon } from '@/components/icon';
+import { Animated, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -24,6 +25,8 @@ import {
   View
 } from 'react-native';
 import { userMessage } from '@/lib/user-message';
+
+const INITIAL_STAGGER_WINDOW_MS = 600;
 
 export default function GroupMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -63,6 +66,15 @@ export default function GroupMembersScreen() {
     if (!user) return;
     return subscribeFriends(user.uid, setFriends, () => {});
   }, [user]);
+
+  // Stagger only the first batch of rows; members added later animate in without a delay.
+  const hasMembers = members.length > 0;
+  const [initialStagger, setInitialStagger] = useState(true);
+  useEffect(() => {
+    if (!hasMembers) return;
+    const t = setTimeout(() => setInitialStagger(false), INITIAL_STAGGER_WINDOW_MS);
+    return () => clearTimeout(t);
+  }, [hasMembers]);
 
   const friendsNotInGroup = friends.filter(
     (f) => !members.some((m) => m.id === f.playerId)
@@ -163,25 +175,28 @@ export default function GroupMembersScreen() {
             <Text style={[styles.chipsSectionLabel, { color: c.textHint }]}>QUICK ADD</Text>
             <View style={styles.chipsWrap}>
               {playerProfile && !selfInGroup && (
-                <Pressable
+                <Animated.View key="self" entering={fadeIn} exiting={fadeOut} layout={layoutTransition}>
+                <PressableScale
                   style={[styles.chip, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
                   accessibilityRole="button"
                   accessibilityLabel={`Add me (${playerProfile.name})`}
                   onPress={handleAddSelf}>
                   <Icon name="person" size={16} color={c.accentText} />
                   <Text style={[styles.chipText, { color: c.accentText }]}>Me ({playerProfile.name})</Text>
-                </Pressable>
+                </PressableScale>
+                </Animated.View>
               )}
               {friendsNotInGroup.map((f) => (
-                <Pressable
-                  key={f.playerId}
+                <Animated.View key={f.playerId} entering={fadeIn} exiting={fadeOut} layout={layoutTransition}>
+                <PressableScale
                   style={[styles.chip, { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder }]}
                   accessibilityRole="button"
                   accessibilityLabel={`Add ${f.name}`}
                   onPress={() => handleAddFriend(f)}>
                   <Icon name="person-add" size={14} color={c.blue} />
                   <Text style={[styles.chipText, { color: c.blue }]}>{f.name}</Text>
-                </Pressable>
+                </PressableScale>
+                </Animated.View>
               ))}
             </View>
           </View>
@@ -234,9 +249,12 @@ export default function GroupMembersScreen() {
               contentContainerStyle={styles.memberListContent}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator>
-              {members.map((member) => (
-                <View
+              {members.map((member, i) => (
+                <Animated.View
                   key={member.id}
+                  entering={listItemEntering(initialStagger ? i : 0)}
+                  exiting={fadeOut}
+                  layout={layoutTransition}
                   style={[styles.memberRow, { backgroundColor: c.card, borderColor: c.border }]}>
                   <View style={styles.memberInfo}>
                     <GroupMemberAvatar member={member} viewerProfile={playerProfile} />
@@ -263,7 +281,7 @@ export default function GroupMembersScreen() {
                   ) : (
                     <View style={{ width: 20 }} />
                   )}
-                </View>
+                </Animated.View>
               ))}
             </ScrollView>
           )}

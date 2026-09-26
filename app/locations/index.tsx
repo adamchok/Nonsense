@@ -4,11 +4,14 @@ import { useAuth } from '@/lib/auth-context';
 import { addSavedLocation, getSavedLocations, removeSavedLocation } from '@/lib/firestore';
 import type { SavedLocation } from '@/types';
 import { Icon } from '@/components/icon';
+import { Animated, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
+
+const INITIAL_STAGGER_WINDOW_MS = 600;
 
 export default function SavedLocationsScreen() {
   const c = useAppColors();
@@ -17,6 +20,15 @@ export default function SavedLocationsScreen() {
   const [newLocation, setNewLocation] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Stagger only the first batch of rows; a newly saved location animates in without a delay.
+  const hasLocations = locations.length > 0;
+  const [initialStagger, setInitialStagger] = useState(true);
+  useEffect(() => {
+    if (!hasLocations) return;
+    const t = setTimeout(() => setInitialStagger(false), INITIAL_STAGGER_WINDOW_MS);
+    return () => clearTimeout(t);
+  }, [hasLocations]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -100,26 +112,34 @@ export default function SavedLocationsScreen() {
               { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
             ]}
           />
-          <Pressable
+          <PressableScale
+            pressedScale={0.92}
             style={[styles.addBtn, { backgroundColor: c.accent }, isSaving && styles.disabled]}
             onPress={onAddLocation}
             accessibilityRole="button"
             accessibilityLabel="Save location"
             disabled={isSaving || !newLocation.trim()}>
             <Icon name="add" size={20} color={c.onAccent} />
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
 
       {error ? <Text style={{ color: c.loss }}>{error}</Text> : null}
 
-      <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+      <Animated.View layout={layoutTransition} style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
         <Text style={[styles.label, { color: c.textMuted }]}>SAVED LOCATIONS</Text>
         {locations.length === 0 ? (
-          <EmptyState compact icon="place" title="No saved locations" message="Locations you add appear here." />
+          <Animated.View entering={fadeIn}>
+            <EmptyState compact icon="place" title="No saved locations" message="Locations you add appear here." />
+          </Animated.View>
         ) : (
           locations.map((item, i) => (
-            <View key={item.id} style={[styles.row, i > 0 && styles.rowDivider, { borderColor: c.border }]}>
+            <Animated.View
+              key={item.id}
+              entering={listItemEntering(initialStagger ? i : 0)}
+              exiting={fadeOut}
+              layout={layoutTransition}
+              style={[styles.row, i > 0 && styles.rowDivider, { borderColor: c.border }]}>
               <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -130,10 +150,10 @@ export default function SavedLocationsScreen() {
                 onPress={() => onDeleteLocation(item)}>
                 <Icon name="delete-outline" size={20} color={c.lossLight} />
               </Pressable>
-            </View>
+            </Animated.View>
           ))
         )}
-      </View>
+      </Animated.View>
     </ScrollView>
   );
 }

@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userMessage } from '@/lib/user-message';
 import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
 import { AppSwitch } from '@/components/app-switch';
+import { Animated, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
 
 const AMOUNT_UNIT_TABS: readonly SegmentedTab<SessionAmountUnit>[] = [
   { key: 'cash', label: 'Cash', icon: 'payments' },
@@ -283,7 +284,10 @@ export default function NewSessionScreen() {
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag">
-            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Animated.View
+              entering={listItemEntering(0)}
+              layout={layoutTransition}
+              style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={styles.amountModeHeader}>
                 <Icon name="tune" size={20} color={c.textMuted} style={styles.icons} />
                 <Text style={[styles.amountModeTitle, { color: c.text }]}>Amounts</Text>
@@ -298,7 +302,7 @@ export default function NewSessionScreen() {
                 onChange={setAmountUnit}
               />
               {isChipsMode ? (
-                <View style={styles.chipValueBlock}>
+                <Animated.View entering={fadeIn} exiting={fadeOut} layout={layoutTransition} style={styles.chipValueBlock}>
                   <View style={styles.labelWithRequired}>
                     <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Dollars per chip</Text>
                     <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
@@ -318,11 +322,14 @@ export default function NewSessionScreen() {
                   <Text style={[styles.groupSectionHint, { color: c.textHint }]}>
                     Example: 100 chips for a $50 buy-in → $0.50 per chip.
                   </Text>
-                </View>
+                </Animated.View>
               ) : null}
-            </View>
+            </Animated.View>
 
-            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Animated.View
+              entering={listItemEntering(1)}
+              layout={layoutTransition}
+              style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={styles.amountModeHeader}>
               <Icon name="payments" size={20} color={c.textMuted} style={styles.icons} />
               <Text style={[styles.amountModeTitle, { color: c.text }]}>
@@ -365,11 +372,14 @@ export default function NewSessionScreen() {
                 </SessionAmountInputRow>
               </View>
             </View>
-            </View>
+            </Animated.View>
 
             {/* ---- Group picker ---- */}
             {groups.length > 0 && (
-              <View style={[styles.groupSection, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Animated.View
+                entering={listItemEntering(2)}
+                layout={layoutTransition}
+                style={[styles.groupSection, { backgroundColor: c.card, borderColor: c.border }]}>
                 <View style={styles.groupSectionHeader}>
                   <Icon name="group" size={20} color={c.textMuted} style={styles.icons} />
                   <Text style={[styles.groupSectionTitle, { color: c.text }]}>Play with a group</Text>
@@ -380,7 +390,7 @@ export default function NewSessionScreen() {
                 </Text>
 
                 {selectedGroup ? (
-                  <View style={styles.selectedGroupRow}>
+                  <Animated.View key="selected" entering={fadeIn} layout={layoutTransition} style={styles.selectedGroupRow}>
                     <View style={styles.selectedGroupInfo}>
                       <Icon name="group" size={20} color={c.accentText} />
                       <Text style={[styles.selectedGroupName, { color: c.text }]}>
@@ -397,20 +407,22 @@ export default function NewSessionScreen() {
                       accessibilityLabel="Remove selected group">
                       <Icon name="close" size={20} color={c.textHint} />
                     </Pressable>
-                  </View>
+                  </Animated.View>
                 ) : (
-                  <Pressable
-                    style={[styles.groupPickerBtn, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Select group"
-                    onPress={() => setShowGroupPicker(true)}>
-                    <Icon name="group" size={18} color={c.textMuted} />
-                    <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
-                  </Pressable>
+                  <Animated.View key="picker" entering={fadeIn} layout={layoutTransition}>
+                    <Pressable
+                      style={[styles.groupPickerBtn, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Select group"
+                      onPress={() => setShowGroupPicker(true)}>
+                      <Icon name="group" size={18} color={c.textMuted} />
+                      <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
+                    </Pressable>
+                  </Animated.View>
                 )}
 
                 {selectedGroup && groupMembers.length > 0 && (
-                  <>
+                  <Animated.View entering={fadeIn} exiting={fadeOut} layout={layoutTransition} style={styles.groupMembersBlock}>
                     <View style={styles.groupMemberList}>
                       {groupMembers.map((m) => (
                         <View
@@ -433,14 +445,18 @@ export default function NewSessionScreen() {
                         style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
                       />
                     </SessionAmountInputRow>
-                  </>
+                  </Animated.View>
                 )}
-              </View>
+              </Animated.View>
             )}
 
             {/* ---- Solo join (hidden only when user is already in the selected group) ---- */}
             {shouldShowJoinAsPlayer && (
-              <View style={[styles.joinCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Animated.View
+                entering={listItemEntering(3)}
+                exiting={fadeOut}
+                layout={layoutTransition}
+                style={[styles.joinCard, { backgroundColor: c.card, borderColor: c.border }]}>
                 <View style={styles.joinRow}>
                   <View style={styles.joinTextCol}>
                     <View style={styles.joinTextRow}>
@@ -458,6 +474,7 @@ export default function NewSessionScreen() {
                   />
                 </View>
                 {joinSelf && (
+                  <Animated.View entering={fadeIn} exiting={fadeOut} layout={layoutTransition}>
                   <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                     <TextInput
                       value={buyInAmount}
@@ -473,11 +490,15 @@ export default function NewSessionScreen() {
                       ]}
                     />
                   </SessionAmountInputRow>
+                  </Animated.View>
                 )}
-              </View>
+              </Animated.View>
             )}
 
-            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Animated.View
+              entering={listItemEntering(4)}
+              layout={layoutTransition}
+              style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={styles.amountModeHeader}>
               <Icon name="place" size={20} color={c.textMuted} style={styles.icons} />
               <Text style={[styles.amountModeTitle, { color: c.text }]}>Location</Text>
@@ -500,7 +521,7 @@ export default function NewSessionScreen() {
             ) : null}
 
             {(locationMode === 'other' || !hasSavedLocations) && (
-              <View style={styles.locationInputGroup}>
+              <Animated.View entering={fadeIn} exiting={fadeOut} layout={layoutTransition} style={styles.locationInputGroup}>
                 <TextInput
                   value={otherLocation}
                   onChangeText={setOtherLocation}
@@ -518,28 +539,25 @@ export default function NewSessionScreen() {
                     No saved locations yet. Enter the session location above.
                   </Text>
                 ) : null}
-              </View>
+              </Animated.View>
             )}
-            </View>
+            </Animated.View>
 
-            <Pressable
+            <Animated.View entering={listItemEntering(5)} layout={layoutTransition}>
+            <PressableScale
               onPress={onCreate}
               disabled={isSaving}
               accessibilityRole="button"
               accessibilityLabel="Start Session"
               accessibilityState={{ disabled: isSaving, busy: isSaving }}
-              style={({ pressed }) => [
-                styles.button,
-                { backgroundColor: c.accent },
-                isSaving && styles.disabled,
-                pressed && !isSaving && styles.pressed,
-              ]}>
+              style={[styles.button, { backgroundColor: c.accent }, isSaving && styles.disabled]}>
                 {isSaving ? (
                   <ActivityIndicator size="small" color={c.onAccent} />
                 ) : (
                   <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Start Session</Text>
                 )}
-            </Pressable>
+            </PressableScale>
+            </Animated.View>
         </ScrollView>
 
       {/* ---- Group picker modal ---- */}
@@ -760,9 +778,6 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.7,
   },
-  pressed: {
-    opacity: 0.85,
-  },
   groupSection: {
     borderRadius: 14,
     borderWidth: 1,
@@ -833,6 +848,9 @@ const styles = StyleSheet.create({
   },
   selectedGroupCount: {
     fontSize: 12,
+  },
+  groupMembersBlock: {
+    gap: 10,
   },
   groupMemberList: {
     flexDirection: 'row',

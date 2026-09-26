@@ -19,6 +19,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userMessage } from '@/lib/user-message';
 import { GoogleButton } from '@/components/google-button';
+import { Animated } from '@/components/motion';
+import { FadeInDown, ReduceMotion } from 'react-native-reanimated';
+
+/** First-launch card: a single, slightly longer fade-up than list rows. */
+const cardEntering = FadeInDown.duration(360).reduceMotion(ReduceMotion.System);
 
 export default function NameScreen() {
   const c = useAppColors();
@@ -137,7 +142,7 @@ export default function NameScreen() {
           styles.scrollContent,
           { paddingBottom: Math.max(insets.bottom, 20) + 16 },
         ]}>
-        <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+        <Animated.View entering={cardEntering} style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.title, { color: c.text }]}>
             {isEditing && !didGoogleSignIn ? 'Edit display name' : 'What should we call you?'}
           </Text>
@@ -241,7 +246,7 @@ export default function NameScreen() {
               />
             </View>
           ) : null}
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

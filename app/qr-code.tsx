@@ -12,6 +12,9 @@ import {
 } from '@/lib/firestore';
 import type { FriendRecord, FriendRequestRecord, PlayerProfile } from '@/types';
 import { Icon } from '@/components/icon';
+import { ScaleFadeIn } from '@/components/celebration';
+import { Animated, PressableScale, fadeIn } from '@/components/motion';
+import { ReduceMotion, ZoomIn } from 'react-native-reanimated';
 import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,6 +27,9 @@ import ViewShot, { captureRef } from 'react-native-view-shot';
 import { userMessage } from '@/lib/user-message';
 
 type Tab = 'my' | 'scan';
+
+/** Copy icon <-> check swap: a quick pop-in so the confirmation registers. */
+const iconSwapEntering = ZoomIn.duration(180).reduceMotion(ReduceMotion.System);
 
 /** Image export relies on react-native-view-shot + expo-sharing, which have no web implementation. */
 const CAN_SHARE_QR_IMAGE = Platform.OS !== 'web';
@@ -362,7 +368,8 @@ export default function QrCodeScreen() {
       </View>
 
       {activeTab === 'my' ? (
-        <View style={styles.myRoot}>
+        <Animated.View key="my" entering={fadeIn} style={styles.myRoot}>
+          <ScaleFadeIn fromScale={0.96}>
           <ViewShot
             ref={shareCardRef}
             options={{ format: 'png', quality: 0.95 }}
@@ -429,22 +436,26 @@ export default function QrCodeScreen() {
               </View>
             </View>
           </ViewShot>
+          </ScaleFadeIn>
 
           <View style={styles.shareToolbar}>
-            <Pressable
+            <PressableScale
+              pressedScale={0.92}
               style={[styles.toolbarBtn, { borderColor: c.border, backgroundColor: c.cardAlt }]}
               onPress={copyRefCode}
               disabled={!refCode}
               accessibilityRole="button"
-              accessibilityLabel="Copy referral code">
-              <Icon
-                name={copied ? 'check' : 'content-copy'}
-                size={20}
-                color={copied ? c.profit : c.textMuted}
-              />
-            </Pressable>
+              accessibilityLabel={copied ? 'Referral code copied' : 'Copy referral code'}>
+              <Animated.View key={copied ? 'check' : 'copy'} entering={iconSwapEntering}>
+                <Icon
+                  name={copied ? 'check' : 'content-copy'}
+                  size={20}
+                  color={copied ? c.profit : c.textMuted}
+                />
+              </Animated.View>
+            </PressableScale>
             {CAN_SHARE_QR_IMAGE && (
-              <Pressable
+              <PressableScale
                 style={[
                   styles.toolbarBtnPrimary,
                   { backgroundColor: c.accent, borderColor: c.accentBorder },
@@ -458,16 +469,16 @@ export default function QrCodeScreen() {
                 <Text style={[styles.toolbarBtnPrimaryLabel, { color: c.onAccent }]}>
                   {sharingQr ? 'Sharing…' : 'Share'}
                 </Text>
-              </Pressable>
+              </PressableScale>
             )}
           </View>
 
           <Text style={[styles.note, { color: c.textHint }]}>
             Your QR code is private. If someone scans it, they can send you a friend request.
           </Text>
-        </View>
+        </Animated.View>
       ) : (
-        <View style={styles.scanRoot}>
+        <Animated.View key="scan" entering={fadeIn} style={styles.scanRoot}>
           <View style={[styles.scanCard, { borderColor: c.border }]}>
             <CameraView
               style={StyleSheet.absoluteFillObject}
@@ -509,7 +520,7 @@ export default function QrCodeScreen() {
             Scan a friend&apos;s QR code to send them a friend request.
             {Platform.OS !== 'web' ? ' Or pick a saved photo of their code.' : ''}
           </Text>
-        </View>
+        </Animated.View>
       )}
 
       <Modal

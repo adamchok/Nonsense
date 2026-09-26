@@ -6,8 +6,12 @@ import { formatCurrency, formatSessionBlindsForDisplay, formatSignedCurrency } f
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getEarlyCashOuts, getPlayerProfile, getResults, getSessionMeta } from '@/lib/firestore';
 import { computeSettlements } from '@/lib/settlement';
+import type { AppColors } from '@/lib/app-theme';
 import type { EarlyCashOut, SessionAmountUnit, SessionResult } from '@/types';
 import { Icon } from '@/components/icon';
+import { ConfettiBurst, ScaleFadeIn } from '@/components/celebration';
+import { Animated, fadeIn, listItemEntering, useCountUp } from '@/components/motion';
+import { FadeIn, FadeInDown, ReduceMotion, useReducedMotion } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
@@ -25,8 +29,121 @@ import {
 } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
+/** Settle-moment choreography (ms): winner first, then the rest of the standings. */
+const WINNER_DELAY_MS = 120;
+const STANDINGS_START_MS = 380;
+const STANDINGS_STEP_MS = 70;
+const COUNT_UP_MS = 700;
+
+function celebrationRowDelay(index: number): number {
+  return index === 0 ? WINNER_DELAY_MS : STANDINGS_START_MS + (index - 1) * STANDINGS_STEP_MS;
+}
+
+type ResultRowProps = {
+  item: SessionResult;
+  index: number;
+  isMe: boolean;
+  isEarly: boolean;
+  barColor: string;
+  celebrate: boolean;
+  c: AppColors;
+};
+
+/** One standings row. On the settle moment it staggers in and its P/L counts up from zero. */
+function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: ResultRowProps) {
+  const reduceMotion = useReducedMotion();
+  const delay = celebrationRowDelay(index);
+  const [counting, setCounting] = useState(!celebrate || reduceMotion);
+  useEffect(() => {
+    if (counting) return;
+    const t = setTimeout(() => setCounting(true), delay);
+    return () => clearTimeout(t);
+  }, [counting, delay]);
+  const shownProfit = useCountUp(counting ? item.profit : 0, COUNT_UP_MS);
+
+  const row = (
+    <View
+      accessible
+      accessibilityLabel={[
+        `Rank ${index + 1}`,
+        item.playerName,
+        isMe ? 'you' : null,
+        isEarly ? 'cashed out early' : null,
+        `${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}`,
+        `in ${formatCurrency(item.totalBuyIn)}`,
+        `out ${formatCurrency(item.cashOut)}`,
+      ]
+        .filter(Boolean)
+        .join(', ')}
+      style={[
+        styles.resultRow,
+        { backgroundColor: c.card, borderColor: c.border },
+        index === 0 && { borderColor: c.accentBorder },
+      ]}>
+      {barColor !== 'transparent' ? (
+        <View style={[styles.rankBar, { backgroundColor: barColor }]} />
+      ) : (
+        <View style={styles.rankBarPlaceholder} />
+      )}
+      <View style={styles.resultBody}>
+        <View style={styles.resultTop}>
+          <View style={styles.resultLeft}>
+            <View style={[styles.rankBadge, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
+              <Text style={[styles.rankBadgeText, { color: c.textSecondary }]}>{index + 1}</Text>
+            </View>
+            <Text style={[styles.resultName, { color: c.text }]} numberOfLines={1}>
+              {item.playerName}
+            </Text>
+            <View style={styles.badgesRow}>
+              {isMe && (
+                <View style={[styles.youBadge, { backgroundColor: c.badge.you }]}>
+                  <Text style={styles.youBadgeText}>YOU</Text>
+                </View>
+              )}
+              {isEarly && (
+                <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
+                  <Text style={styles.earlyBadgeText}>Early</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <Text
+            style={[
+              styles.resultProfit,
+              { color: item.profit >= 0 ? c.profit : c.loss },
+            ]}>
+            {formatSignedCurrency(shownProfit)}
+          </Text>
+        </View>
+        <View style={styles.amountChips}>
+          <View style={[styles.amountChip, { backgroundColor: c.chipMinusBg, borderColor: c.border }]}>
+            <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>In</Text>
+            <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.totalBuyIn)}</Text>
+          </View>
+          <Icon name="arrow-right" size={14} color={c.textHint} />
+          <View style={[styles.amountChip, { backgroundColor: c.chipPlusBg, borderColor: c.border }]}>
+            <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>Out</Text>
+            <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.cashOut)}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  if (celebrate && index === 0) {
+    return <ScaleFadeIn delay={delay}>{row}</ScaleFadeIn>;
+  }
+  const entering = celebrate
+    ? FadeInDown.duration(260).delay(delay).reduceMotion(ReduceMotion.System)
+    : listItemEntering(index);
+  return <Animated.View entering={entering}>{row}</Animated.View>;
+}
+
 export default function SessionSummaryScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, settled } = useLocalSearchParams<{ id: string; settled?: string }>();
+  // Cash-out lands here with ?settled=1: play the settle moment once. Captured at mount so
+  // stripping the param below (so refresh/back doesn't replay it) doesn't cancel it.
+  const [celebrate] = useState(settled === '1');
   const navigation = useNavigation();
   const c = useAppColors();
   const layout = usePageLayout(40);
@@ -46,6 +163,10 @@ export default function SessionSummaryScreen() {
   const goToHistory = useCallback(() => {
     router.replace('/(tabs)/history');
   }, []);
+
+  useEffect(() => {
+    if (settled === '1') router.setParams({ settled: undefined });
+  }, [settled]);
 
   useEffect(() => {
     if (!id) return;
@@ -250,192 +371,141 @@ export default function SessionSummaryScreen() {
     return 'transparent';
   };
 
-  return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={[layout.content, styles.scrollContent]}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}>
-      <View style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
-        <View style={styles.metaGrid}>
-          <View style={styles.metaGridRow}>
-            <View style={styles.metaGridCell}>
-              <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
-                <Icon name="map-marker-outline" size={16} color={c.green} />
-              </View>
-              <View style={styles.metaItemText}>
-                <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
-                <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
-                  {sessionLocation?.trim() ? sessionLocation.trim() : '—'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.metaGridCell}>
-              <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
-                <Icon name="crown-outline" size={16} color={c.yellow} />
-              </View>
-              <View style={styles.metaItemText}>
-                <Text style={[styles.metaLabel, { color: c.textMuted }]}>Host</Text>
-                <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
-                  {sessionHostName?.trim() ? sessionHostName.trim() : '—'}
-                </Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.metaGridRow}>
-            <View style={styles.metaGridCell}>
-              <View style={[styles.metaIconWrapSmall, { backgroundColor: c.blueBg }]}>
-                <Icon name="clock-outline" size={16} color={c.blue} />
-              </View>
-              <View style={styles.metaItemText}>
-                <Text style={[styles.metaLabel, { color: c.textMuted }]}>Duration</Text>
-                <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
-                  {durationText}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.metaGridCell}>
-              <View
-                style={[
-                  styles.metaIconWrapSmall,
-                  { backgroundColor: c.chipBg, borderColor: c.chipBorder, borderWidth: 1 },
-                ]}>
-                <Icon name="cash-multiple" size={16} color={c.chipText} />
-              </View>
-              <View style={styles.metaItemText}>
-                <Text style={[styles.metaLabel, { color: c.textMuted }]}>Blinds</Text>
-                <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
-                  {blindsShareText ?? '—'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
+  // Settlement follows the standings on the settle moment; plain visits just fade it in.
+  const settlementEntering = celebrate
+    ? FadeIn.duration(260)
+        .delay(celebrationRowDelay(results.length))
+        .reduceMotion(ReduceMotion.System)
+    : fadeIn;
 
-      <View style={styles.resultsBlock}>
-        <View style={styles.sectionHeader}>
-          <Icon name="trophy-outline" size={20} color={c.warning} />
-          <Text style={[styles.sectionTitle, { color: c.text }]}>Standings</Text>
-        </View>
-        {results.map((item, index) => {
-          const bar = rankBarColor(index);
-          const isMe = Boolean(user?.uid && item.playerId === user.uid);
-          return (
-            <View
-              key={item.playerId}
-              accessible
-              accessibilityLabel={[
-                `Rank ${index + 1}`,
-                item.playerName,
-                isMe ? 'you' : null,
-                earlyPlayerIds.has(item.playerId) ? 'cashed out early' : null,
-                `${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}`,
-                `in ${formatCurrency(item.totalBuyIn)}`,
-                `out ${formatCurrency(item.cashOut)}`,
-              ]
-                .filter(Boolean)
-                .join(', ')}
-              style={[
-                styles.resultRow,
-                { backgroundColor: c.card, borderColor: c.border },
-                index === 0 && { borderColor: c.accentBorder },
-              ]}>
-              {bar !== 'transparent' ? (
-                <View style={[styles.rankBar, { backgroundColor: bar }]} />
-              ) : (
-                <View style={styles.rankBarPlaceholder} />
-              )}
-              <View style={styles.resultBody}>
-                <View style={styles.resultTop}>
-                  <View style={styles.resultLeft}>
-                    <View style={[styles.rankBadge, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-                      <Text style={[styles.rankBadgeText, { color: c.textSecondary }]}>{index + 1}</Text>
-                    </View>
-                    <Text style={[styles.resultName, { color: c.text }]} numberOfLines={1}>
-                      {item.playerName}
-                    </Text>
-                    <View style={styles.badgesRow}>
-                      {isMe && (
-                        <View style={[styles.youBadge, { backgroundColor: c.badge.you }]}>
-                          <Text style={styles.youBadgeText}>YOU</Text>
-                        </View>
-                      )}
-                      {earlyPlayerIds.has(item.playerId) && (
-                        <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
-                          <Text style={styles.earlyBadgeText}>Early</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                  <Text
-                    style={[
-                      styles.resultProfit,
-                      { color: item.profit >= 0 ? c.profit : c.loss },
-                    ]}>
-                    {formatSignedCurrency(item.profit)}
+  return (
+    <View style={[styles.screen, { backgroundColor: c.bg }]}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[layout.content, styles.scrollContent]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <Animated.View entering={fadeIn} style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={styles.metaGrid}>
+            <View style={styles.metaGridRow}>
+              <View style={styles.metaGridCell}>
+                <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
+                  <Icon name="map-marker-outline" size={16} color={c.green} />
+                </View>
+                <View style={styles.metaItemText}>
+                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
+                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+                    {sessionLocation?.trim() ? sessionLocation.trim() : '—'}
                   </Text>
                 </View>
-                <View style={styles.amountChips}>
-                  <View style={[styles.amountChip, { backgroundColor: c.chipMinusBg, borderColor: c.border }]}>
-                    <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>In</Text>
-                    <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.totalBuyIn)}</Text>
-                  </View>
-                  <Icon name="arrow-right" size={14} color={c.textHint} />
-                  <View style={[styles.amountChip, { backgroundColor: c.chipPlusBg, borderColor: c.border }]}>
-                    <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>Out</Text>
-                    <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.cashOut)}</Text>
-                  </View>
+              </View>
+              <View style={styles.metaGridCell}>
+                <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
+                  <Icon name="crown-outline" size={16} color={c.yellow} />
+                </View>
+                <View style={styles.metaItemText}>
+                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Host</Text>
+                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+                    {sessionHostName?.trim() ? sessionHostName.trim() : '—'}
+                  </Text>
                 </View>
               </View>
             </View>
-          );
-        })}
-      </View>
-
-      <View style={styles.settlementBlock}>
-        <View style={styles.sectionHeader}>
-          <Icon name="bank-transfer" size={26} color={c.green} />
-          <Text style={[styles.sectionTitle, { color: c.text }]}>Settlement</Text>
-        </View>
-        {settlements.length > 0 ? (
-          <View style={[styles.settlementCard, { backgroundColor: c.card, borderColor: c.border }]}>
-            {settlements.map((s, i) => (
-              <View key={i}>
-                {i > 0 ? <View style={[styles.settlementDivider, { backgroundColor: c.border }]} /> : null}
-                <View
-                  style={styles.settlementRow}
-                  accessible
-                  accessibilityLabel={`${s.from} pays ${s.to} ${formatCurrency(s.amount)}`}>
-                  <View style={styles.settlementNames}>
-                    <Text style={[styles.settlementFrom, { color: c.text }]} numberOfLines={1}>
-                      {s.from}
-                    </Text>
-                    <View style={styles.settlementFlow}>
-                      <Icon name="arrow-right-bold" size={14} color={c.textMuted} />
-                      <Text style={[styles.settlementTo, { color: c.textSecondary }]} numberOfLines={1}>
-                        {s.to}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[styles.settlementAmountPill, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
-                    <Text style={[styles.settlementAmount, { color: c.warning }]}>{formatCurrency(s.amount)}</Text>
-                  </View>
+            <View style={styles.metaGridRow}>
+              <View style={styles.metaGridCell}>
+                <View style={[styles.metaIconWrapSmall, { backgroundColor: c.blueBg }]}>
+                  <Icon name="clock-outline" size={16} color={c.blue} />
+                </View>
+                <View style={styles.metaItemText}>
+                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Duration</Text>
+                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+                    {durationText}
+                  </Text>
                 </View>
               </View>
-            ))}
+              <View style={styles.metaGridCell}>
+                <View
+                  style={[
+                    styles.metaIconWrapSmall,
+                    { backgroundColor: c.chipBg, borderColor: c.chipBorder, borderWidth: 1 },
+                  ]}>
+                  <Icon name="cash-multiple" size={16} color={c.chipText} />
+                </View>
+                <View style={styles.metaItemText}>
+                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Blinds</Text>
+                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+                    {blindsShareText ?? '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
-        ) : (
-          <View style={[styles.settlementEmpty, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-            <Icon name="check-circle-outline" size={28} color={c.accentText} />
-            <Text style={[styles.settlementEmptyTitle, { color: c.text }]}>All square</Text>
-            <Text style={[styles.settlementEmptySub, { color: c.textMuted }]}>
-              No transfers needed — chip counts already match.
-            </Text>
+        </Animated.View>
+
+        <View style={styles.resultsBlock}>
+          <View style={styles.sectionHeader}>
+            <Icon name="trophy-outline" size={20} color={c.warning} />
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Standings</Text>
           </View>
-        )}
-      </View>
-    </ScrollView>
+          {results.map((item, index) => (
+            <ResultRow
+              key={item.playerId}
+              item={item}
+              index={index}
+              isMe={Boolean(user?.uid && item.playerId === user.uid)}
+              isEarly={earlyPlayerIds.has(item.playerId)}
+              barColor={rankBarColor(index)}
+              celebrate={celebrate}
+              c={c}
+            />
+          ))}
+        </View>
+
+        <Animated.View entering={settlementEntering} style={styles.settlementBlock}>
+          <View style={styles.sectionHeader}>
+            <Icon name="bank-transfer" size={26} color={c.green} />
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Settlement</Text>
+          </View>
+          {settlements.length > 0 ? (
+            <View style={[styles.settlementCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              {settlements.map((s, i) => (
+                <View key={i}>
+                  {i > 0 ? <View style={[styles.settlementDivider, { backgroundColor: c.border }]} /> : null}
+                  <View
+                    style={styles.settlementRow}
+                    accessible
+                    accessibilityLabel={`${s.from} pays ${s.to} ${formatCurrency(s.amount)}`}>
+                    <View style={styles.settlementNames}>
+                      <Text style={[styles.settlementFrom, { color: c.text }]} numberOfLines={1}>
+                        {s.from}
+                      </Text>
+                      <View style={styles.settlementFlow}>
+                        <Icon name="arrow-right-bold" size={14} color={c.textMuted} />
+                        <Text style={[styles.settlementTo, { color: c.textSecondary }]} numberOfLines={1}>
+                          {s.to}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.settlementAmountPill, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
+                      <Text style={[styles.settlementAmount, { color: c.warning }]}>{formatCurrency(s.amount)}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={[styles.settlementEmpty, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
+              <Icon name="check-circle-outline" size={28} color={c.accentText} />
+              <Text style={[styles.settlementEmptyTitle, { color: c.text }]}>All square</Text>
+              <Text style={[styles.settlementEmptySub, { color: c.textMuted }]}>
+                No transfers needed — chip counts already match.
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      </ScrollView>
+      {celebrate ? <ConfettiBurst colors={[c.accent, c.green, c.yellow]} /> : null}
+    </View>
   );
 }
 
