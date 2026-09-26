@@ -84,14 +84,14 @@ firestore.indexes.json
 
 ### Prerequisites
 
-- Node.js LTS
+- Node.js LTS and pnpm 10 (`corepack enable` picks up the version pinned in `package.json`)
 - Firebase project with Authentication and a Firestore database, configured as in [Firebase Console setup](#firebase-console-setup)
-- Firebase CLI for emulators and deploying rules/indexes (`firebase-tools` is a dev dependency, so `npx firebase` works)
+- Firebase CLI for emulators and deploying rules/indexes (`firebase-tools` is a dev dependency, so `pnpm exec firebase` works)
 
 ### Local setup
 
 ```bash
-npm install
+pnpm install
 ```
 
 1. Copy `.env.example` to `.env`
@@ -99,7 +99,7 @@ npm install
 3. Start the app:
 
 ```bash
-npm start
+pnpm start
 ```
 
 Then run on a development build, iOS simulator, Android emulator, or web.
@@ -119,23 +119,23 @@ EXPO_PUBLIC_USE_EMULATOR=1 EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-nonsense \
 
 | Command | Purpose |
 |---|---|
-| `npm start` | Start Expo dev server |
-| `npm run android` | Launch Android target |
-| `npm run ios` | Launch iOS target |
-| `npm run web` | Launch web target |
-| `npm run lint` | Run lint checks |
-| `npm run typecheck` | TypeScript check (`tsc --noEmit`) |
-| `npm test` | Unit tests (`test/lib`) |
-| `npm run test:rules` | Firestore security rules tests (Firestore emulator) |
-| `npm run test:auth` | Email sign-up/sign-in and account-linking tests (Auth + Firestore emulators) |
-| `npm run build:preview` / `build:production` | EAS Android build |
-| `npm run update:preview` / `update:production` | EAS OTA update (Android) |
-| `npm run deploy:web` | Export and deploy the web build to Cloudflare Pages |
+| `pnpm start` | Start Expo dev server |
+| `pnpm android` | Launch Android target |
+| `pnpm ios` | Launch iOS target |
+| `pnpm web` | Launch web target |
+| `pnpm lint` | Run lint checks |
+| `pnpm typecheck` | TypeScript check (`tsc --noEmit`) |
+| `pnpm test` | Unit tests (`test/lib`) |
+| `pnpm test:rules` | Firestore security rules tests (Firestore emulator) |
+| `pnpm test:auth` | Email sign-up/sign-in and account-linking tests (Auth + Firestore emulators) |
+| `pnpm build:preview` / `build:production` | EAS Android build |
+| `pnpm update:preview` / `update:production` | EAS OTA update (Android) |
+| `pnpm deploy:web` | Export and deploy the web build to Cloudflare Pages |
 
 ## Testing
 
-- `npm test` runs unit tests with Node's built-in test runner (`node --test`); no emulators needed.
-- `npm run test:rules` and `npm run test:auth` wrap their tests in `firebase emulators:exec` with the `demo-nonsense` project, so they never touch production. They run serially (`--test-concurrency=1`).
+- `pnpm test` runs unit tests with Node's built-in test runner (`node --test`); no emulators needed.
+- `pnpm test:rules` and `pnpm test:auth` wrap their tests in `firebase emulators:exec` with the `demo-nonsense` project, so they never touch production. They run serially (`--test-concurrency=1`).
 
 ## Releasing
 
@@ -143,7 +143,7 @@ Versions follow `MAJOR.MINOR.PATCH`, kept in sync in `app.json` (`expo.version`)
 
 | Change | Bump | Ship with |
 |---|---|---|
-| JS/UI-only fix | PATCH, in the update message only (don't edit `app.json`: `version` is part of the fingerprint, so bumping it would stop the update reaching installed builds) | `npm run update:preview` (OTA) |
+| JS/UI-only fix | PATCH, in the update message only (don't edit `app.json`: `version` is part of the fingerprint, so bumping it would stop the update reaching installed builds) | `pnpm update:preview` (OTA) |
 | New feature, or any native change (new native module, `app.json` plugin/permission) | MINOR | new EAS build |
 | Breaking data/rules change | MAJOR | new EAS build |
 
@@ -156,9 +156,9 @@ Channels map 1:1 to branches of the same name: `development`, `preview` (APK bui
 
 ```bash
 # native release (bump MINOR in app.json + package.json first)
-npm run build:preview
+pnpm build:preview
 # OTA fix (leave app.json alone; the message carries the patch version)
-npm run update:preview -- "v1.1.1: <what changed>"
+pnpm update:preview "v1.1.1: <what changed>"
 ```
 
 ## Web deploy
@@ -166,7 +166,7 @@ npm run update:preview -- "v1.1.1: <what changed>"
 The web build is hosted on Cloudflare Pages (project `nonsense`, production branch `master`) at https://nonsense.adamchok.xyz. Deploys are manual (no Git integration, production only):
 
 ```bash
-npm run deploy:web
+pnpm deploy:web
 ```
 
 `scripts/fix-web-assets.js` runs after export because `wrangler pages deploy` skips `node_modules` directories, where Expo puts some bundled assets. `public/_redirects` maps dynamic routes (`/session/:id`, ...) to their pre-rendered pages. New hosting domains must be added to Firebase Auth → Authorized domains for Google sign-in.

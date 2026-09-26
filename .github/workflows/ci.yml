@@ -19,14 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
 
   rules:
     name: Firestore rules tests
@@ -37,15 +38,16 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
       - name: Cache Firebase emulator binaries
         uses: actions/cache@v6
         with:
           path: ~/.cache/firebase/emulators
-          key: firebase-emulators-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
-      - run: npm run test:rules
-      - run: npm run test:auth
+          key: firebase-emulators-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:rules
+      - run: pnpm test:auth

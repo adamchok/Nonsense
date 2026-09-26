@@ -238,7 +238,7 @@ The app also maintains denormalized `players/{uid}/group_memberships/{groupId}` 
   - `firestore.rules`
   - `firestore.indexes.json`
 - Rules are keyed on the signed-in uid and were unchanged by the move to required sign-in: linking a sign-in to a legacy anonymous account keeps its uid.
-- Rules are tested against the Firestore emulator (`npm run test:rules`); email sign-up/sign-in and account linking are tested against the Auth emulator (`npm run test:auth`).
+- Rules are tested against the Firestore emulator (`pnpm test:rules`); email sign-up/sign-in and account linking are tested against the Auth emulator (`pnpm test:auth`).
 - Required Firebase Console auth settings (providers, email enumeration protection, password policy enforcement, authorized domains, email templates) are listed in the README.
 - Composite indexes are required for finished-session history queries by status/date/documentId.
 - Profile updates (name/avatar) trigger best-effort denormalization across friend and group surfaces.
