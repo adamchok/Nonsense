@@ -225,7 +225,7 @@ function Section({
           <PressableScale
             pressedScale={0.95}
             onPress={onClear}
-            accessibilityRole="button"
+            accessibilityRole="link"
             accessibilityLabel={`Clear ${title.toLowerCase()}`}
             style={styles.clearLink}>
             <Text style={[styles.clearText, { color: c.accentText }]}>Clear</Text>

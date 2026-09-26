@@ -207,7 +207,7 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
           <PressableScale
             onPress={handleForgot}
             disabled={isBusy}
-            accessibilityRole="button"
+            accessibilityRole="link"
             accessibilityState={{ disabled: isBusy, busy: isSendingReset }}
             style={styles.forgotButton}>
             {isSendingReset ? (
@@ -253,7 +253,7 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
         <PressableScale
           onPress={() => onModeChange(isCreate ? 'signin' : 'create')}
           disabled={isBusy}
-          accessibilityRole="button"
+          accessibilityRole="link"
           style={styles.switchButton}>
           <Text style={[styles.switchLabel, { color: c.textMuted }]}>
             {isCreate ? 'Already have an account? ' : 'New to Nonsense? '}

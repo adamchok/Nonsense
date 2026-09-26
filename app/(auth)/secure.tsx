@@ -159,7 +159,7 @@ export default function SecureAccountScreen() {
 
           <PressableScale
             onPress={() => setEmailMode(isSignInMode ? 'create' : 'signin')}
-            accessibilityRole="button"
+            accessibilityRole="link"
             style={styles.linkButton}>
             <Text style={[styles.linkLabel, { color: c.accentText }]}>
               {isSignInMode ? 'Create a new sign-in instead' : 'Sign in with email instead'}

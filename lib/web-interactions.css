@@ -234,3 +234,12 @@
 #pl-chart [tabindex] {
   box-shadow: none !important;
 }
+
+@media (hover: hover) {
+  [role='link']:not([href]):not([aria-disabled='true']):hover {
+    filter: none;
+    box-shadow: none;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
