@@ -168,7 +168,7 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
         </View>
 
         {selected ? (
-          <View style={[styles.selectionOverlay, { backgroundColor: c.card }]}>
+          <View style={styles.valueRow}>
             <PressableScale
               pressedScale={0.98}
               onPress={() => onOpen(selected.id)}
@@ -194,7 +194,16 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
               <Icon name="close" size={16} color={c.textMuted} />
             </PressableScale>
           </View>
-        ) : null}
+        ) : (
+          <View style={[styles.valueRow, styles.header]}>
+            <View style={styles.headerSelectedText}>
+              <Text style={[styles.headerValue, { color: signColor(c, final) }]}>{formatSignedCurrency(final)}</Text>
+              <Text style={[styles.headerHint, { color: c.textMuted }]} numberOfLines={1}>
+                {`All time · ${data.length} ${data.length === 1 ? 'session' : 'sessions'}`}
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
 
       <View
@@ -284,9 +293,8 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
 
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
-  top: { position: 'relative', marginBottom: 8 },
-  selectionOverlay: {
-    ...StyleSheet.absoluteFillObject,
+  top: { marginBottom: 8, gap: 4 },
+  valueRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
