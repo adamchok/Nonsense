@@ -8,8 +8,10 @@ import { ArrowLeftIcon } from 'phosphor-react-native/src/icons/ArrowLeft';
 import { ArrowRightIcon } from 'phosphor-react-native/src/icons/ArrowRight';
 import { ArrowsClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowsClockwise';
 import { ArrowsLeftRightIcon } from 'phosphor-react-native/src/icons/ArrowsLeftRight';
+import { CalendarBlankIcon } from 'phosphor-react-native/src/icons/CalendarBlank';
 import { CardsIcon } from 'phosphor-react-native/src/icons/Cards';
 import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
+import { CaretLeftIcon } from 'phosphor-react-native/src/icons/CaretLeft';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CaretUpIcon } from 'phosphor-react-native/src/icons/CaretUp';
 import { ChartBarIcon } from 'phosphor-react-native/src/icons/ChartBar';
@@ -47,6 +49,7 @@ import { SquareIcon } from 'phosphor-react-native/src/icons/Square';
 import { StopIcon } from 'phosphor-react-native/src/icons/Stop';
 import { SunIcon } from 'phosphor-react-native/src/icons/Sun';
 import { TrashIcon } from 'phosphor-react-native/src/icons/Trash';
+import { TrendUpIcon } from 'phosphor-react-native/src/icons/TrendUp';
 import { TrophyIcon } from 'phosphor-react-native/src/icons/Trophy';
 import { UserIcon } from 'phosphor-react-native/src/icons/User';
 import { UserPlusIcon } from 'phosphor-react-native/src/icons/UserPlus';
@@ -85,6 +88,7 @@ const ICONS = {
   history: ClockCounterClockwiseIcon,
   settings: GearIcon,
   'chevron-right': CaretRightIcon,
+  'chevron-left': CaretLeftIcon,
   'expand-more': CaretDownIcon,
   'expand-less': CaretUpIcon,
   'arrow-left': ArrowLeftIcon,
@@ -116,12 +120,14 @@ const ICONS = {
   'bank-transfer': ArrowsLeftRightIcon,
   'poker-chip': PokerChipIcon,
   'bar-chart': ChartBarIcon,
+  'trend-up': TrendUpIcon,
   leaderboard: RankingIcon,
   'trophy-outline': TrophyIcon,
   'crown-outline': CrownIcon,
   // Misc
   style: CardsIcon,
   'clock-outline': ClockIcon,
+  calendar: CalendarBlankIcon,
   'clipboard-text-outline': ClipboardTextIcon,
   'qr-code': QrCodeIcon,
   'qr-code-scanner': ScanIcon,

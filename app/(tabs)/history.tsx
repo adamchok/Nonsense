@@ -1,4 +1,3 @@
-import { WebDateInput } from '@/components/web/web-date-input';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { pressBg } from '@/lib/ui';
@@ -9,20 +8,20 @@ import {
   formatSignedCurrency,
   formatTightCompactNumber,
 } from '@/lib/currency-format';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { appAlert } from '@/lib/app-alert';
 import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 import { Icon } from '@/components/icon';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
 import { PLChart } from '@/components/pl-chart';
+import { HistoryFilterSheet } from '@/components/history-filter-sheet';
+import { DEFAULT_FILTERS, countActiveFilters, filterEntries, type FilterState } from '@/lib/history-filters';
 import { Animated as Motion, PressableScale, layoutTransition, fadeOut, listItemEntering, webSafe } from '@/components/motion';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
@@ -44,26 +43,6 @@ const SWIPE_ACTION_WIDTH = 96;
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
 type SortKey = 'datetime' | 'buyIn' | 'profit' | 'duration';
 type SortDirection = 'desc' | 'asc';
-type FilterState = {
-  locations: string[] | null;
-  startDate: string;
-  endDate: string;
-  buyInMin: string;
-  buyInMax: string;
-  profitMin: string;
-  profitMax: string;
-};
-
-const DEFAULT_FILTERS: FilterState = {
-  locations: null,
-  startDate: '',
-  endDate: '',
-  buyInMin: '',
-  buyInMax: '',
-  profitMin: '',
-  profitMax: '',
-};
-
 function getSessionDurationMs(entry: HistoryEntry): number {
   if (!entry.finishedAt) return 0;
   const start = entry.date.getTime();
@@ -80,56 +59,11 @@ function formatDuration(ms: number): string {
   return `${hours}h ${minutes}m`;
 }
 
-function parseDateInput(value: string): Date | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]) - 1;
-  const day = Number(match[3]);
-  const date = new Date(year, month, day);
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getFullYear() !== year ||
-    date.getMonth() !== month ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-  return date;
-}
-
-function formatDateInput(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function parseAmountInput(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return parseAmount(trimmed);
-}
-
 function mergeHistoryPages(prev: HistoryEntry[], next: HistoryEntry[]): HistoryEntry[] {
   const byId = new Map<string, HistoryEntry>();
   for (const e of prev) byId.set(e.id, e);
   for (const e of next) byId.set(e.id, e);
   return [...byId.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
-}
-
-function hasAnyFilterValue(filter: FilterState): boolean {
-  return (
-    filter.locations !== null ||
-    filter.startDate.trim() !== '' ||
-    filter.endDate.trim() !== '' ||
-    filter.buyInMin.trim() !== '' ||
-    filter.buyInMax.trim() !== '' ||
-    filter.profitMin.trim() !== '' ||
-    filter.profitMax.trim() !== ''
-  );
 }
 
 export default function HistoryScreen() {
@@ -146,13 +80,11 @@ export default function HistoryScreen() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('datetime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const filterScrollRef = useRef<ScrollView>(null);
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
   /**
@@ -245,31 +177,11 @@ export default function HistoryScreen() {
     outputRange: ['0deg', '360deg'],
   });
 
-  const filteredHistory = useMemo(() => {
-    const startDate = parseDateInput(filters.startDate);
-    const endDate = parseDateInput(filters.endDate);
-    const endExclusive = endDate
-      ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1)
-      : null;
-    const buyInMin = parseAmountInput(filters.buyInMin);
-    const buyInMax = parseAmountInput(filters.buyInMax);
-    const profitMin = parseAmountInput(filters.profitMin);
-    const profitMax = parseAmountInput(filters.profitMax);
-
-    return history.filter((entry) => {
-      if (filters.locations !== null) {
-        const location = entry.location?.trim() ?? '';
-        if (!filters.locations.includes(location)) return false;
-      }
-      if (startDate && entry.date < startDate) return false;
-      if (endExclusive && entry.date >= endExclusive) return false;
-      if (buyInMin !== null && entry.totalBuyIn < buyInMin) return false;
-      if (buyInMax !== null && entry.totalBuyIn > buyInMax) return false;
-      if (profitMin !== null && entry.profit < profitMin) return false;
-      if (profitMax !== null && entry.profit > profitMax) return false;
-      return true;
-    });
-  }, [filters, history]);
+  const filteredHistory = useMemo(() => filterEntries(history, filters), [filters, history]);
+  const draftMatchCount = useMemo(
+    () => (showFilterModal ? filterEntries(history, draftFilters).length : 0),
+    [showFilterModal, history, draftFilters]
+  );
   const sortedHistory = useMemo(() => {
     const next = [...filteredHistory];
     const direction = sortDirection === 'asc' ? 1 : -1;
@@ -285,8 +197,7 @@ export default function HistoryScreen() {
   const totalProfit = filteredHistory.reduce((s, h) => s + h.profit, 0);
   const totalDurationMs = filteredHistory.reduce((sum, h) => sum + getSessionDurationMs(h), 0);
   const totalHoursPlayed = totalDurationMs / 3_600_000;
-  const hasActiveFilters = hasAnyFilterValue(filters);
-  const hasDraftFilters = hasAnyFilterValue(draftFilters);
+  const hasActiveFilters = countActiveFilters(filters) > 0;
   const allLocationsSelected = draftFilters.locations === null
     || (locationOptions.length > 0
       && locationOptions.every((name) => draftFilters.locations?.includes(name)));
@@ -300,39 +211,11 @@ export default function HistoryScreen() {
     setFilters(draftFilters);
     setShowFilterModal(false);
     setShowLocationModal(false);
-    setDatePickerTarget(null);
   }
 
   function clearDraftFilters() {
     setDraftFilters(DEFAULT_FILTERS);
     setShowLocationModal(false);
-  }
-
-  /**
-   * Web fallback: the browser date field hands back YYYY-MM-DD ('' when cleared). It stays
-   * open after a change, since typing a date fires several changes before it is finished.
-   */
-  function onWebDatePicked(value: string) {
-    if (!datePickerTarget) return;
-    const key = datePickerTarget === 'start' ? 'startDate' : 'endDate';
-    setDraftFilters((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function onDatePicked(event: DateTimePickerEvent, selectedDate?: Date) {
-    if (event.type === 'dismissed') {
-      setDatePickerTarget(null);
-      return;
-    }
-    if (!selectedDate || !datePickerTarget) return;
-    const formatted = formatDateInput(selectedDate);
-    if (datePickerTarget === 'start') {
-      setDraftFilters((prev) => ({ ...prev, startDate: formatted }));
-    } else {
-      setDraftFilters((prev) => ({ ...prev, endDate: formatted }));
-    }
-    if (Platform.OS !== 'ios') {
-      setDatePickerTarget(null);
-    }
   }
 
   useEffect(() => {
@@ -674,262 +557,26 @@ export default function HistoryScreen() {
         />
       )}
 
-      <Modal
+      <HistoryFilterSheet
         visible={showFilterModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowFilterModal(false)}>
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
-            onPress={() => setShowFilterModal(false)}
-          />
-
-          <KeyboardAvoidingView
-            pointerEvents="box-none"
-            style={styles.modalCenter}
-            enabled={!showLocationModal}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : -60}
-          >
-            <View style={[styles.filterCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <View style={styles.filterHeaderRow}>
-                <Text style={[styles.filterTitle, { color: c.text }]}>Filters</Text>
-                <Pressable
-                  onPress={() => setShowFilterModal(false)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close filters">
-                  <Icon name="close" size={20} color={c.textHint} />
-                </Pressable>
-              </View>
-
-              <ScrollView
-                ref={filterScrollRef}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.filterBody}
-                keyboardShouldPersistTaps="handled">
-                <View style={styles.filterSection}>
-                  <Text style={[styles.filterLabel, { color: c.textMuted }]}>Location</Text>
-                  <Pressable
-                    style={[styles.dropdownTrigger, { backgroundColor: c.inputBg, borderColor: c.border }]}
-                    onPress={() => {
-                      setLocationSearch('');
-                      setShowLocationModal(true);
-                    }}>
-                    <Text style={[styles.dropdownTriggerText, { color: c.text }]}>
-                      {allLocationsSelected
-                        ? `All Locations (${locationOptions.length})`
-                        : draftFilters.locations?.length === 0
-                          ? 'No locations selected'
-                          : `${draftFilters.locations?.length ?? 0} selected`}
-                    </Text>
-                    <Icon name="chevron-right" size={20} color={c.textHint} />
-                  </Pressable>
-                </View>
-
-                <View style={styles.filterSection}>
-                  <Text style={[styles.filterLabel, { color: c.textMuted }]}>Date Range</Text>
-                  <View style={styles.rowInputs}>
-                    <Pressable
-                      style={[
-                        styles.dateButton,
-                        { backgroundColor: c.inputBg, borderColor: c.border },
-                        datePickerTarget === 'start' && { borderColor: c.accentBorder },
-                      ]}
-                      onPress={() => setDatePickerTarget('start')}>
-                      <View style={styles.dateButtonInner}>
-                        <Text
-                          style={[
-                            styles.dateButtonText,
-                            { color: draftFilters.startDate ? c.text : c.placeholder },
-                          ]}>
-                          {draftFilters.startDate || 'Start date'}
-                        </Text>
-                        {draftFilters.startDate ? (
-                          <Pressable
-                            style={[styles.dateClearBtn]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Clear start date"
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              setDraftFilters((prev) => ({ ...prev, startDate: '' }));
-                              if (datePickerTarget === 'start') setDatePickerTarget(null);
-                            }}
-                            hitSlop={6}>
-                            <Icon name="close" size={14} color={c.textHint} />
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                    <Text style={[styles.dashText, { color: c.textMuted }]}>– </Text>
-                    <Pressable
-                      style={[
-                        styles.dateButton,
-                        { backgroundColor: c.inputBg, borderColor: c.border },
-                        datePickerTarget === 'end' && { borderColor: c.accentBorder },
-                      ]}
-                      onPress={() => setDatePickerTarget('end')}>
-                      <View style={styles.dateButtonInner}>
-                        <Text
-                          style={[
-                            styles.dateButtonText,
-                            { color: draftFilters.endDate ? c.text : c.placeholder },
-                          ]}>
-                          {draftFilters.endDate || 'End date'}
-                        </Text>
-                        {draftFilters.endDate ? (
-                          <Pressable
-                            style={[styles.dateClearBtn, { borderColor: c.border }]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Clear end date"
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              setDraftFilters((prev) => ({ ...prev, endDate: '' }));
-                              if (datePickerTarget === 'end') setDatePickerTarget(null);
-                            }}
-                            hitSlop={6}>
-                            <Icon name="close" size={14} color={c.textHint} />
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  </View>
-                  {datePickerTarget && Platform.OS === 'web' ? (
-                    // datetimepicker renders nothing on web.
-                    <WebDateInput
-                      key={datePickerTarget}
-                      value={datePickerTarget === 'start' ? draftFilters.startDate : draftFilters.endDate}
-                      min={datePickerTarget === 'end' ? draftFilters.startDate : undefined}
-                      max={datePickerTarget === 'start' ? draftFilters.endDate : undefined}
-                      onChange={onWebDatePicked}
-                      accessibilityLabel={datePickerTarget === 'start' ? 'Start date' : 'End date'}
-                      colors={{ text: c.text, background: c.inputBg, border: c.accentBorder }}
-                    />
-                  ) : datePickerTarget ? (
-                    <View style={[styles.pickerInlineWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
-                      <DateTimePicker
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                        value={
-                          parseDateInput(
-                            datePickerTarget === 'start' ? draftFilters.startDate : draftFilters.endDate
-                          ) ?? new Date()
-                        }
-                        onChange={onDatePicked}
-                        maximumDate={datePickerTarget === 'start' ? parseDateInput(draftFilters.endDate) ?? undefined : undefined}
-                        minimumDate={datePickerTarget === 'end' ? parseDateInput(draftFilters.startDate) ?? undefined : undefined}
-                      />
-                      {Platform.OS === 'ios' ? (
-                        <View style={styles.pickerInlineActions}>
-                          <Pressable
-                            style={[styles.inlineActionBtn, { borderColor: c.border }]}
-                            onPress={() => {
-                              if (datePickerTarget === 'start') {
-                                setDraftFilters((prev) => ({ ...prev, startDate: '' }));
-                              } else {
-                                setDraftFilters((prev) => ({ ...prev, endDate: '' }));
-                              }
-                            }}>
-                            <Text style={[styles.inlineActionText, { color: c.text }]}>Clear</Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.inlineActionBtn, { backgroundColor: c.accent }]}
-                            onPress={() => setDatePickerTarget(null)}>
-                            <Text style={[styles.inlineActionTextPrimary, { color: c.onAccent }]}>Done</Text>
-                          </Pressable>
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.filterSection}>
-                  <Text style={[styles.filterLabel, { color: c.textMuted }]}>Buy-in Range</Text>
-                  <View style={styles.rowInputs}>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                      ]}
-                      accessibilityLabel="Minimum buy-in"
-                      placeholder="Min"
-                      placeholderTextColor={c.placeholder}
-                      value={draftFilters.buyInMin}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMin: sanitizeAmountInput(value) }))}
-                      keyboardType="decimal-pad"
-                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
-                    />
-                    <Text style={[styles.dashText, { color: c.textMuted }]}>–</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                      ]}
-                      accessibilityLabel="Maximum buy-in"
-                      placeholder="Max"
-                      placeholderTextColor={c.placeholder}
-                      value={draftFilters.buyInMax}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMax: sanitizeAmountInput(value) }))}
-                      keyboardType="decimal-pad"
-                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.filterSection}>
-                  <Text style={[styles.filterLabel, { color: c.textMuted }]}>Profit Range</Text>
-                  <View style={styles.rowInputs}>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                      ]}
-                      accessibilityLabel="Minimum profit"
-                      placeholder="Min"
-                      placeholderTextColor={c.placeholder}
-                      value={draftFilters.profitMin}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMin: sanitizeAmountInput(value, { allowNegative: true }) }))}
-                      keyboardType="decimal-pad"
-                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
-                    />
-                    <Text style={[styles.dashText, { color: c.textMuted }]}>–</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                      ]}
-                      accessibilityLabel="Maximum profit"
-                      placeholder="Max"
-                      placeholderTextColor={c.placeholder}
-                      value={draftFilters.profitMax}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMax: sanitizeAmountInput(value, { allowNegative: true }) }))}
-                      keyboardType="decimal-pad"
-                      onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
-                    />
-                  </View>
-                </View>
-              </ScrollView>
-
-              <View style={styles.filterActions}>
-                <Pressable
-                  style={[styles.actionBtnSecondary, { borderColor: c.inputBorder, backgroundColor: c.card }]}
-                  onPress={clearDraftFilters}>
-                  <Text style={[styles.actionBtnSecondaryLabel, { color: c.text }]}>Reset</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.actionBtnPrimary, { backgroundColor: c.accent }]}
-                  onPress={applyFilters}>
-                  <Text style={[styles.actionBtnPrimaryLabel, { color: c.onAccent }]}>
-                    Apply{hasDraftFilters ? '' : ' (Show all)'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+        draft={draftFilters}
+        setDraft={setDraftFilters}
+        locationSummary={
+          allLocationsSelected
+            ? `All locations (${locationOptions.length})`
+            : draftFilters.locations?.length === 0
+              ? 'No locations selected'
+              : `${draftFilters.locations?.length ?? 0} of ${locationOptions.length} selected`
+        }
+        onOpenLocations={() => {
+          setLocationSearch('');
+          setShowLocationModal(true);
+        }}
+        matchCount={draftMatchCount}
+        onReset={clearDraftFilters}
+        onApply={applyFilters}
+        onClose={() => setShowFilterModal(false)}
+      />
 
       <Modal
         visible={showLocationModal}
@@ -1211,25 +858,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     elevation: 10,
   },
-  sortCurrentRow: {
-    borderWidth: 1,
-    borderRadius: 8,
-    marginHorizontal: 8,
-    marginBottom: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 2,
-  },
-  sortCurrentLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  sortCurrentValue: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   sortSectionTitle: {
     fontSize: 11,
     fontWeight: '600',
@@ -1326,15 +954,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  historyPaginationHint: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  historyEndHint: {
-    fontSize: 12,
-    textAlign: 'center',
-    paddingVertical: 14,
-  },
   loadingWrap: {
     flex: 1,
     alignItems: 'center',
@@ -1426,15 +1045,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
   },
-  filterCard: {
-    width: '100%',
-    maxWidth: 480,
-    maxHeight: '80%',
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 20,
-    gap: 12,
-  },
   filterHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1444,29 +1054,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
     fontWeight: '600',
-  },
-  filterBody: {
-    gap: 16,
-  },
-  filterSection: {
-    gap: 7,
-  },
-  filterLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  dropdownTrigger: {
-    borderWidth: 1,
-    borderRadius: 9,
-    minHeight: 48,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dropdownTriggerText: {
-    fontSize: 15,
-    fontWeight: '500',
   },
   dropdownOption: {
     flexDirection: 'row',
@@ -1498,25 +1085,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 14,
   },
-  chipsRow: {
-    gap: 8,
-    paddingRight: 2,
-  },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  rowInputs: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
   input: {
     flex: 1,
     minWidth: 0,
@@ -1526,89 +1094,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-  },
-  dateButton: {
-    flex: 1,
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 9,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    justifyContent: 'center',
-  },
-  dateButtonInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  dateButtonText: {
-    fontSize: 15,
-    flex: 1,
-  },
-  dateClearBtn: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dashText: {
-    fontSize: 14,
-    fontWeight: '400',
-  },
-  pickerInlineWrap: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 8,
-    gap: 8,
-  },
-  pickerInlineActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  inlineActionBtn: {
-    borderWidth: 1,
-    borderRadius: 9,
-    minHeight: 38,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  inlineActionText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  inlineActionTextPrimary: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  filterActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  actionBtnSecondary: {
-    flex: 1,
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  actionBtnSecondaryLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  actionBtnPrimary: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  actionBtnPrimaryLabel: {
-    fontSize: 15,
-    fontWeight: '600',
   },
 });
