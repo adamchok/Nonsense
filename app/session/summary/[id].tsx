@@ -4,14 +4,22 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatSessionBlindsForDisplay, formatSignedCurrency } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
-import { getEarlyCashOuts, getPlayerProfile, getResults, getSessionMeta } from '@/lib/firestore';
+import {
+  getEarlyCashOuts,
+  getPlayerProfile,
+  getResults,
+  getSessionMeta,
+  invalidateSessionScanCache,
+  updateSessionLocation,
+} from '@/lib/firestore';
 import { computeSettlements } from '@/lib/settlement';
 import type { AppColors } from '@/lib/app-theme';
 import type { EarlyCashOut, SessionAmountUnit, SessionResult } from '@/types';
 import { Icon } from '@/components/icon';
+import { LocationEditorModal } from '@/components/session/location-editor-modal';
 import { SessionSummarySkeleton } from '@/components/session/session-skeletons';
 import { ConfettiBurst, ScaleFadeIn } from '@/components/celebration';
-import { Animated, fadeIn, listItemEntering, useCountUp } from '@/components/motion';
+import { Animated, PressableScale, fadeIn, listItemEntering, useCountUp } from '@/components/motion';
 import { FadeIn, FadeInDown, ReduceMotion, useReducedMotion } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -154,6 +162,8 @@ export default function SessionSummaryScreen() {
   const [sessionAmountUnit, setSessionAmountUnit] = useState<SessionAmountUnit>('cash');
   const [sessionDollarsPerChip, setSessionDollarsPerChip] = useState<number | undefined>();
   const [sessionHostName, setSessionHostName] = useState<string | undefined>();
+  const [sessionHostId, setSessionHostId] = useState<string | undefined>();
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const goToHistory = useCallback(() => {
@@ -190,6 +200,7 @@ export default function SessionSummaryScreen() {
         setSessionBigBlind(meta.bigBlind);
         setSessionAmountUnit(meta.amountUnit);
         setSessionDollarsPerChip(meta.dollarsPerChip);
+        setSessionHostId(meta.hostId);
         if (meta.hostId) {
           let hostName = data.find((r) => r.playerId === meta.hostId)?.playerName;
           if (!hostName) {
@@ -219,6 +230,20 @@ export default function SessionSummaryScreen() {
   );
 
   const settlements = useMemo(() => computeSettlements(results), [results]);
+  const isHost = Boolean(user && sessionHostId && user.uid === sessionHostId);
+  const locationText = sessionLocation?.trim() ? sessionLocation.trim() : '—';
+
+  async function saveLocation(next: string) {
+    if (!id) return;
+    try {
+      await updateSessionLocation(id, next);
+      setSessionLocation(next.trim() || undefined);
+      invalidateSessionScanCache();
+      setIsEditingLocation(false);
+    } catch (e) {
+      appAlert('Could not save location', userMessage(e, 'Please try again.'));
+    }
+  }
   const durationMs =
     sessionDate && sessionFinishedAt
       ? Math.max(0, sessionFinishedAt.getTime() - sessionDate.getTime())
@@ -374,17 +399,24 @@ export default function SessionSummaryScreen() {
         <Animated.View entering={fadeIn} style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <View style={styles.metaGrid}>
             <View style={styles.metaGridRow}>
-              <View style={styles.metaGridCell}>
+              <PressableScale
+                pressedScale={0.98}
+                disabled={!isHost}
+                onPress={() => setIsEditingLocation(true)}
+                accessibilityRole={isHost ? 'button' : undefined}
+                accessibilityLabel={isHost ? `Location, ${locationText}. Edit location` : undefined}
+                style={styles.metaGridCell}>
                 <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
                   <Icon name="map-marker-outline" size={16} color={c.green} />
                 </View>
                 <View style={styles.metaItemText}>
                   <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
                   <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
-                    {sessionLocation?.trim() ? sessionLocation.trim() : '—'}
+                    {locationText}
                   </Text>
                 </View>
-              </View>
+                {isHost ? <Icon name="edit" size={14} color={c.textMuted} /> : null}
+              </PressableScale>
               <View style={styles.metaGridCell}>
                 <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
                   <Icon name="crown-outline" size={16} color={c.yellow} />
@@ -491,6 +523,14 @@ export default function SessionSummaryScreen() {
         </Animated.View>
       </ScrollView>
       {celebrate ? <ConfettiBurst colors={[c.accent, c.green, c.yellow]} /> : null}
+      {isEditingLocation ? (
+        <LocationEditorModal
+          visible
+          initialLocation={sessionLocation ?? ''}
+          onClose={() => setIsEditingLocation(false)}
+          onSubmit={saveLocation}
+        />
+      ) : null}
     </View>
   );
 }
