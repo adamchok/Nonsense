@@ -213,7 +213,7 @@ export default function NewSessionScreen() {
     if (isChipsMode) {
       const dpc = parseAmount(dollarsPerChipStr.trim());
       if (dpc == null || dpc <= 0) {
-        nextErrors.dollarsPerChip = 'Enter what one chip is worth, like 0.50';
+        nextErrors.dollarsPerChip = 'Enter what one chip is worth';
       } else {
         dollarsPerChip = dpc;
       }
@@ -235,7 +235,7 @@ export default function NewSessionScreen() {
       if (parsed == null || parsed <= 0) {
         nextErrors.groupBuyIn = isChipsMode
           ? 'Enter the chips each player buys in for'
-          : 'Enter the buy-in per player, like 50';
+          : 'Enter the buy-in per player';
       } else {
         for (const member of membersForCreate) {
           initialBuyIns.push({ playerId: member.id, playerName: member.name, amount: parsed });
@@ -246,7 +246,7 @@ export default function NewSessionScreen() {
     if (shouldAddSelf) {
       const parsed = parseAmount(buyInAmount);
       if (parsed == null || parsed <= 0) {
-        nextErrors.buyIn = isChipsMode ? 'Enter your chip buy-in, like 100' : 'Enter your buy-in, like 50';
+        nextErrors.buyIn = isChipsMode ? 'Enter your chip buy-in' : 'Enter your buy-in';
       } else {
         initialBuyIns.push({
           playerId: playerProfile.id,

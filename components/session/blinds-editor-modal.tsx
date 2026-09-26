@@ -156,7 +156,7 @@ function BlindField({
 function blindError(value: string, which: 'small' | 'big'): string | null {
   if (!value.trim()) return `Enter the ${which} blind`;
   const parsed = parseAmount(value);
-  if (parsed == null) return 'Enter a number, like 1 or 0.5';
+  if (parsed == null) return 'Enter a number';
   return parsed > 0 ? null : 'Must be more than 0';
 }
 

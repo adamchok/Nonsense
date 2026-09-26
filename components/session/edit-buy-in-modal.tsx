@@ -33,9 +33,9 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
     if (!target) return;
     const parsed = parseAmount(amount);
     const error = !amount.trim()
-      ? 'Enter an amount, like 50'
+      ? 'Enter an amount'
       : parsed == null
-        ? 'Enter a number, like 50 or 12.5'
+        ? 'Enter a number'
         : parsed <= 0
           ? 'Must be more than 0'
           : null;

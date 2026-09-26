@@ -57,7 +57,7 @@ function splitCents(totalCents: number, n: number): number[] {
 /** Inline error for a cash-out input, or null when it's a valid amount (0 or more). */
 function cashOutError(input: string): string | null {
   const val = parseAmount(input);
-  if (val == null) return input.trim() ? 'Enter a number, like 120' : 'Enter a cash-out, like 120';
+  if (val == null) return input.trim() ? 'Enter a number' : 'Enter a cash-out';
   return val < 0 ? 'Must be 0 or more' : null;
 }
 

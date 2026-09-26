@@ -24,9 +24,9 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
   async function save() {
     const parsed = parseAmount(draft);
     const nextError = !draft.trim()
-      ? 'Enter a chip value, like 0.50'
+      ? 'Enter a chip value'
       : parsed == null
-        ? 'Enter a number, like 0.50'
+        ? 'Enter a number'
         : parsed <= 0
           ? 'Must be more than 0'
           : null;

@@ -33,9 +33,9 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
     if (!target || isSaving) return;
     const parsed = parseAmount(amount);
     const error = !amount.trim()
-      ? 'Enter an amount, like 120 (0 if they lost it all)'
+      ? 'Enter an amount (0 if they lost it all)'
       : parsed == null
-        ? 'Enter a number, like 120 or 12.5'
+        ? 'Enter a number'
         : parsed < 0
           ? 'Must be 0 or more'
           : null;
