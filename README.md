@@ -121,6 +121,17 @@ npm run build:preview
 npm run update:preview -- "v1.1.1: <what changed>"
 ```
 
+## Web deploy
+
+The web build is hosted on Cloudflare Pages (project `nonsense`, production branch `master`) at https://nonsense.adamchok.xyz. Deploys are manual (no Git integration):
+
+```bash
+npm run deploy:web          # production
+npm run deploy:web:preview  # https://preview.nonsense-4pr.pages.dev
+```
+
+`scripts/fix-web-assets.js` runs after export because `wrangler pages deploy` skips `node_modules` directories, where Expo puts the icon fonts. `public/_redirects` maps dynamic routes (`/session/:id`, ...) to their pre-rendered pages. New hosting domains must be added to Firebase Auth → Authorized domains for Google sign-in.
+
 ## Firestore setup notes
 
 - Security rules are in `firestore.rules`.
