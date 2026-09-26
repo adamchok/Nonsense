@@ -1,4 +1,5 @@
 import { appAlert } from '@/lib/app-alert';
+import * as Clipboard from 'expo-clipboard';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -164,6 +165,7 @@ export default function SessionSummaryScreen() {
   const [sessionHostName, setSessionHostName] = useState<string | undefined>();
   const [sessionHostId, setSessionHostId] = useState<string | undefined>();
   const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const goToHistory = useCallback(() => {
@@ -325,6 +327,17 @@ export default function SessionSummaryScreen() {
     }
   }, [buildSettlementMessage]);
 
+  const handleCopyResults = useCallback(async () => {
+    try {
+      await Clipboard.setStringAsync(buildSettlementMessage());
+    } catch (e) {
+      appAlert('Copy failed', userMessage(e, 'Could not copy the results.'));
+      return;
+    }
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  }, [buildSettlementMessage]);
+
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -349,17 +362,39 @@ export default function SessionSummaryScreen() {
         </Pressable>
       ),
       headerRight: () => (
-        <Pressable
-          onPress={handleShareWhatsApp}
-          hitSlop={8}
-          style={[styles.headerShareBtn, Platform.OS === 'web' && { marginRight: layout.gutter }]}
-          accessibilityRole="button"
-          accessibilityLabel="Share on WhatsApp">
-          <Icon name="whatsapp" size={16} color="#000" />
-        </Pressable>
+        <View style={[styles.headerActions, Platform.OS === 'web' && { marginRight: layout.gutter }]}>
+          <Pressable
+            onPress={() => void handleCopyResults()}
+            hitSlop={8}
+            style={[styles.headerCopyBtn, { backgroundColor: c.cardAlt, borderColor: c.border }]}
+            accessibilityRole="button"
+            accessibilityLabel={isCopied ? 'Results copied' : 'Copy results'}>
+            <Icon name={isCopied ? 'check' : 'content-copy'} size={16} color={isCopied ? c.profit : c.text} />
+          </Pressable>
+          <Pressable
+            onPress={handleShareWhatsApp}
+            hitSlop={8}
+            style={styles.headerShareBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Share on WhatsApp">
+            <Icon name="whatsapp" size={16} color="#000" />
+          </Pressable>
+        </View>
       ),
     });
-  }, [navigation, sessionDate, handleShareWhatsApp, goToHistory, c.text, layout.gutter]);
+  }, [
+    navigation,
+    sessionDate,
+    handleShareWhatsApp,
+    handleCopyResults,
+    isCopied,
+    goToHistory,
+    c.text,
+    c.cardAlt,
+    c.border,
+    c.profit,
+    layout.gutter,
+  ]);
 
   if (loading) {
     return <SessionSummarySkeleton contentStyle={layout.content} />;
@@ -825,6 +860,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerCopyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerShareBtn: {
     width: 36,
