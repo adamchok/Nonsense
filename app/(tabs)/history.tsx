@@ -429,7 +429,7 @@ export default function HistoryScreen() {
     <View
       style={[
         styles.screen,
-        { backgroundColor: c.bg, paddingHorizontal: layout.gutter, gap: layout.sectionGap },
+        { backgroundColor: c.bg, paddingHorizontal: layout.gutter, paddingBottom: layout.gutter, gap: layout.sectionGap },
       ]}>
       {showSortDropdown ? (
         // Not a control (no role, no focus), so it gets no hover tint or tab stop.
