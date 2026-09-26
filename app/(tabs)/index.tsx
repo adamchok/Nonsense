@@ -4,13 +4,20 @@ import { useAuth } from '@/lib/auth-context';
 import { formatSessionBlindsForDisplay } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getBuyIns, getRecentSessionsForPlayer } from '@/lib/firestore';
-import { useResolvedColorScheme } from '@/lib/theme-context';
 import type { SessionRecord } from '@/types';
 import { Icon } from '@/components/icon';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { radius } from '@/lib/spacing';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ReduceMotion,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { Animated, AppState, type AppStateStatus, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { text as type, pressBg, ui } from '@/lib/ui';
 import { userMessage } from '@/lib/user-message';
@@ -20,7 +27,6 @@ import { Animated as Motion, PressableScale, fadeIn, fadeOut, layoutTransition, 
 export default function HomeScreen() {
   const c = useAppColors();
   const layout = usePageLayout(40);
-  const scheme = useResolvedColorScheme();
   const router = useRouter();
   const { playerProfile } = useAuth();
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
@@ -132,50 +138,61 @@ export default function HomeScreen() {
       style={[styles.screen, { backgroundColor: c.bg }]}
       contentContainerStyle={[layout.content, styles.content]}>
       <View style={styles.header}>
-        <Motion.Image
-          entering={fadeIn}
-          source={
-            scheme === 'dark'
-              ? require('@/assets/images/logo-large.png')
-              : require('@/assets/images/logo-light-large.png')
-          }
-          style={styles.logo}
-          accessible={false}
-        />
+        <View style={styles.headerText}>
+          <Motion.Text entering={fadeIn} style={[styles.eyebrow, { color: c.textMuted }]}>
+            {greetingForHour(new Date().getHours())}
+          </Motion.Text>
+          <Motion.Text
+            entering={listItemEntering(1)}
+            style={[styles.name, { color: c.text }]}
+            numberOfLines={1}
+            accessibilityRole="header">
+            {playerProfile ? playerProfile.name : 'Welcome'}
+          </Motion.Text>
+          {playerProfile ? null : (
+            <Text style={[styles.headerSub, { color: c.textMuted }]}>Set up your profile to begin.</Text>
+          )}
+        </View>
         {playerProfile ? (
-          <>
-            <Motion.Text entering={listItemEntering(1)} style={[styles.welcomeGreeting, { color: c.text }]}>
-              Hey, {playerProfile.name} 👋
-            </Motion.Text>
-            <Motion.Text entering={listItemEntering(2)} style={[styles.welcomeSub, { color: c.textMuted }]}>
-              Ready to deal some cards?
-            </Motion.Text>
-          </>
-        ) : (
-          <Text style={[styles.welcomeSub, { color: c.textMuted }]}>
-            Set up your profile to begin.
-          </Text>
-        )}
+          <PressableScale
+            pressedScale={0.94}
+            onPress={() => router.push('/settings')}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+            style={[styles.avatar, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Text style={styles.avatarEmoji}>{playerProfile.avatarEmoji ?? '🙂'}</Text>
+          </PressableScale>
+        ) : null}
       </View>
 
-      <PressableScale
-        style={[ui.button, { backgroundColor: c.accent }]}
-        accessibilityRole="button"
-        onPress={() => router.push('../session/new')}>
-        <Icon name="add" size={20} color={c.onAccent} importantForAccessibility="no" />
-        <Text style={[type.button, styles.ctaText, { color: c.onAccent }]}>Start New Session</Text>
-      </PressableScale>
+      <View style={styles.ctaBlock}>
+        <PressableScale
+          style={[ui.button, styles.cta, { backgroundColor: c.accent }]}
+          accessibilityRole="button"
+          onPress={() => router.push('../session/new')}>
+          <Icon name="add" size={22} color={c.onAccent} importantForAccessibility="no" />
+          <Text style={[type.button, styles.ctaText, { color: c.onAccent }]}>Start New Session</Text>
+        </PressableScale>
+        <Text style={[styles.ctaHint, { color: c.textHint }]}>Track buy-ins live and settle up at the end.</Text>
+      </View>
 
       {error ? <Text style={[type.label, { color: c.loss }]}>{error}</Text> : null}
 
       <View style={styles.section}>
         <View style={ui.sectionHeaderRow}>
-          <Text style={[type.section, { color: c.textMuted }]} accessibilityRole="header">
-            Active sessions
-          </Text>
+          <View style={styles.sectionTitleRow}>
+            <Text style={[type.section, { color: c.textMuted }]} accessibilityRole="header">
+              Active sessions
+            </Text>
+            {isLoaded && activeSessions.length > 0 ? (
+              <View style={[styles.countPill, { backgroundColor: c.accentBg }]}>
+                <Text style={[styles.countPillText, { color: c.accentText }]}>{activeSessions.length}</Text>
+              </View>
+            ) : null}
+          </View>
           <PressableScale
             pressedScale={0.92}
-            style={(state) => [ui.iconButton, styles.refreshBtn, { borderColor: c.border }, pressBg(c, state, c.card)]}
+            style={(state) => [ui.iconButton, styles.refreshBtn, pressBg(c, state, 'transparent')]}
             onPress={() => void handleRefresh()}
             disabled={isRefreshing}
             hitSlop={8}
@@ -251,8 +268,9 @@ export default function HomeScreen() {
                     ) : null}
                   </View>
                 </View>
-                <View style={[styles.liveBadge, { backgroundColor: c.badge.live }]}>
-                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                <View style={styles.live}>
+                  <LiveDot color={c.profit} />
+                  <Text style={[styles.liveText, { color: c.profit }]}>Live</Text>
                 </View>
                 <Icon name="chevron-right" size={20} color={c.textMuted} importantForAccessibility="no" />
               </PressableScale>
@@ -266,6 +284,23 @@ export default function HomeScreen() {
   );
 }
 
+function greetingForHour(hour: number): string {
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function LiveDot({ color }: { color: string }) {
+  const reduceMotion = useReducedMotion();
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    if (reduceMotion) return;
+    pulse.value = withRepeat(withTiming(0.35, { duration: 900, reduceMotion: ReduceMotion.System }), -1, true);
+  }, [pulse, reduceMotion]);
+  const animated = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  return <Motion.View style={[styles.liveDot, { backgroundColor: color }, animated]} />;
+}
+
 function ActiveSessionsSkeleton() {
   const c = useAppColors();
   return (
@@ -277,7 +312,7 @@ function ActiveSessionsSkeleton() {
             <Skeleton width="55%" height={15} />
             <Skeleton width="70%" height={12} />
           </View>
-          <Skeleton width={36} height={17} radius={4} />
+          <Skeleton width={40} height={16} radius={8} />
           <Icon name="chevron-right" size={20} color={c.textMuted} importantForAccessibility="no" />
         </View>
       ))}
@@ -294,29 +329,77 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingTop: 32,
+    paddingTop: 48,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 16,
   },
-  logo: {
-    width: 144,
-    height: 144,
-    resizeMode: 'contain',
-    marginBottom: 8,
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
-  welcomeGreeting: {
-    fontSize: 20,
-    lineHeight: 26,
+  eyebrow: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  name: {
+    fontSize: 28,
+    lineHeight: 34,
     fontWeight: '700',
-    letterSpacing: -0.2,
+    letterSpacing: -0.4,
   },
-  welcomeSub: {
+  headerSub: {
     fontSize: 15,
     lineHeight: 21,
+    marginTop: 2,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarEmoji: {
+    fontSize: 24,
+  },
+  ctaBlock: {
+    gap: 10,
+  },
+  cta: {
+    minHeight: 56,
+    borderRadius: 16,
   },
   ctaText: {
+    fontSize: 16,
+  },
+  ctaHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  countPill: {
+    minWidth: 22,
+    height: 20,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   section: {
     gap: 14,
@@ -324,18 +407,20 @@ const styles = StyleSheet.create({
   refreshBtn: {
     width: 36,
     height: 36,
-    borderWidth: 1,
   },
-  liveBadge: {
+  live: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
     borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
   },
-  liveBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    color: '#fff',
+  liveText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   sessionMetaRow: {
     flexDirection: 'row',
