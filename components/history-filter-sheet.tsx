@@ -1,4 +1,4 @@
-import { scrim } from '@/lib/ui';
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { Icon, type IconName } from '@/components/icon';
 import { PressableScale } from '@/components/motion';
@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -60,9 +59,8 @@ export function HistoryFilterSheet({
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable
-          style={scrim(c)}
-          onPress={onClose}
+        <ModalBackdrop
+                    onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel="Close filters"
           tabIndex={-1}

@@ -1,9 +1,10 @@
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { AVATAR_EMOJIS } from '@/constants/avatar';
 import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
-import { pressBg, scrim } from '@/lib/ui';
+import { pressBg } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
@@ -286,9 +287,8 @@ export default function SettingsScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowStatsModal(false)}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            onPress={() => setShowStatsModal(false)}
+          <ModalBackdrop
+                        onPress={() => setShowStatsModal(false)}
           />
           <View pointerEvents="box-none" style={[styles.statsModalCenter, isSheet && styles.statsModalSheet]}>
             <View
@@ -345,9 +345,8 @@ export default function SettingsScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowAvatarPicker(false)}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            onPress={() => setShowAvatarPicker(false)}
+          <ModalBackdrop
+                        onPress={() => setShowAvatarPicker(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
             <View style={[styles.pickerCard, { backgroundColor: t.card, borderColor: t.border }]}>

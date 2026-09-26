@@ -1,4 +1,4 @@
-import { scrim } from '@/lib/ui';
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -531,9 +531,8 @@ export default function QrCodeScreen() {
         statusBarTranslucent
         onRequestClose={dismissAddFriendModal}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            onPress={dismissAddFriendModal}
+          <ModalBackdrop
+                        onPress={dismissAddFriendModal}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
             <View style={[styles.confirmCard, { backgroundColor: c.card, borderColor: c.border }]}>

@@ -1,4 +1,4 @@
-import { scrim } from '@/lib/ui';
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
@@ -569,9 +569,8 @@ export default function NewSessionScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowGroupPicker(false)}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            importantForAccessibility="no"
+          <ModalBackdrop
+                        importantForAccessibility="no"
             onPress={() => setShowGroupPicker(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
@@ -609,9 +608,8 @@ export default function NewSessionScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowLocationPicker(false)}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            importantForAccessibility="no"
+          <ModalBackdrop
+                        importantForAccessibility="no"
             onPress={() => setShowLocationPicker(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>

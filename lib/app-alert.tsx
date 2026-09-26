@@ -1,4 +1,4 @@
-import { scrim } from '@/lib/ui';
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { useAppColors } from '@/lib/app-theme';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
@@ -168,14 +168,13 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
           {/* Tapping outside a sheet counts as Cancel (only when there is one to press). A plain
               View otherwise: a disabled Pressable picks up the web disabled-opacity style. */}
           {isSheet && cancelButton ? (
-            <Pressable
-              style={scrim(c)}
+            <ModalBackdrop
               onPress={() => onButtonPress(cancelButton)}
               accessible={false}
               tabIndex={-1}
             />
           ) : (
-            <View style={scrim(c)} />
+            <ModalBackdrop />
           )}
           {isSheet ? (
             <View pointerEvents="box-none" style={styles.sheetFrame}>

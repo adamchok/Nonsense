@@ -1,6 +1,7 @@
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg, scrim } from '@/lib/ui';
+import { pressBg } from '@/lib/ui';
 import { BREAKPOINT_MD, SHEET_BREAKPOINT, gutterFor } from '@/lib/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, type ReactNode } from 'react';
@@ -10,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -148,9 +148,8 @@ export function ModalShell({
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.root}>
         {/* Hidden from screen readers so focus starts in the card; back and Cancel still dismiss. */}
-        <Pressable
-          style={scrim(c)}
-          onPress={onClose}
+        <ModalBackdrop
+                    onPress={onClose}
           importantForAccessibility="no"
           accessibilityElementsHidden
         />

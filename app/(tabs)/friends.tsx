@@ -1,4 +1,4 @@
-import { scrim } from '@/lib/ui';
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
@@ -1049,9 +1049,8 @@ export default function FriendsScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowAddModal(false)}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            onPress={() => setShowAddModal(false)}
+          <ModalBackdrop
+                        onPress={() => setShowAddModal(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
             <KeyboardAvoidingView
@@ -1117,9 +1116,8 @@ export default function FriendsScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowGroupLeaderboardModal(false)}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            onPress={() => setShowGroupLeaderboardModal(false)}
+          <ModalBackdrop
+                        onPress={() => setShowGroupLeaderboardModal(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
             <View
@@ -1201,9 +1199,8 @@ export default function FriendsScreen() {
           }
         }}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            disabled={renameGroupSaving}
+          <ModalBackdrop
+                        disabled={renameGroupSaving}
             onPress={() => {
               setRenameGroupTarget(null);
               setRenameGroupName('');

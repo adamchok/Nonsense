@@ -1,6 +1,7 @@
+import { ModalBackdrop } from '@/components/modal-backdrop';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg, scrim } from '@/lib/ui';
+import { pressBg } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency,
@@ -585,9 +586,8 @@ export default function HistoryScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowLocationModal(false)}>
         <View style={styles.modalRoot}>
-          <Pressable
-            style={scrim(c)}
-            onPress={() => {
+          <ModalBackdrop
+                        onPress={() => {
               setShowLocationModal(false);
               setLocationSearch('');
             }}
