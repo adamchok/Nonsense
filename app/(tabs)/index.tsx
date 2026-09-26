@@ -1,6 +1,8 @@
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useResolvedColorScheme } from '@/lib/theme-context';
 import { formatSessionBlindsForDisplay } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { getBuyIns, getRecentSessionsForPlayer } from '@/lib/firestore';
@@ -28,6 +30,8 @@ export default function HomeScreen() {
   const c = useAppColors();
   const layout = usePageLayout(40);
   const router = useRouter();
+  const scheme = useResolvedColorScheme();
+  const { isMd } = useBreakpoint();
   const { playerProfile } = useAuth();
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [sessionMetaById, setSessionMetaById] = useState<Record<string, { playerCount: number; totalBuyIns: number }>>({});
@@ -137,6 +141,18 @@ export default function HomeScreen() {
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
       contentContainerStyle={[layout.content, styles.content]}>
+      {isMd ? null : (
+        <Motion.Image
+          entering={fadeIn}
+          source={
+            scheme === 'dark'
+              ? require('@/assets/images/logo-large.png')
+              : require('@/assets/images/logo-light-large.png')
+          }
+          style={styles.logo}
+          accessibilityLabel="Nonsense"
+        />
+      )}
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Motion.Text entering={fadeIn} style={[styles.eyebrow, { color: c.textMuted }]}>
@@ -329,7 +345,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingTop: 48,
+    paddingTop: 32,
+  },
+  logo: {
+    width: 128,
+    height: 128,
+    resizeMode: 'contain',
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
