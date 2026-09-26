@@ -98,6 +98,27 @@ Then run on Expo Go, iOS simulator, Android emulator, or web.
 | `npm run web` | Launch web target |
 | `npm run lint` | Run lint checks |
 
+## Releasing
+
+Versions follow `MAJOR.MINOR.PATCH`, kept in sync in `app.json` (`expo.version`) and `package.json`.
+
+| Change | Bump | Ship with |
+|---|---|---|
+| JS/UI-only fix | PATCH | `eas update --branch preview` (OTA) |
+| New feature, or any native change (new native module, `app.json` plugin/permission) | MINOR | new EAS build |
+| Breaking data/rules change | MAJOR | new EAS build |
+
+- `runtimeVersion` uses the **fingerprint** policy: EAS derives it from the native project, so an OTA update only reaches binaries it is compatible with. You never set it by hand.
+- Android `versionCode` is managed remotely by EAS (`appVersionSource: remote`) and auto-increments on every preview/production build.
+- Tag each build's commit: `git tag v1.1.0 && git push --tags`.
+
+```bash
+# native release
+eas build -p android --profile preview
+# OTA fix (same native fingerprint)
+eas update --branch preview --message "v1.1.1: <what changed>"
+```
+
 ## Firestore setup notes
 
 - Security rules are in `firestore.rules`.
