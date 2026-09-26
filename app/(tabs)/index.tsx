@@ -389,6 +389,9 @@ const styles = StyleSheet.create({
   },
   avatarEmoji: {
     fontSize: 24,
+    lineHeight: 28,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   ctaBlock: {
     gap: 10,
