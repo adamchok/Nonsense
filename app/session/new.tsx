@@ -1,3 +1,4 @@
+import { scrim } from '@/lib/ui';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
@@ -569,7 +570,7 @@ export default function NewSessionScreen() {
         onRequestClose={() => setShowGroupPicker(false)}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            style={scrim(c)}
             importantForAccessibility="no"
             onPress={() => setShowGroupPicker(false)}
           />
@@ -609,7 +610,7 @@ export default function NewSessionScreen() {
         onRequestClose={() => setShowLocationPicker(false)}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            style={scrim(c)}
             importantForAccessibility="no"
             onPress={() => setShowLocationPicker(false)}
           />

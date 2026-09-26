@@ -1,3 +1,4 @@
+import { scrim } from '@/lib/ui';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -531,7 +532,7 @@ export default function QrCodeScreen() {
         onRequestClose={dismissAddFriendModal}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            style={scrim(c)}
             onPress={dismissAddFriendModal}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>

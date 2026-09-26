@@ -4,7 +4,7 @@
  */
 import type { AppColors } from '@/lib/app-theme';
 import { radius, rowMinHeight, space } from '@/lib/spacing';
-import { StyleSheet, type PressableStateCallbackType, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, type PressableStateCallbackType, type ViewStyle } from 'react-native';
 
 /** react-native-web adds `hovered` (and `focused`) to Pressable's style callback state. */
 type PressState = PressableStateCallbackType & { hovered?: boolean };
@@ -18,6 +18,18 @@ export function pressBg(c: AppColors, state: PressableStateCallbackType, base?: 
   if (pressed) return { backgroundColor: c.pressedRow };
   if (hovered) return { backgroundColor: c.cardAlt };
   return base ? { backgroundColor: base } : null;
+}
+
+/** Web-only backdrop blur (react-native-web passes it through as CSS; native has no equivalent). */
+const WEB_BLUR = { backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' } as unknown as ViewStyle;
+
+/** Full-screen modal backdrop: the theme's dim, plus a blur on web so the dialog holds focus. */
+export function scrim(c: AppColors): ViewStyle {
+  return {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: c.overlay,
+    ...(Platform.OS === 'web' ? WEB_BLUR : null),
+  };
 }
 
 /** Type scale: display 28/700, title 20/700, heading 17/600, body 15/400, label 13/500, caption 12. */

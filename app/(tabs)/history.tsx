@@ -1,6 +1,6 @@
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg } from '@/lib/ui';
+import { pressBg, scrim } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency,
@@ -586,7 +586,7 @@ export default function HistoryScreen() {
         onRequestClose={() => setShowLocationModal(false)}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            style={scrim(c)}
             onPress={() => {
               setShowLocationModal(false);
               setLocationSearch('');

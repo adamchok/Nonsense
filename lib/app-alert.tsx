@@ -1,3 +1,4 @@
+import { scrim } from '@/lib/ui';
 import { useAppColors } from '@/lib/app-theme';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
@@ -164,14 +165,18 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
         statusBarTranslucent
         onRequestClose={close}>
         <View style={styles.root}>
-          {/* Tapping outside a sheet counts as Cancel (only when there is one to press). */}
-          <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
-            onPress={isSheet && cancelButton ? () => onButtonPress(cancelButton) : undefined}
-            disabled={!(isSheet && cancelButton)}
-            accessible={false}
-            tabIndex={-1}
-          />
+          {/* Tapping outside a sheet counts as Cancel (only when there is one to press). A plain
+              View otherwise: a disabled Pressable picks up the web disabled-opacity style. */}
+          {isSheet && cancelButton ? (
+            <Pressable
+              style={scrim(c)}
+              onPress={() => onButtonPress(cancelButton)}
+              accessible={false}
+              tabIndex={-1}
+            />
+          ) : (
+            <View style={scrim(c)} />
+          )}
           {isSheet ? (
             <View pointerEvents="box-none" style={styles.sheetFrame}>
               <View

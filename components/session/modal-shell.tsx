@@ -1,6 +1,6 @@
 import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg } from '@/lib/ui';
+import { pressBg, scrim } from '@/lib/ui';
 import { BREAKPOINT_MD, SHEET_BREAKPOINT, gutterFor } from '@/lib/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, type ReactNode } from 'react';
@@ -149,7 +149,7 @@ export function ModalShell({
       <View style={styles.root}>
         {/* Hidden from screen readers so focus starts in the card; back and Cancel still dismiss. */}
         <Pressable
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+          style={scrim(c)}
           onPress={onClose}
           importantForAccessibility="no"
           accessibilityElementsHidden

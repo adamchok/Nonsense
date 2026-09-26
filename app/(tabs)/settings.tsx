@@ -3,7 +3,7 @@ import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
-import { pressBg } from '@/lib/ui';
+import { pressBg, scrim } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
@@ -287,7 +287,7 @@ export default function SettingsScreen() {
         onRequestClose={() => setShowStatsModal(false)}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+            style={scrim(c)}
             onPress={() => setShowStatsModal(false)}
           />
           <View pointerEvents="box-none" style={[styles.statsModalCenter, isSheet && styles.statsModalSheet]}>
@@ -346,7 +346,7 @@ export default function SettingsScreen() {
         onRequestClose={() => setShowAvatarPicker(false)}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+            style={scrim(c)}
             onPress={() => setShowAvatarPicker(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>

@@ -218,7 +218,7 @@ const light: AppColors = {
   avatarBg: '#e2e8f0',
   avatarIcon: '#475569',
 
-  overlay: 'rgba(0,0,0,0.35)',
+  overlay: 'rgba(15,23,42,0.45)',
 
   switchTrackOff: '#cbd5e1',
   switchTrackOn: '#b7791f',

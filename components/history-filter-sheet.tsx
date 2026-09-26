@@ -1,3 +1,4 @@
+import { scrim } from '@/lib/ui';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { Icon, type IconName } from '@/components/icon';
 import { PressableScale } from '@/components/motion';
@@ -60,7 +61,7 @@ export function HistoryFilterSheet({
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.root}>
         <Pressable
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+          style={scrim(c)}
           onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel="Close filters"

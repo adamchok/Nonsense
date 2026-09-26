@@ -1,3 +1,4 @@
+import { scrim } from '@/lib/ui';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
@@ -1049,7 +1050,7 @@ export default function FriendsScreen() {
         onRequestClose={() => setShowAddModal(false)}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            style={scrim(c)}
             onPress={() => setShowAddModal(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
@@ -1117,7 +1118,7 @@ export default function FriendsScreen() {
         onRequestClose={() => setShowGroupLeaderboardModal(false)}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            style={scrim(c)}
             onPress={() => setShowGroupLeaderboardModal(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
@@ -1201,7 +1202,7 @@ export default function FriendsScreen() {
         }}>
         <View style={styles.modalRoot}>
           <Pressable
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            style={scrim(c)}
             disabled={renameGroupSaving}
             onPress={() => {
               setRenameGroupTarget(null);
