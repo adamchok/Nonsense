@@ -427,6 +427,7 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 22,
   },
   errorRow: {
     flexDirection: 'row',

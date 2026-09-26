@@ -17,6 +17,8 @@
   /* Tint painted over the element on hover: visible on transparent buttons too, where a
      brightness filter alone changes nothing. */
   --interaction-hover-overlay: rgba(15, 23, 42, 0.06);
+  --danger: #dc2626;
+  --danger-hover-overlay: rgba(220, 38, 38, 0.08);
   --input-hover-ring: rgba(71, 85, 105, 0.5);
   --interaction-ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -26,6 +28,8 @@
     --accent: #f5c451;
     --interaction-hover-filter: brightness(1.1);
     --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
+    --danger: #f87171;
+    --danger-hover-overlay: rgba(248, 113, 113, 0.14);
     --input-hover-ring: rgba(148, 163, 184, 0.5);
   }
 }
@@ -34,6 +38,8 @@
   --accent: #f5c451;
   --interaction-hover-filter: brightness(1.1);
   --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
+  --danger: #f87171;
+  --danger-hover-overlay: rgba(248, 113, 113, 0.14);
   --input-hover-ring: rgba(148, 163, 184, 0.5);
 }
 
@@ -92,6 +98,28 @@
     /* Inset shadow = full-cover tint that follows border-radius and sits under the content.
        Elements with their own inline box-shadow keep it (inline wins) and get the filter only. */
     box-shadow: inset 0 0 0 100vmax var(--interaction-hover-overlay);
+  }
+}
+
+/* Destructive actions (labels starting Delete / Remove / Leave): red tint and red icon on
+ * hover instead of the neutral tint, so the consequence reads before the click. */
+@media (hover: hover) {
+  :is([role='button'], button):is([aria-label^='Delete' i], [aria-label^='Remove' i], [aria-label^='Leave' i]):not(
+      [aria-disabled='true'],
+      :disabled
+    ):hover {
+    filter: none;
+    box-shadow: inset 0 0 0 100vmax var(--danger-hover-overlay);
+    color: var(--danger);
+  }
+
+  :is([role='button'], button):is([aria-label^='Delete' i], [aria-label^='Remove' i], [aria-label^='Leave' i]):not(
+      [aria-disabled='true'],
+      :disabled
+    ):hover
+    svg
+    :is(g, path) {
+    fill: var(--danger);
   }
 }
 

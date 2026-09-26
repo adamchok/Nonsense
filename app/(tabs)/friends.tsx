@@ -1147,7 +1147,12 @@ export default function FriendsScreen() {
                     <ActivityIndicator size="large" color={c.textMuted} />
                   </View>
                 ) : groupLeaderboard.length === 0 ? (
-                  <Text style={{ color: c.textMuted }}>No results yet.</Text>
+                  <EmptyState
+                    compact
+                    icon="leaderboard"
+                    title="No results yet"
+                    message="Play a session with this group to see who's up."
+                  />
                 ) : (
                   groupLeaderboard.map((entry, idx) => {
                     const isMe = entry.playerId === user?.uid;
