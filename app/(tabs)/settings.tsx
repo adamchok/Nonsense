@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
+import { GoogleButton } from '@/components/google-button';
 
 function formatPlayTime(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000);
@@ -239,27 +240,7 @@ export default function SettingsScreen() {
                 Your data is tied to this install. Back up with Google so you can restore it after
                 reinstalling or on a new phone.
               </Text>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  { backgroundColor: t.accent },
-                  isLinking && styles.btnDisabled,
-                  pressed && !isLinking && styles.btnPressed,
-                ]}
-                onPress={onBackUpWithGoogle}
-                disabled={isLinking}
-                accessibilityRole="button"
-                accessibilityLabel="Back up with Google"
-                accessibilityState={{ disabled: isLinking, busy: isLinking }}>
-                {isLinking ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <MaterialIcons name="cloud-upload" size={18} color="#fff" />
-                    <Text style={styles.primaryBtnLabel}>Back up with Google</Text>
-                  </>
-                )}
-              </Pressable>
+              <GoogleButton label="Back up with Google" onPress={onBackUpWithGoogle} busy={isLinking} />
             </>
           )}
         </View>

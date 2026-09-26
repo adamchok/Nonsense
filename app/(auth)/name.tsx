@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userMessage } from '@/lib/user-message';
+import { GoogleButton } from '@/components/google-button';
 
 export default function NameScreen() {
   const c = useAppColors();
@@ -225,26 +226,20 @@ export default function NameScreen() {
             </Pressable>
           )}
           {!isEditing && !isLinked ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Already have an account? Sign in with Google"
-              accessibilityState={{ disabled: isBusy, busy: isSigningIn }}
-              style={({ pressed }) => [
-                styles.buttonGoogle,
-                { borderColor: c.inputBorder },
-                isBusy && styles.buttonDisabled,
-                pressed && !isBusy && styles.buttonPressed,
-              ]}
-              onPress={onSignInWithGoogle}
-              disabled={isBusy}>
-              {isSigningIn ? (
-                <ActivityIndicator color={c.accentText} />
-              ) : (
-                <Text style={[styles.buttonGoogleLabel, { color: c.accentText }]}>
-                  Already have an account? Sign in with Google
-                </Text>
-              )}
-            </Pressable>
+            <View style={styles.googleBlock}>
+              <View style={styles.dividerRow} importantForAccessibility="no-hide-descendants">
+                <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
+                <Text style={[styles.dividerText, { color: c.textMuted }]}>Already have an account?</Text>
+                <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
+              </View>
+              <GoogleButton
+                label="Sign in with Google"
+                accessibilityLabel="Already have an account? Sign in with Google"
+                onPress={onSignInWithGoogle}
+                busy={isSigningIn}
+                disabled={isBusy}
+              />
+            </View>
           ) : null}
         </View>
       </ScrollView>
@@ -338,18 +333,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  buttonGoogle: {
-    borderWidth: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
+  googleBlock: {
+    gap: 12,
+    marginTop: 8,
   },
-  buttonGoogleLabel: {
-    fontWeight: '600',
-    fontSize: 15,
-    textAlign: 'center',
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  dividerText: {
+    fontSize: 12,
   },
   buttonPressed: {
     opacity: 0.85,
