@@ -8,25 +8,29 @@ type Props<K extends string> = {
   tabs: readonly SegmentedTab<K>[];
   value: K;
   onChange: (key: K) => void;
+  /** 'radio' for a value choice (e.g. Cash / Chips) rather than switching views. */
+  variant?: 'tabs' | 'radio';
 };
 
 /**
  * Pill-style tab switcher: the selected tab is tinted with the accent (filled icon), the rest
  * stay muted. Hover/focus feedback on web comes from lib/web-interactions.css.
  */
-export function SegmentedTabs<K extends string>({ tabs, value, onChange }: Props<K>) {
+export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant = 'tabs' }: Props<K>) {
+  const isRadio = variant === 'radio';
   const c = useAppColors();
   return (
-    <View style={[styles.track, { backgroundColor: c.inputBg, borderColor: c.border }]} accessibilityRole="tablist">
+    <View style={[styles.track, { backgroundColor: c.inputBg, borderColor: c.border }]} accessibilityRole={isRadio ? 'radiogroup' : 'tablist'}>
       {tabs.map((tab) => {
         const selected = tab.key === value;
         const color = selected ? c.accentText : c.textMuted;
         return (
           <Pressable
             key={tab.key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            aria-selected={selected}
+            accessibilityRole={isRadio ? 'radio' : 'tab'}
+            accessibilityState={isRadio ? { checked: selected } : { selected }}
+            aria-selected={isRadio ? undefined : selected}
+            aria-checked={isRadio ? selected : undefined}
             accessibilityLabel={tab.label}
             onPress={() => onChange(tab.key)}
             style={[styles.tab, selected && { backgroundColor: c.accentBg }]}>

@@ -18,13 +18,19 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userMessage } from '@/lib/user-message';
+import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
+import { AppSwitch } from '@/components/app-switch';
+
+const AMOUNT_UNIT_TABS: readonly SegmentedTab<SessionAmountUnit>[] = [
+  { key: 'cash', label: 'Cash', icon: 'payments' },
+  { key: 'chips', label: 'Chips', icon: 'poker-chip' },
+];
 
 const SCREEN_CONTENT_PADDING_BOTTOM = 32;
 
@@ -277,9 +283,11 @@ export default function NewSessionScreen() {
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag">
-            <View style={styles.locationSection}>
+            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={styles.amountModeHeader}>
               <Icon name="place" size={20} color={c.textMuted} style={styles.icons} />
-              <Text style={[styles.locationSectionTitle, { color: c.textMuted }]}>Location (Optional)</Text>
+              <Text style={[styles.amountModeTitle, { color: c.text }]}>Location</Text>
+              <Text style={[styles.optionalTag, { color: c.textHint }]}>Optional</Text>
             </View>
             {hasSavedLocations ? (
               <Pressable
@@ -317,43 +325,22 @@ export default function NewSessionScreen() {
                 ) : null}
               </View>
             )}
+            </View>
 
             <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={styles.amountModeHeader}>
                 <Icon name="tune" size={20} color={c.textMuted} style={styles.icons} />
-                <Text style={[styles.amountModeTitle, { color: c.textMuted }]}>Amounts</Text>
+                <Text style={[styles.amountModeTitle, { color: c.text }]}>Amounts</Text>
               </View>
               <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
                 Cash: track dollars. Chips: track chip stacks; set how much each chip is worth.
               </Text>
-              <View
-                style={[styles.amountModeRow, { backgroundColor: c.inputBg, borderColor: c.border }]}
-                accessibilityRole="radiogroup">
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: !isChipsMode }}
-                  style={[
-                    styles.amountModeOption,
-                    !isChipsMode && { borderColor: c.accentBorder, backgroundColor: c.accentBg },
-                  ]}
-                  onPress={() => setAmountUnit('cash')}>
-                  <Text style={[styles.amountModeOptionText, { color: !isChipsMode ? c.accentText : c.textMuted }]}>
-                    Cash
-                  </Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: isChipsMode }}
-                  style={[
-                    styles.amountModeOption,
-                    isChipsMode && { borderColor: c.accentBorder, backgroundColor: c.accentBg },
-                  ]}
-                  onPress={() => setAmountUnit('chips')}>
-                  <Text style={[styles.amountModeOptionText, { color: isChipsMode ? c.accentText : c.textMuted }]}>
-                    Chips
-                  </Text>
-                </Pressable>
-              </View>
+              <SegmentedTabs
+                variant="radio"
+                tabs={AMOUNT_UNIT_TABS}
+                value={amountUnit}
+                onChange={setAmountUnit}
+              />
               {isChipsMode ? (
                 <View style={styles.chipValueBlock}>
                   <View style={styles.labelWithRequired}>
@@ -379,13 +366,12 @@ export default function NewSessionScreen() {
               ) : null}
             </View>
 
-            <View style={styles.blindsSection}>
+            <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={styles.amountModeHeader}>
               <Icon name="payments" size={20} color={c.textMuted} style={styles.icons} />
-              <View style={styles.labelWithRequired}>
-                <Text style={[styles.blindsSectionTitle, { color: c.textMuted }]}>
-                  Blinds{isChipsMode ? ' (chips)' : ''}
-                </Text>
-              </View>
+              <Text style={[styles.amountModeTitle, { color: c.text }]}>
+                Blinds{isChipsMode ? ' (chips)' : ''}
+              </Text>
             </View>
             <View style={styles.blindsRow}>
               <View style={styles.blindField}>
@@ -423,13 +409,15 @@ export default function NewSessionScreen() {
                 </SessionAmountInputRow>
               </View>
             </View>
+            </View>
 
             {/* ---- Group picker ---- */}
             {groups.length > 0 && (
               <View style={[styles.groupSection, { backgroundColor: c.card, borderColor: c.border }]}>
                 <View style={styles.groupSectionHeader}>
                   <Icon name="group" size={20} color={c.textMuted} style={styles.icons} />
-                  <Text style={[styles.groupSectionTitle, { color: c.textMuted }]}>Play with a group (Optional)</Text>
+                  <Text style={[styles.groupSectionTitle, { color: c.text }]}>Play with a group</Text>
+                  <Text style={[styles.optionalTag, { color: c.textHint }]}>Optional</Text>
                 </View>
                 <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
                   Select a group to auto-add all members with a uniform buy-in.
@@ -501,7 +489,7 @@ export default function NewSessionScreen() {
                   <View style={styles.joinTextCol}>
                     <View style={styles.joinTextRow}>
                       <Icon name="person" size={20} color={c.textMuted} style={styles.icons} />
-                      <Text style={[styles.joinTitle, { color: c.textMuted }]}>Join as player</Text>
+                      <Text style={[styles.joinTitle, { color: c.text }]}>Join as player</Text>
                       {joinSelf ? (
                         <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                       ) : null}
@@ -510,12 +498,10 @@ export default function NewSessionScreen() {
                       {isChipsMode ? 'Add yourself with chips bought in' : 'Add yourself with an initial buy-in'}
                     </Text>
                   </View>
-                  <Switch
+                  <AppSwitch
                     accessibilityLabel="Join as player"
                     value={joinSelf}
                     onValueChange={setJoinSelf}
-                    trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
-                    thumbColor={c.switchThumb}
                   />
                 </View>
                 {joinSelf && (
@@ -655,7 +641,7 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     paddingTop: 16,
-    gap: 12,
+    gap: 16,
   },
   title: {
     fontSize: 20,
@@ -672,28 +658,8 @@ const styles = StyleSheet.create({
   },
   locationInputGroup: {
     gap: 7,
-    paddingBottom: 8,
   },
   savedLocationsLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  locationSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  locationSectionTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  blindsSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  blindsSectionTitle: {
     fontSize: 13,
     fontWeight: '500',
   },
@@ -767,7 +733,7 @@ const styles = StyleSheet.create({
   buyInRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 10,
   },
   dollarSign: {
     fontSize: 18,
@@ -818,13 +784,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   groupSectionHint: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  optionalTag: {
     fontSize: 12,
+    marginLeft: 'auto',
   },
   amountModeCard: {
     borderRadius: 14,
     borderWidth: 1,
     padding: 16,
-    gap: 10,
+    gap: 12,
   },
   amountModeHeader: {
     flexDirection: 'row',
@@ -836,26 +807,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   /** Segmented control: track padding 3, gap 2, radius 9; items 38 tall, radius 8. */
-  amountModeRow: {
-    flexDirection: 'row',
-    padding: 3,
-    gap: 2,
-    borderRadius: 9,
-    borderWidth: 1,
-  },
-  amountModeOption: {
-    flex: 1,
-    minHeight: 38,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  amountModeOptionText: {
-    fontWeight: '600',
-    fontSize: 13,
-  },
   chipValueBlock: {
     gap: 7,
   },

@@ -1,7 +1,8 @@
 import { useAppColors } from '@/lib/app-theme';
 import { Icon } from '@/components/icon';
 import { text as type } from '@/lib/ui';
-import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { AppSwitch } from '@/components/app-switch';
 
 type Props = {
   count: number;
@@ -42,11 +43,9 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
             color={c.textMuted}
             importantForAccessibility="no"
           />
-          <Switch
+          <AppSwitch
             value={dollarsToggle.value}
             onValueChange={dollarsToggle.onChange}
-            trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
-            thumbColor={c.switchThumb}
             accessibilityRole="switch"
             accessibilityLabel="Show amounts in dollars"
             accessibilityState={{ checked: dollarsToggle.value }}
