@@ -480,12 +480,6 @@ export default function HistoryScreen() {
         </View>
       </View>
 
-      {!loading && filteredHistory.length >= 2 ? (
-        <View style={[styles.chartCard, { backgroundColor: c.card, borderColor: c.border }]}>
-          <PLChart entries={filteredHistory} onOpen={(id) => router.push(`../session/summary/${id}`)} />
-        </View>
-      ) : null}
-
       {error ? <Text style={[styles.historyMeta, { color: c.loss }]}>{error}</Text> : null}
 
       {loading ? (
@@ -513,6 +507,19 @@ export default function HistoryScreen() {
           keyExtractor={(item) => item.id}
           itemLayoutAnimation={layoutTransition}
           style={styles.list}
+          // The chart scrolls away with the sessions (only the summary cards stay pinned),
+          // so the list keeps its height on small screens.
+          ListHeaderComponent={
+            filteredHistory.length >= 2 ? (
+              <View
+                style={[
+                  styles.chartCard,
+                  { backgroundColor: c.card, borderColor: c.border, marginBottom: layout.sectionGap },
+                ]}>
+                <PLChart entries={filteredHistory} onOpen={(id) => router.push(`../session/summary/${id}`)} />
+              </View>
+            ) : null
+          }
           ListFooterComponent={
             hasMoreHistory ? (
               <View style={styles.historyPaginationFooter}>
