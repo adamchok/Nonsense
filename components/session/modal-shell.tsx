@@ -91,7 +91,9 @@ export function ModalShell({
         isSheet && [styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 12) }],
         cardStyle,
         entrance,
-      ]}>
+      ]}
+      accessibilityViewIsModal
+      onAccessibilityEscape={onClose}>
       {isSheet ? <View style={[styles.grabber, { backgroundColor: c.border }]} /> : null}
       {title != null ? (
         <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
@@ -100,20 +102,24 @@ export function ModalShell({
       ) : null}
       {children}
       <View style={[styles.actions, isSheet && styles.actionsSheet]}>
-        <PressableScale
-          style={(state) => [
-            styles.cancelBtn,
-            isSheet && styles.flexBtn,
-            { borderColor: c.inputBorder },
-            pressBg(c, state, c.card),
-          ]}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel={primary ? 'Cancel' : 'Close'}>
-          <Text style={[styles.cancelLabel, { color: c.text }]}>
-            {primary ? 'Cancel' : 'Close'}
-          </Text>
-        </PressableScale>
+        {/* Sheets dismiss by tapping outside (or back / VoiceOver escape), so Cancel only
+            shows on the centred card, or as Close when there is no primary action. */}
+        {isSheet && primary ? null : (
+          <PressableScale
+            style={(state) => [
+              styles.cancelBtn,
+              isSheet && styles.flexBtn,
+              { borderColor: c.inputBorder },
+              pressBg(c, state, c.card),
+            ]}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={primary ? 'Cancel' : 'Close'}>
+            <Text style={[styles.cancelLabel, { color: c.text }]}>
+              {primary ? 'Cancel' : 'Close'}
+            </Text>
+          </PressableScale>
+        )}
         {primary ? (
           <PressableScale
             style={[
@@ -153,6 +159,8 @@ export function ModalShell({
           style={[styles.centerWrap, isSheet ? styles.sheetWrap : { paddingHorizontal: gutterFor(width) }]}>
           {avoidKeyboard ? (
             <KeyboardAvoidingView
+              // Fills the screen; let taps outside the card reach the backdrop (tap to dismiss).
+              pointerEvents="box-none"
               behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' && !isSheet ? 64 : 0}
               style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet]}>
