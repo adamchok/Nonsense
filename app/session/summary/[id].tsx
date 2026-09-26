@@ -325,7 +325,7 @@ export default function SessionSummaryScreen() {
           style={[styles.headerShareBtn, Platform.OS === 'web' && { marginRight: layout.gutter }]}
           accessibilityRole="button"
           accessibilityLabel="Share on WhatsApp">
-          <Icon name="whatsapp" size={16} color="#fff" />
+          <Icon name="whatsapp" size={16} color="#000" />
         </Pressable>
       ),
     });
