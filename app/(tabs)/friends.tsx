@@ -757,17 +757,22 @@ export default function FriendsScreen() {
                   exiting={fadeOut}
                   layout={layoutTransition}
                   style={[styles.groupCard, { backgroundColor: c.card, borderColor: isExpanded ? c.borderAccent : c.border }]}>
-                  <View style={styles.groupHeader}>
-                    <PressableScale
-                      pressedScale={0.985}
-                      style={styles.groupHeaderLeft}
-                      onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
+                  {/* The whole header row toggles the card; the icon buttons inside handle their own presses. */}
+                  <Pressable
+                    style={styles.groupHeader}
+                    onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${group.name}, ${group.memberCount ?? 0} players`}
+                    accessibilityHint={isExpanded ? 'Collapses the group' : 'Expands the group'}
+                    accessibilityState={{ expanded: isExpanded }}
+                    aria-expanded={isExpanded}>
+                    <View style={styles.groupHeaderLeft}>
                       <Icon name="group" size={20} color={c.textMuted} />
                       <Text style={[styles.groupName, { color: c.text }]}>{group.name}</Text>
                       <Text style={[styles.groupCount, { color: c.textHint }]}>
                         {group.memberCount ?? 0} {(group.memberCount ?? 0) === 1 ? 'player' : 'players'}
                       </Text>
-                    </PressableScale>
+                    </View>
                     <View style={styles.groupHeaderRight}>
                       {isGroupOwner ? (
                         <>
@@ -801,21 +806,16 @@ export default function FriendsScreen() {
                           <Icon name="logout" size={20} color={c.textHint} />
                         </PressableScale>
                       )}
-                      <PressableScale
-                        pressedScale={0.9}
-                        hitSlop={4}
-                        style={styles.groupIconBtn}
-                        accessibilityRole="button"
-                        accessibilityLabel={isExpanded ? `Collapse group ${group.name}` : `Expand group ${group.name}`}
-                        onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
+                      <View style={styles.groupIconBtn}>
                         <Icon
                           name={isExpanded ? 'expand-less' : 'expand-more'}
                           size={22}
                           color={c.textMuted}
+                          importantForAccessibility="no"
                         />
-                      </PressableScale>
+                      </View>
                     </View>
-                  </View>
+                  </Pressable>
 
                   {isExpanded && (
                     <View style={styles.groupBody}>
