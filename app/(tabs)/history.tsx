@@ -6,6 +6,7 @@ import {
   formatSignedCurrency,
   formatTightCompactNumber,
 } from '@/lib/currency-format';
+import { parseAmount } from '@/lib/parse-amount';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { appAlert } from '@/lib/app-alert';
 import { getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
@@ -86,9 +87,7 @@ function formatDateInput(date: Date): string {
 function parseAmountInput(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const numeric = Number(trimmed);
-  if (!Number.isFinite(numeric)) return null;
-  return numeric;
+  return parseAmount(trimmed);
 }
 
 function mergeHistoryPages(prev: HistoryEntry[], next: HistoryEntry[]): HistoryEntry[] {
@@ -390,6 +389,8 @@ export default function HistoryScreen() {
                 <Text style={[styles.sortSectionTitle, { color: c.textHint }]}>Sort by</Text>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'datetime' && { backgroundColor: c.accentBg }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sortBy === 'datetime' }}
                   onPress={() => {
                     setSortBy('datetime');
                     setShowSortDropdown(false);
@@ -399,6 +400,8 @@ export default function HistoryScreen() {
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'buyIn' && { backgroundColor: c.accentBg }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sortBy === 'buyIn' }}
                   onPress={() => {
                     setSortBy('buyIn');
                     setShowSortDropdown(false);
@@ -408,6 +411,8 @@ export default function HistoryScreen() {
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'profit' && { backgroundColor: c.accentBg }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sortBy === 'profit' }}
                   onPress={() => {
                     setSortBy('profit');
                     setShowSortDropdown(false);
@@ -417,6 +422,8 @@ export default function HistoryScreen() {
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'duration' && { backgroundColor: c.accentBg }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sortBy === 'duration' }}
                   onPress={() => {
                     setSortBy('duration');
                     setShowSortDropdown(false);
@@ -428,6 +435,8 @@ export default function HistoryScreen() {
                 <Text style={[styles.sortSectionTitle, { color: c.textHint }]}>Direction</Text>
                 <Pressable
                   style={[styles.sortOption, sortDirection === 'desc' && { backgroundColor: c.accentBg }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sortDirection === 'desc' }}
                   onPress={() => {
                     setSortDirection('desc');
                     setShowSortDropdown(false);
@@ -437,6 +446,8 @@ export default function HistoryScreen() {
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortDirection === 'asc' && { backgroundColor: c.accentBg }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: sortDirection === 'asc' }}
                   onPress={() => {
                     setSortDirection('asc');
                     setShowSortDropdown(false);
@@ -562,7 +573,14 @@ export default function HistoryScreen() {
                   { backgroundColor: c.card, borderColor: c.border },
                 ]}
                 onPress={() => router.push(`../session/summary/${item.id}`)}
-                onLongPress={isHost ? undefined : () => confirmLeaveSession(item.id)}>
+                onLongPress={isHost ? undefined : () => confirmLeaveSession(item.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`${formatDateTimeDMY(item.date)}, ${isHost ? 'host' : 'participant'}, ${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}, ${item.location ? item.location : 'no location'}`}
+                accessibilityHint="Opens the session summary"
+                accessibilityActions={isHost ? undefined : [{ name: 'remove', label: 'Remove from history' }]}
+                onAccessibilityAction={(e) => {
+                  if (!isHost && e.nativeEvent.actionName === 'remove') confirmLeaveSession(item.id);
+                }}>
                 <View style={styles.historyTop}>
                   <View style={styles.historyTitleRow}>
                     <Text style={[styles.historyLabel, { color: c.text }]}>
@@ -578,13 +596,25 @@ export default function HistoryScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Text
-                    style={[
-                      styles.historyProfit,
-                      { color: item.profit >= 0 ? c.profit : c.loss },
-                    ]}>
-                    {formatSignedCurrency(item.profit)}
-                  </Text>
+                  <View style={styles.historyTopRight}>
+                    <Text
+                      style={[
+                        styles.historyProfit,
+                        { color: item.profit >= 0 ? c.profit : c.loss },
+                      ]}>
+                      {formatSignedCurrency(item.profit)}
+                    </Text>
+                    {!isHost ? (
+                      <Pressable
+                        onPress={() => confirmLeaveSession(item.id)}
+                        hitSlop={8}
+                        style={styles.historyMoreBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Remove from history">
+                        <MaterialIcons name="more-vert" size={20} color={c.textMuted} />
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
                 <Text style={[styles.historyMeta, { color: c.textMuted }]}>
                   {item.location ? item.location : 'No location'}
@@ -767,7 +797,7 @@ export default function HistoryScreen() {
                     <TextInput
                       style={[
                         styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
                       ]}
                       accessibilityLabel="Minimum buy-in"
                       placeholder="Min"
@@ -781,7 +811,7 @@ export default function HistoryScreen() {
                     <TextInput
                       style={[
                         styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
                       ]}
                       accessibilityLabel="Maximum buy-in"
                       placeholder="Max"
@@ -800,7 +830,7 @@ export default function HistoryScreen() {
                     <TextInput
                       style={[
                         styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
                       ]}
                       accessibilityLabel="Minimum profit"
                       placeholder="Min"
@@ -814,7 +844,7 @@ export default function HistoryScreen() {
                     <TextInput
                       style={[
                         styles.input,
-                        { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+                        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
                       ]}
                       accessibilityLabel="Maximum profit"
                       placeholder="Max"
@@ -880,7 +910,7 @@ export default function HistoryScreen() {
                 style={[
                   styles.input,
                   styles.locationSearchInput,
-                  { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+                  { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
                 ]}
                 placeholder="Search locations"
                 placeholderTextColor={c.placeholder}
@@ -1116,6 +1146,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 8,
+  },
+  historyTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  historyMoreBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -6,
   },
   historyTitleRow: {
     flex: 1,

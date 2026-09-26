@@ -18,7 +18,9 @@ export function SessionAmountPrefix({ unit, color, size = 20, style }: Props) {
   if (unit === 'cash') {
     return <Text style={[styles.dollar, { color, fontSize: size }, style]}>$</Text>;
   }
-  return <MaterialCommunityIcons name="poker-chip" size={size} color={color} style={style} />;
+  return (
+    <MaterialCommunityIcons name="poker-chip" size={size} color={color} style={style} accessibilityLabel="chips" />
+  );
 }
 
 const styles = StyleSheet.create({

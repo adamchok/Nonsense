@@ -4,6 +4,7 @@ import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
+import { parseAmount } from '@/lib/parse-amount';
 import type { GroupMember, PokerGroup, SavedLocation, SessionAmountUnit } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
@@ -175,8 +176,8 @@ export default function NewSessionScreen() {
     const initialBuyIns: { playerId: string; playerName: string; amount: number }[] = [];
 
     if (shouldAddGroupMembers) {
-      const parsed = parseFloat(groupBuyIn);
-      if (!groupBuyIn.trim() || !Number.isFinite(parsed) || parsed <= 0) {
+      const parsed = parseAmount(groupBuyIn);
+      if (parsed == null || parsed <= 0) {
         appAlert(
           'Invalid buy-in',
           isChipsMode ? 'Enter a valid chip buy-in for the group.' : 'Enter a valid buy-in amount for the group.'
@@ -189,8 +190,8 @@ export default function NewSessionScreen() {
     }
 
     if (shouldAddSelf) {
-      const parsed = parseFloat(buyInAmount);
-      if (!buyInAmount.trim() || !Number.isFinite(parsed) || parsed <= 0) {
+      const parsed = parseAmount(buyInAmount);
+      if (parsed == null || parsed <= 0) {
         appAlert(
           'Invalid buy-in',
           isChipsMode ? 'Enter a valid chip amount to join the session.' : 'Enter a valid buy-in amount to join the session.'
@@ -211,9 +212,9 @@ export default function NewSessionScreen() {
 
     const sbTrim = smallBlindStr.trim();
     const bbTrim = bigBlindStr.trim();
-    const sb = parseFloat(sbTrim);
-    const bb = parseFloat(bbTrim);
-    if (!sbTrim || !bbTrim || Number.isNaN(sb) || Number.isNaN(bb) || sb <= 0 || bb < sb) {
+    const sb = parseAmount(sbTrim);
+    const bb = parseAmount(bbTrim);
+    if (sb == null || bb == null || sb <= 0 || bb < sb) {
       appAlert(
         'Blinds required',
         'Enter small and big blind amounts, with big blind at least equal to the small blind.'
@@ -223,8 +224,8 @@ export default function NewSessionScreen() {
 
     let dollarsPerChip: number | undefined;
     if (isChipsMode) {
-      const dpc = parseFloat(dollarsPerChipStr.trim());
-      if (!dollarsPerChipStr.trim() || Number.isNaN(dpc) || dpc <= 0) {
+      const dpc = parseAmount(dollarsPerChipStr.trim());
+      if (dpc == null || dpc <= 0) {
         appAlert(
           'Chip value',
           'Enter how much each chip is worth in dollars (e.g. 0.50 for a $50 buy-in of 100 chips).'
@@ -278,7 +279,9 @@ export default function NewSessionScreen() {
             </View>
             {hasSavedLocations ? (
               <Pressable
-                style={[styles.locationPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+                style={[styles.locationPickerBtn, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Location: ${locationMode === 'saved' ? getSelectedSavedLocationName() ?? 'not selected' : 'Other'}. Change`}
                 onPress={() => setShowLocationPicker(true)}>
                 <MaterialIcons name="place" size={18} color={c.textMuted} />
                 <Text style={[styles.locationPickerText, { color: c.text }]}>
@@ -300,7 +303,7 @@ export default function NewSessionScreen() {
                   placeholderTextColor={c.placeholder}
                   style={[
                     styles.input,
-                    { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+                    { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
                   ]}
                 />
                 {!hasSavedLocations ? (
@@ -319,8 +322,10 @@ export default function NewSessionScreen() {
               <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
                 Cash: track dollars. Chips: track chip stacks; set how much each chip is worth.
               </Text>
-              <View style={styles.amountModeRow}>
+              <View style={styles.amountModeRow} accessibilityRole="radiogroup">
                 <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: !isChipsMode }}
                   style={[
                     styles.amountModeOption,
                     { borderColor: c.border, backgroundColor: c.inputBg },
@@ -330,6 +335,8 @@ export default function NewSessionScreen() {
                   <Text style={[styles.amountModeOptionText, { color: c.text }]}>Cash</Text>
                 </Pressable>
                 <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isChipsMode }}
                   style={[
                     styles.amountModeOption,
                     { borderColor: c.border, backgroundColor: c.inputBg },
@@ -354,7 +361,7 @@ export default function NewSessionScreen() {
                       placeholder="0.50"
                       placeholderTextColor={c.placeholder}
                       keyboardType="decimal-pad"
-                      style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                      style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
                     />
                   </View>
                   <Text style={[styles.groupSectionHint, { color: c.textHint }]}>
@@ -386,7 +393,7 @@ export default function NewSessionScreen() {
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
-                    style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                    style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
                   />
                 </SessionAmountInputRow>
               </View>
@@ -403,7 +410,7 @@ export default function NewSessionScreen() {
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
-                    style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                    style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
                   />
                 </SessionAmountInputRow>
               </View>
@@ -441,7 +448,9 @@ export default function NewSessionScreen() {
                   </View>
                 ) : (
                   <Pressable
-                    style={[styles.groupPickerBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+                    style={[styles.groupPickerBtn, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Select group"
                     onPress={() => setShowGroupPicker(true)}>
                     <MaterialIcons name="group" size={18} color={c.textMuted} />
                     <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
@@ -469,7 +478,7 @@ export default function NewSessionScreen() {
                         placeholderTextColor={c.placeholder}
                         keyboardType="numeric"
                         onFocus={scrollLowerFormIntoView}
-                        style={[styles.buyInInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+                        style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
                       />
                     </SessionAmountInputRow>
                   </>
@@ -494,6 +503,7 @@ export default function NewSessionScreen() {
                     </Text>
                   </View>
                   <Switch
+                    accessibilityLabel="Join as player"
                     value={joinSelf}
                     onValueChange={setJoinSelf}
                     trackColor={{ false: c.switchTrackOff, true: c.switchTrackOn }}
@@ -512,7 +522,7 @@ export default function NewSessionScreen() {
                       onFocus={scrollLowerFormIntoView}
                       style={[
                         styles.buyInInput,
-                        { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+                        { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
                       ]}
                     />
                   </SessionAmountInputRow>
@@ -523,6 +533,9 @@ export default function NewSessionScreen() {
             <Pressable
               onPress={onCreate}
               disabled={isSaving}
+              accessibilityRole="button"
+              accessibilityLabel="Start Session"
+              accessibilityState={{ disabled: isSaving, busy: isSaving }}
               style={({ pressed }) => [
                 styles.button,
                 { backgroundColor: c.accent },
@@ -547,22 +560,29 @@ export default function NewSessionScreen() {
         <View style={styles.modalRoot}>
           <Pressable
             style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            importantForAccessibility="no"
             onPress={() => setShowGroupPicker(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
             <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={[styles.pickerTitle, { color: c.text }]}>Select Group</Text>
-              {groups.map((g) => (
-                <Pressable
-                  key={g.id}
-                  style={[styles.pickerRow, { borderColor: c.border }]}
-                  onPress={() => handleSelectGroup(g)}>
-                  <MaterialIcons name="group" size={20} color={c.textMuted} />
-                  <Text style={[styles.pickerRowText, { color: c.text }]}>{g.name}</Text>
-                </Pressable>
-              ))}
+              <Text style={[styles.pickerTitle, { color: c.text }]} accessibilityRole="header">
+                Select Group
+              </Text>
+              <ScrollView style={styles.pickerList}>
+                {groups.map((g) => (
+                  <Pressable
+                    key={g.id}
+                    style={[styles.pickerRow, { borderColor: c.border }]}
+                    accessibilityRole="button"
+                    onPress={() => handleSelectGroup(g)}>
+                    <MaterialIcons name="group" size={20} color={c.textMuted} />
+                    <Text style={[styles.pickerRowText, { color: c.text }]}>{g.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
               <Pressable
                 style={styles.pickerCancel}
+                accessibilityRole="button"
                 onPress={() => setShowGroupPicker(false)}>
                 <Text style={[styles.pickerCancelText, { color: c.lossLight }]}>Cancel</Text>
               </Pressable>
@@ -580,28 +600,36 @@ export default function NewSessionScreen() {
         <View style={styles.modalRoot}>
           <Pressable
             style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            importantForAccessibility="no"
             onPress={() => setShowLocationPicker(false)}
           />
           <View pointerEvents="box-none" style={styles.modalCenter}>
             <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={[styles.pickerTitle, { color: c.text }]}>Select Location</Text>
-              {savedLocations.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={[styles.pickerRow, { borderColor: c.border }]}
-                  onPress={() => onSelectSavedLocation(item)}>
-                  <MaterialIcons name="place" size={18} color={c.textMuted} />
-                  <Text style={[styles.pickerRowText, { color: c.text }]}>{item.name}</Text>
-                </Pressable>
-              ))}
+              <Text style={[styles.pickerTitle, { color: c.text }]} accessibilityRole="header">
+                Select Location
+              </Text>
+              <ScrollView style={styles.pickerList}>
+                {savedLocations.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={[styles.pickerRow, { borderColor: c.border }]}
+                    accessibilityRole="button"
+                    onPress={() => onSelectSavedLocation(item)}>
+                    <MaterialIcons name="place" size={18} color={c.textMuted} />
+                    <Text style={[styles.pickerRowText, { color: c.text }]}>{item.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
               <Pressable
                 style={[styles.pickerRow, { borderColor: c.border }]}
+                accessibilityRole="button"
                 onPress={onSelectOtherLocation}>
                 <MaterialIcons name="edit-location-alt" size={18} color={c.textMuted} />
                 <Text style={[styles.pickerRowText, { color: c.text }]}>Other</Text>
               </Pressable>
               <Pressable
                 style={styles.pickerCancel}
+                accessibilityRole="button"
                 onPress={() => setShowLocationPicker(false)}>
                 <Text style={[styles.pickerCancelText, { color: c.lossLight }]}>Cancel</Text>
               </Pressable>
@@ -709,6 +737,7 @@ const styles = StyleSheet.create({
   },
   blindField: {
     flex: 1,
+    minWidth: 0,
     gap: 4,
   },
   blindFieldLabel: {
@@ -736,6 +765,7 @@ const styles = StyleSheet.create({
   },
   buyInInput: {
     flex: 1,
+    minWidth: 0,
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -888,6 +918,9 @@ const styles = StyleSheet.create({
   pickerRowText: {
     fontWeight: '600',
     fontSize: 15,
+  },
+  pickerList: {
+    maxHeight: 360,
   },
   pickerCancel: {
     paddingVertical: 12,

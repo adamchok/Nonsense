@@ -6,6 +6,8 @@ export interface AppColors {
   cardAlt: string;
   inputBg: string;
   border: string;
+  /** Text-field outline; meets WCAG 1.4.11 3:1 against card/inputBg. */
+  inputBorder: string;
   borderAccent: string;
   borderDanger: string;
   borderBlue: string;
@@ -18,6 +20,8 @@ export interface AppColors {
   placeholder: string;
 
   accent: string;
+  /** Accent used as text on card surfaces (accent itself is too dark in dark mode). */
+  accentText: string;
   accentBg: string;
   accentBorder: string;
   accentBgDashed: string;
@@ -80,6 +84,7 @@ const dark: AppColors = {
   cardAlt: '#12151b',
   inputBg: '#12151b',
   border: '#2f3542',
+  inputBorder: '#64748b',
   borderAccent: '#2d6a4f',
   borderDanger: '#475569',
   borderBlue: '#3b82f6',
@@ -88,10 +93,11 @@ const dark: AppColors = {
   text: '#fff',
   textSecondary: '#e2e8f0',
   textMuted: '#94a3b8',
-  textHint: '#64748b',
+  textHint: '#919fb4',
   placeholder: '#7a8393',
 
   accent: '#2d6a4f',
+  accentText: '#4ade80',
   accentBg: '#1a3a2a',
   accentBorder: '#2d6a4f',
   accentBgDashed: '#1a3a2a',
@@ -154,6 +160,7 @@ const light: AppColors = {
   cardAlt: '#f8fafc',
   inputBg: '#f8fafc',
   border: '#e2e8f0',
+  inputBorder: '#8391a7',
   borderAccent: '#15803d',
   borderDanger: '#cbd5e1',
   borderBlue: '#3b82f6',
@@ -161,19 +168,20 @@ const light: AppColors = {
 
   text: '#0f172a',
   textSecondary: '#1e293b',
-  textMuted: '#64748b',
-  textHint: '#94a3b8',
-  placeholder: '#94a3b8',
+  textMuted: '#56667c',
+  textHint: '#5f6f86',
+  placeholder: '#64748b',
 
   accent: '#15803d',
+  accentText: '#15803d',
   accentBg: '#dcfce7',
   accentBorder: '#86efac',
   accentBgDashed: '#dcfce7',
 
-  profit: '#16a34a',
+  profit: '#15803d',
   loss: '#dc2626',
-  lossLight: '#ef4444',
-  warning: '#d97706',
+  lossLight: '#dc2626',
+  warning: '#b45309',
 
   blue: '#2563eb',
   blueBg: '#dbeafe',
@@ -188,9 +196,9 @@ const light: AppColors = {
   badge: {
     host: '#15803d',
     you: '#2563eb',
-    cashedOut: '#94a3b8',
-    live: '#16a34a',
-    liveBorder: '#16a34a',
+    cashedOut: '#64748b',
+    live: '#15803d',
+    liveBorder: '#15803d',
   },
 
   chipBg: '#e2e8f0',

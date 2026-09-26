@@ -129,6 +129,7 @@ export default function HomeScreen() {
               : require('@/assets/images/logo-light-large.png')
           }
           style={styles.logo}
+          accessible={false}
         />
         {playerProfile ? (
           <>
@@ -148,6 +149,7 @@ export default function HomeScreen() {
 
       <Pressable
         style={[styles.cta, { backgroundColor: c.accent }]}
+        accessibilityRole="button"
         onPress={() => router.push('../session/new')}>
         <Text style={styles.ctaText}>Start New Session</Text>
       </Pressable>
@@ -161,6 +163,7 @@ export default function HomeScreen() {
             style={[styles.refreshBtn, { borderColor: c.border, backgroundColor: c.cardAlt }]}
             onPress={() => void handleRefresh()}
             disabled={isRefreshing}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Refresh active sessions">
             <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
@@ -184,6 +187,15 @@ export default function HomeScreen() {
             <Pressable
               key={session.id}
               onPress={() => router.push(`../session/${session.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={[
+                `Live session ${formatDateTimeDMY(session.date)}`,
+                session.location ? session.location : 'No location',
+                `${sessionMetaById[session.id]?.playerCount ?? 0} players`,
+                blindsText ? `blinds ${blindsText}` : null,
+              ]
+                .filter(Boolean)
+                .join(', ')}
               style={[
                 styles.sessionRow,
                 { borderColor: c.borderAccent, backgroundColor: c.cardAlt },

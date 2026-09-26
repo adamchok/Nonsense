@@ -152,7 +152,9 @@ export default function SettingsScreen() {
               styles.secondaryBtnHalf,
               { borderColor: t.card, backgroundColor: t.avatarBg },
             ]}
-            onPress={() => router.push('../locations')}>
+            onPress={() => router.push('../locations')}
+            accessibilityRole="button"
+            accessibilityLabel="Saved locations">
             <View style={styles.secondaryBtnContent}>
               <MaterialIcons name="location-on" size={18} color={t.text} />
               <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
@@ -393,7 +395,7 @@ export default function SettingsScreen() {
           <View pointerEvents="box-none" style={styles.modalCenter}>
             <View style={[styles.pickerCard, { backgroundColor: t.card, borderColor: t.border }]}>
               <Text style={[styles.pickerTitle, { color: t.text }]}>Pick an avatar</Text>
-              <View style={styles.emojiGrid}>
+              <View style={styles.emojiGrid} accessibilityRole="radiogroup">
                 {AVATAR_EMOJIS.map((emoji) => (
                   <Pressable
                     key={emoji}
@@ -405,7 +407,13 @@ export default function SettingsScreen() {
                       },
                     ]}
                     onPress={() => onPickAvatar(emoji)}
-                    disabled={savingAvatar}>
+                    disabled={savingAvatar}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`Avatar ${emoji}`}
+                    accessibilityState={{
+                      checked: (savingAvatar ? pendingAvatarEmoji : playerProfile?.avatarEmoji) === emoji,
+                      disabled: savingAvatar,
+                    }}>
                     {savingAvatar && pendingAvatarEmoji === emoji ? (
                       <ActivityIndicator size="small" color={t.accent} />
                     ) : (
@@ -475,6 +483,9 @@ function ThemeOption({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={`${label} theme. ${description}`}
       style={[
         styles.themeRow,
         { borderColor: t.border, backgroundColor: selected ? t.selectedBg : 'transparent' },
@@ -515,7 +526,7 @@ const theme = {
     card: '#ffffff',
     border: '#e2e8f0',
     text: '#0f172a',
-    muted: '#64748b',
+    muted: '#56667c',
     accent: '#15803d',
     avatarBg: '#e2e8f0',
     avatarIcon: '#475569',

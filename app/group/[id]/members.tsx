@@ -15,6 +15,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -113,17 +114,31 @@ export default function GroupMembersScreen() {
     }
   }
 
-  async function handleRemove(memberId: string) {
+  function handleRemove(memberId: string, memberName: string) {
     if (!user || !id || !isOwner) return;
-    try {
-      await removeGroupMember(user.uid, id, memberId);
-    } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to remove member.');
-    }
+    const uid = user.uid;
+    appAlert(`Remove ${memberName}?`, 'They will be removed from this group. You can add them again later.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await removeGroupMember(uid, id, memberId);
+            } catch (e) {
+              appAlert('Error', e instanceof Error ? e.message : 'Failed to remove member.');
+            }
+          })();
+        },
+      },
+    ]);
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, { backgroundColor: c.bg }]}>
+    <KeyboardAvoidingView
+      style={[styles.screen, { backgroundColor: c.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen
         options={{
           title: groupName ?? 'Group Members',
@@ -149,6 +164,8 @@ export default function GroupMembersScreen() {
               {playerProfile && !selfInGroup && (
                 <Pressable
                   style={[styles.chip, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add me (${playerProfile.name})`}
                   onPress={handleAddSelf}>
                   <MaterialIcons name="person" size={16} color={c.profit} />
                   <Text style={[styles.chipText, { color: c.profit }]}>Me ({playerProfile.name})</Text>
@@ -158,6 +175,8 @@ export default function GroupMembersScreen() {
                 <Pressable
                   key={f.playerId}
                   style={[styles.chip, { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${f.name}`}
                   onPress={() => handleAddFriend(f)}>
                   <MaterialIcons name="person-add" size={14} color={c.blue} />
                   <Text style={[styles.chipText, { color: c.blue }]}>{f.name}</Text>
@@ -176,8 +195,9 @@ export default function GroupMembersScreen() {
               value={guestName}
               onChangeText={setGuestName}
               placeholder="Guest name"
+              accessibilityLabel="Guest name"
               placeholderTextColor={c.placeholder}
-              style={[styles.guestInput, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+              style={[styles.guestInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
               returnKeyType="done"
               onSubmitEditing={handleAddGuest}
             />
@@ -188,7 +208,10 @@ export default function GroupMembersScreen() {
                 !guestName.trim() && styles.disabled,
               ]}
               onPress={handleAddGuest}
-              disabled={!guestName.trim()}>
+              disabled={!guestName.trim()}
+              accessibilityRole="button"
+              accessibilityLabel="Add guest"
+              accessibilityState={{ disabled: !guestName.trim() }}>
               <Text style={styles.guestAddLabel}>Add</Text>
             </Pressable>
           </View>
@@ -224,7 +247,7 @@ export default function GroupMembersScreen() {
                     </Text>
                     {!member.isRegistered && (
                       <View style={[styles.guestBadge, { backgroundColor: c.chipBg }]}>
-                        <Text style={[styles.guestBadgeText, { color: c.textHint }]}>Guest</Text>
+                        <Text style={[styles.guestBadgeText, { color: c.chipText }]}>Guest</Text>
                       </View>
                     )}
                   </View>
@@ -233,7 +256,7 @@ export default function GroupMembersScreen() {
                       hitSlop={10}
                       accessibilityRole="button"
                       accessibilityLabel={`Remove ${member.name} from group`}
-                      onPress={() => handleRemove(member.id)}>
+                      onPress={() => handleRemove(member.id, member.name)}>
                       <MaterialIcons name="close" size={20} color={c.textHint} />
                     </Pressable>
                   ) : (
@@ -247,6 +270,7 @@ export default function GroupMembersScreen() {
 
         <Pressable
           style={[styles.doneBtn, { backgroundColor: c.accent }]}
+          accessibilityRole="button"
           onPress={() => router.back()}>
           <Text style={styles.doneLabel}>Done</Text>
         </Pressable>

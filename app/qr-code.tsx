@@ -299,8 +299,11 @@ export default function QrCodeScreen() {
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <Stack.Screen options={{ title: 'QR code', headerBackTitle: 'Back' }} />
 
-      <View style={styles.tabsRow}>
+      <View style={styles.tabsRow} accessibilityRole="tablist">
         <Pressable
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'my' }}
+          accessibilityLabel="My code"
           style={[styles.tabBtn, activeTab === 'my' && { borderColor: c.borderAccent }]}
           onPress={() => setActiveTab('my')}>
           <Text style={[styles.tabText, { color: activeTab === 'my' ? c.text : c.textMuted }]}>
@@ -308,6 +311,9 @@ export default function QrCodeScreen() {
           </Text>
         </Pressable>
         <Pressable
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'scan' }}
+          accessibilityLabel="Scan code"
           style={[styles.tabBtn, activeTab === 'scan' && { borderColor: c.borderAccent }]}
           onPress={async () => {
             const ok = await ensureCamera();

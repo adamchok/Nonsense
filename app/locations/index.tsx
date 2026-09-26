@@ -95,7 +95,7 @@ export default function SavedLocationsScreen() {
             placeholderTextColor={c.placeholder}
             style={[
               styles.input,
-              { borderColor: c.border, backgroundColor: c.inputBg, color: c.text },
+              { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
             ]}
           />
           <Pressable

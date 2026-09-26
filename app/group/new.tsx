@@ -42,7 +42,7 @@ export default function NewGroupScreen() {
         placeholder="Group name"
         placeholderTextColor={c.placeholder}
         autoFocus
-        style={[styles.input, { borderColor: c.border, backgroundColor: c.inputBg, color: c.text }]}
+        style={[styles.input, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
       />
 
       <Pressable

@@ -431,10 +431,12 @@ export default function FriendsScreen() {
       contentContainerStyle={styles.content}>
       <Text style={[styles.title, { color: c.text }]}>Friends</Text>
 
-      <View style={styles.tabsRow}>
+      <View style={styles.tabsRow} accessibilityRole="tablist">
         {(['friends', 'groups', 'leaderboard'] as const).map((tab) => (
           <Pressable
             key={tab}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === tab }}
             style={[
               styles.tabBtn,
               { backgroundColor: c.card, borderColor: c.border },
@@ -485,7 +487,10 @@ export default function FriendsScreen() {
               </Pressable>
               <Pressable
                 style={[styles.addBtn, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
-                onPress={() => setShowAddModal(true)}>
+                onPress={() => setShowAddModal(true)}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel="Add friend">
                 <MaterialIcons name="person-add" size={20} color={c.profit} />
                 <Text style={[styles.addBtnLabel, { color: c.profit }]}>Add</Text>
               </Pressable>
@@ -494,7 +499,7 @@ export default function FriendsScreen() {
           <TextInput
             style={[
               styles.friendSearchInput,
-              { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+              { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
             ]}
             accessibilityLabel="Search friends by name"
             placeholder="Search friend name"
@@ -565,6 +570,8 @@ export default function FriendsScreen() {
                   </View>
                   <Pressable
                     hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Cancel friend request to ${req.name}`}
                     onPress={() => {
                       appAlert('Cancel request?', `Stop waiting for ${req.name} to accept?`, [
                         { text: 'No', style: 'cancel' },
@@ -654,7 +661,11 @@ export default function FriendsScreen() {
                   !canCreateGroup && styles.disabled,
                 ]}
                 onPress={() => router.push('../group/new')}
-                disabled={!canCreateGroup}>
+                disabled={!canCreateGroup}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel="New group"
+                accessibilityState={{ disabled: !canCreateGroup }}>
                 <MaterialIcons name="group-add" size={20} color={c.profit} />
                 <Text style={[styles.addBtnLabel, { color: c.profit }]}>New</Text>
               </Pressable>
@@ -666,7 +677,7 @@ export default function FriendsScreen() {
           <TextInput
             style={[
               styles.friendSearchInput,
-              { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+              { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
             ]}
             placeholder="Search group name"
             placeholderTextColor={c.placeholder}
@@ -859,6 +870,8 @@ export default function FriendsScreen() {
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Sort by</Text>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortBy === 'profit' && { backgroundColor: c.accentBg }]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: leaderboardSortBy === 'profit' }}
                     onPress={() => {
                       setLeaderboardSortBy('profit');
                       setShowLeaderboardSortDropdown(false);
@@ -868,6 +881,8 @@ export default function FriendsScreen() {
                   </Pressable>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortBy === 'name' && { backgroundColor: c.accentBg }]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: leaderboardSortBy === 'name' }}
                     onPress={() => {
                       setLeaderboardSortBy('name');
                       setShowLeaderboardSortDropdown(false);
@@ -879,6 +894,8 @@ export default function FriendsScreen() {
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Direction</Text>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortDirection === 'desc' && { backgroundColor: c.accentBg }]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: leaderboardSortDirection === 'desc' }}
                     onPress={() => {
                       setLeaderboardSortDirection('desc');
                       setShowLeaderboardSortDropdown(false);
@@ -888,6 +905,8 @@ export default function FriendsScreen() {
                   </Pressable>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortDirection === 'asc' && { backgroundColor: c.accentBg }]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: leaderboardSortDirection === 'asc' }}
                     onPress={() => {
                       setLeaderboardSortDirection('asc');
                       setShowLeaderboardSortDropdown(false);
@@ -970,7 +989,7 @@ export default function FriendsScreen() {
                     autoCapitalize="characters"
                     autoFocus
                     onFocus={() => scrollModalFieldToTop(addFriendScrollRef)}
-                    style={[styles.codeInput, { backgroundColor: c.inputBg, borderColor: c.border, color: c.text }]}
+                    style={[styles.codeInput, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
                   />
                 </ScrollView>
                 <View style={styles.addCardActions}>
@@ -1111,7 +1130,7 @@ export default function FriendsScreen() {
                   editable={!renameGroupSaving}
                   style={[
                     styles.renameGroupInput,
-                    { backgroundColor: c.inputBg, borderColor: c.border, color: c.text },
+                    { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
                   ]}
                 />
                 <View style={styles.addCardActions}>
@@ -1292,7 +1311,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    height: 35,
+    minHeight: 38,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,

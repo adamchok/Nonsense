@@ -180,6 +180,7 @@ export default function SessionSummaryScreen() {
       headerLeft: () => (
         <Pressable
           onPress={goToHistory}
+          hitSlop={8}
           style={styles.headerBackBtn}
           accessibilityRole="button"
           accessibilityLabel="Back to history">
@@ -189,6 +190,7 @@ export default function SessionSummaryScreen() {
       headerRight: () => (
         <Pressable
           onPress={handleShareWhatsApp}
+          hitSlop={8}
           style={styles.headerShareBtn}
           accessibilityRole="button"
           accessibilityLabel="Share on WhatsApp">
@@ -224,6 +226,7 @@ export default function SessionSummaryScreen() {
             styles.primaryButton,
             { backgroundColor: c.accent, opacity: pressed ? 0.9 : 1 },
           ]}
+          accessibilityRole="button"
           onPress={() => router.back()}>
           <Text style={styles.buttonLabel}>Go back</Text>
         </Pressable>
@@ -312,6 +315,18 @@ export default function SessionSummaryScreen() {
           return (
             <View
               key={item.playerId}
+              accessible
+              accessibilityLabel={[
+                `Rank ${index + 1}`,
+                item.playerName,
+                isMe ? 'you' : null,
+                earlyPlayerIds.has(item.playerId) ? 'cashed out early' : null,
+                `${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}`,
+                `in ${formatCurrency(item.totalBuyIn)}`,
+                `out ${formatCurrency(item.cashOut)}`,
+              ]
+                .filter(Boolean)
+                .join(', ')}
               style={[
                 styles.resultRow,
                 { backgroundColor: c.card, borderColor: c.border },
@@ -379,7 +394,10 @@ export default function SessionSummaryScreen() {
             {settlements.map((s, i) => (
               <View key={i}>
                 {i > 0 ? <View style={[styles.settlementDivider, { backgroundColor: c.border }]} /> : null}
-                <View style={styles.settlementRow}>
+                <View
+                  style={styles.settlementRow}
+                  accessible
+                  accessibilityLabel={`${s.from} pays ${s.to} ${formatCurrency(s.amount)}`}>
                   <View style={styles.settlementNames}>
                     <Text style={[styles.settlementFrom, { color: c.text }]} numberOfLines={1}>
                       {s.from}

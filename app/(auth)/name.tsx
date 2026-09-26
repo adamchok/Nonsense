@@ -121,7 +121,7 @@ export default function NameScreen() {
               autoCorrect={false}
               maxLength={MAX_NAME_LEN}
               onFocus={() => scrollModalFieldToTop(nameScrollRef)}
-              style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.border, color: c.text }]}
+              style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
               editable={!isSaving}
             />
             <Text

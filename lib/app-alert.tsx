@@ -83,7 +83,7 @@ function buttonTextStyle(
     case 'cancel':
       return { color: c.textMuted };
     default:
-      return { color: c.accent };
+      return { color: c.accentText };
   }
 }
 
@@ -141,6 +141,8 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
           <View pointerEvents="box-none" style={styles.center}>
             <Pressable
               onPress={(e) => e.stopPropagation()}
+              accessible={false}
+              accessibilityViewIsModal
               style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
                 {payload?.title ?? ''}
@@ -155,6 +157,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
                     <Pressable
                       key={`${btn.text}-${i}`}
                       onPress={() => onButtonPress(btn)}
+                      accessibilityRole="button"
                       style={({ pressed }) => [
                         styles.stackedBtn,
                         { borderColor: c.border, backgroundColor: pressed ? c.pressedRow : c.cardAlt },
@@ -174,6 +177,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
                     <Pressable
                       key={`${btn.text}-${i}`}
                       onPress={() => onButtonPress(btn)}
+                      accessibilityRole="button"
                       style={({ pressed }) => [
                         styles.rowBtn,
                         { backgroundColor: pressed ? c.pressedRow : 'transparent' },
@@ -239,7 +243,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     minWidth: 72,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   rowBtnLabel: {
     fontSize: 16,
@@ -254,7 +260,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   stackedBtnLabel: {
     fontSize: 16,
