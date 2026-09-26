@@ -1,5 +1,5 @@
 import * as firebaseAuth from 'firebase/auth';
-import { linkWithCredential, signInWithCredential } from 'firebase/auth';
+import { EmailAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import type { Auth, AuthCredential, AuthProvider, User, UserCredential } from 'firebase/auth';
 
 interface PopupAuthApi {
@@ -90,6 +90,24 @@ export function toAccountLinkError(err: unknown): AccountLinkError {
 
 export function isGoogleLinked(user: User | null): boolean {
   return Boolean(user?.providerData.some((p) => p.providerId === GOOGLE_PROVIDER_ID));
+}
+
+export const PASSWORD_PROVIDER_ID = 'password';
+
+export function hasPasswordSignIn(user: User | null): boolean {
+  return Boolean(user?.providerData.some((p) => p.providerId === PASSWORD_PROVIDER_ID));
+}
+
+export function accountEmail(user: User | null): string | null {
+  return user?.email ?? user?.providerData.find((p) => p.email)?.email ?? null;
+}
+
+export async function linkAnonymousWithEmail(auth: Auth, email: string, password: string): Promise<User> {
+  const current = auth.currentUser;
+  if (!current) throw new AccountLinkError('no-user');
+  if (!current.isAnonymous) throw new AccountLinkError('already-linked', 'This account already has a sign-in.');
+  const result = await linkWithCredential(current, EmailAuthProvider.credential(email.trim(), password));
+  return reloadLinked(auth, result);
 }
 
 export function linkedEmail(user: User | null): string | null {

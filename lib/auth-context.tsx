@@ -12,8 +12,11 @@ import {
   type AuthCredential,
   type User,
   GoogleAuthProvider,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
-  signInAnonymously,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
 import {
@@ -24,7 +27,10 @@ import {
 } from '@react-native-google-signin/google-signin';
 import {
   AccountLinkError,
+  accountEmail,
+  hasPasswordSignIn,
   isGoogleLinked,
+  linkAnonymousWithEmail,
   linkAnonymousWithCredential,
   linkAnonymousWithPopup,
   linkedEmail as getLinkedEmail,
@@ -42,11 +48,17 @@ interface AuthContextValue {
   isReady: boolean;
   isLinked: boolean;
   linkedEmail: string | null;
+  isAnonymous: boolean;
+  hasPassword: boolean;
+  email: string | null;
   saveDisplayName: (name: string) => Promise<void>;
   saveAvatarEmoji: (emoji: string) => Promise<void>;
   signOutUser: () => Promise<void>;
   linkWithGoogle: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  createAccountWithEmail: (email: string, password: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -55,11 +67,17 @@ const AuthContext = createContext<AuthContextValue>({
   isReady: false,
   isLinked: false,
   linkedEmail: null,
+  isAnonymous: false,
+  hasPassword: false,
+  email: null,
   saveDisplayName: async () => {},
   saveAvatarEmoji: async () => {},
   signOutUser: async () => {},
   linkWithGoogle: async () => {},
   signInWithGoogle: async () => {},
+  signInWithEmail: async () => {},
+  createAccountWithEmail: async () => {},
+  sendPasswordReset: async () => {},
 });
 
 export function useAuth() {
@@ -69,12 +87,21 @@ export function useAuth() {
 interface LinkInfo {
   isLinked: boolean;
   linkedEmail: string | null;
+  isAnonymous: boolean;
+  hasPassword: boolean;
+  email: string | null;
 }
 
-const UNLINKED: LinkInfo = { isLinked: false, linkedEmail: null };
+const UNLINKED: LinkInfo = { isLinked: false, linkedEmail: null, isAnonymous: false, hasPassword: false, email: null };
 
 function linkInfoOf(user: User | null): LinkInfo {
-  return { isLinked: isGoogleLinked(user), linkedEmail: getLinkedEmail(user) };
+  return {
+    isLinked: isGoogleLinked(user),
+    linkedEmail: getLinkedEmail(user),
+    isAnonymous: Boolean(user?.isAnonymous),
+    hasPassword: hasPasswordSignIn(user),
+    email: accountEmail(user),
+  };
 }
 
 async function loadProfile(uid: string): Promise<PlayerProfile | null> {
@@ -174,14 +201,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setIsReady(true);
       } else {
+        setUser(null);
         setPlayerProfile(null);
         setLinkInfo(UNLINKED);
-        try {
-          await signInAnonymously(auth);
-        } catch (err) {
-          console.error('Anonymous sign-in failed:', err);
-          setIsReady(true);
-        }
+        setIsReady(true);
       }
     });
 
@@ -210,6 +233,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user]
   );
 
+  const adoptUser = useCallback(async (next: User) => {
+    let profile: PlayerProfile | null = null;
+    try {
+      profile = await loadProfile(next.uid);
+    } catch (err) {
+      console.error('Failed to load player profile after sign-in:', err);
+    }
+    setUser(next);
+    setLinkInfo(linkInfoOf(next));
+    setPlayerProfile(profile);
+  }, []);
+
   const signOutUser = useCallback(async () => {
     await signOut(getFirebaseAuth());
   }, []);
@@ -230,15 +265,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signedIn = IS_WEB
       ? await signInWithPopupProvider(auth, newGoogleProvider())
       : await signInWithAccountCredential(auth, await getGoogleCredential());
-    let profile: PlayerProfile | null = null;
-    try {
-      profile = await loadProfile(signedIn.uid);
-    } catch (err) {
-      console.error('Failed to load player profile after Google sign-in:', err);
-    }
-    setUser(signedIn);
-    setLinkInfo(linkInfoOf(signedIn));
-    setPlayerProfile(profile);
+    await adoptUser(signedIn);
+  }, [adoptUser]);
+
+  const signInWithEmail = useCallback(
+    async (email: string, password: string) => {
+      const result = await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
+      await adoptUser(result.user);
+    },
+    [adoptUser]
+  );
+
+  const createAccountWithEmail = useCallback(
+    async (email: string, password: string) => {
+      const auth = getFirebaseAuth();
+      if (auth.currentUser?.isAnonymous) {
+        const linked = await linkAnonymousWithEmail(auth, email, password);
+        setLinkInfo(linkInfoOf(linked));
+        void sendEmailVerification(linked).catch((err) => console.error('Verification email failed:', err));
+        return;
+      }
+      const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      void sendEmailVerification(result.user).catch((err) => console.error('Verification email failed:', err));
+      await adoptUser(result.user);
+    },
+    [adoptUser]
+  );
+
+  const sendPasswordReset = useCallback(async (email: string) => {
+    await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
   }, []);
 
   const value = useMemo(
@@ -248,11 +303,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isReady,
       isLinked: linkInfo.isLinked,
       linkedEmail: linkInfo.linkedEmail,
+      isAnonymous: linkInfo.isAnonymous,
+      hasPassword: linkInfo.hasPassword,
+      email: linkInfo.email,
       saveDisplayName,
       saveAvatarEmoji,
       signOutUser,
       linkWithGoogle,
       signInWithGoogle,
+      signInWithEmail,
+      createAccountWithEmail,
+      sendPasswordReset,
     }),
     [
       user,
@@ -264,6 +325,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOutUser,
       linkWithGoogle,
       signInWithGoogle,
+      signInWithEmail,
+      createAccountWithEmail,
+      sendPasswordReset,
     ]
   );
 
