@@ -333,7 +333,9 @@ export default function NewSessionScreen() {
                     <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Dollars per chip</Text>
                     <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                   </View>
-                  <View style={styles.buyInRow}>
+                  {/* Input + its error share a gap-free wrapper so the error sits close, like the others. */}
+                  <View>
+                    <View style={styles.buyInRow}>
                     <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
                     <TextInput
                       value={dollarsPerChipStr}
@@ -353,7 +355,8 @@ export default function NewSessionScreen() {
                       ]}
                     />
                   </View>
-                  <FieldError message={errors.dollarsPerChip} />
+                    <FieldError message={errors.dollarsPerChip} />
+                  </View>
                   <Text style={[styles.groupSectionHint, { color: c.textHint }]}>
                     Example: 100 chips for a $50 buy-in → $0.50 per chip.
                   </Text>
@@ -377,6 +380,7 @@ export default function NewSessionScreen() {
                   <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Small</Text>
                   <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                 </View>
+                <View>
                 <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={smallBlindStr}
@@ -397,12 +401,14 @@ export default function NewSessionScreen() {
                   />
                 </SessionAmountInputRow>
                 <FieldError message={errors.smallBlind} />
+                </View>
               </View>
               <View style={styles.blindField}>
                 <View style={styles.labelWithRequired}>
                   <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Big</Text>
                   <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                 </View>
+                <View>
                 <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={bigBlindStr}
@@ -423,6 +429,7 @@ export default function NewSessionScreen() {
                   />
                 </SessionAmountInputRow>
                 <FieldError message={errors.bigBlind} />
+                </View>
               </View>
             </View>
             </Animated.View>

@@ -13,7 +13,8 @@ export function FieldError({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
     <Animated.View entering={fadeIn} style={styles.row} accessibilityRole="alert" accessibilityLiveRegion="polite">
-      <Icon name="error-outline" size={14} color={c.lossLight} />
+      {/* 2px nudge centres the 14px icon on the first 18px text line (and stays put if it wraps). */}
+      <Icon name="error-outline" size={14} color={c.lossLight} style={styles.icon} />
       <Text style={[styles.text, { color: c.lossLight }]}>{message}</Text>
     </Animated.View>
   );
@@ -34,5 +35,6 @@ export function invalidProps(message?: string | null): object {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 10 },
+  icon: { marginTop: 2 },
   text: { flex: 1, fontSize: 13, lineHeight: 18 },
 });
