@@ -156,11 +156,7 @@ export default function SettingsScreen() {
                 <Icon name="edit" size={13} color="#fff" />
               </View>
             </Pressable>
-            <Pressable
-              style={styles.profileText}
-              onPress={() => router.push('../(auth)/name')}
-              accessibilityRole="button"
-              accessibilityLabel="Edit display name">
+            <View style={styles.profileText}>
               <View style={styles.displayNameRow}>
                 <Text
                   style={[styles.displayName, styles.displayNameText, { color: t.text }]}
@@ -168,10 +164,17 @@ export default function SettingsScreen() {
                   ellipsizeMode="tail">
                   {playerProfile?.name ?? 'Guest'}
                 </Text>
-                <Icon name="edit" size={16} color={t.muted} />
+                <Pressable
+                  style={styles.editNameBtn}
+                  onPress={() => router.push('../(auth)/name')}
+                  hitSlop={4}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit display name">
+                  <Icon name="edit" size={18} color={t.muted} />
+                </Pressable>
               </View>
               <Text style={[styles.displayHint, { color: t.muted }]}>Display name</Text>
-            </Pressable>
+            </View>
           </View>
           <Pressable
             style={[styles.primaryBtn, { backgroundColor: t.accent }]}
@@ -684,6 +687,13 @@ const styles = StyleSheet.create({
   profileText: {
     flex: 1,
     gap: 4,
+  },
+  editNameBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   displayNameRow: {
     flexDirection: 'row',
