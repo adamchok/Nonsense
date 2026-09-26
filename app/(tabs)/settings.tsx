@@ -5,11 +5,10 @@ import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { pressBg } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
-import { formatDateDMY } from '@/lib/date-format';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
 import { Icon, type IconName } from '@/components/icon';
+import { StatsBody } from '@/components/stats-body';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -30,24 +29,6 @@ const checkEntering = webSafe(
     .reduceMotion(ReduceMotion.System),
   FadeIn.duration(150).reduceMotion(ReduceMotion.System),
 );
-
-function formatPlayTime(ms: number): string {
-  const totalMinutes = Math.floor(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours <= 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
-}
-
-function signedMetricColor(
-  c: { profit: string; loss: string },
-  n: number | null | undefined
-): string | undefined {
-  if (n === null || n === undefined || Number.isNaN(n)) return undefined;
-  if (n > 0) return c.profit;
-  if (n < 0) return c.loss;
-  return undefined;
-}
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -329,134 +310,7 @@ export default function SettingsScreen() {
                 <ScrollView
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={styles.statsScrollContent}>
-                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Sessions</Text>
-                  <StatRow t={t} label="Finished sessions" value={String(stats.finishedSessions)} />
-                  <StatRow
-                    t={t}
-                    label="First session"
-                    value={stats.firstSessionDate ? formatDateDMY(stats.firstSessionDate) : '—'}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Latest session"
-                    value={stats.lastSessionDate ? formatDateDMY(stats.lastSessionDate) : '—'}
-                  />
-                  <StatRow t={t} label="As host" value={String(stats.sessionsAsHost)} />
-                  <StatRow t={t} label="As participant" value={String(stats.sessionsAsParticipant)} />
-
-                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Results & money</Text>
-                  <StatRow
-                    t={t}
-                    label="Lifetime profit / loss"
-                    value={formatSignedCurrency(stats.totalProfit)}
-                    emphasize
-                    valueColor={signedMetricColor(c, stats.totalProfit)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Average per finished session"
-                    value={
-                      stats.avgProfitPerSession !== null
-                        ? formatSignedCurrency(stats.avgProfitPerSession)
-                        : '—'
-                    }
-                    valueColor={signedMetricColor(c, stats.avgProfitPerSession ?? undefined)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="P/L per hour"
-                    value={
-                      stats.profitPerHour !== null
-                        ? formatSignedCurrency(stats.profitPerHour)
-                        : '—'
-                    }
-                    hint="Lifetime P/L divided by recorded time played."
-                    valueColor={signedMetricColor(c, stats.profitPerHour ?? undefined)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Best session"
-                    value={
-                      stats.bestSessionProfit !== null
-                        ? formatSignedCurrency(stats.bestSessionProfit)
-                        : '—'
-                    }
-                    valueColor={signedMetricColor(c, stats.bestSessionProfit ?? undefined)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Worst session"
-                    value={
-                      stats.worstSessionProfit !== null
-                        ? formatSignedCurrency(stats.worstSessionProfit)
-                        : '—'
-                    }
-                    valueColor={signedMetricColor(c, stats.worstSessionProfit ?? undefined)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Win rate"
-                    value={
-                      stats.finishedSessions > 0
-                        ? `${((stats.winningSessions / stats.finishedSessions) * 100).toFixed(1)}% (${stats.winningSessions}W / ${stats.losingSessions}L / ${stats.breakEvenSessions} even)`
-                        : '—'
-                    }
-                  />
-                  <StatRow
-                    t={t}
-                    label="Total buy-in"
-                    value={formatCurrency(stats.totalBuyIn)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Total cash-out"
-                    value={formatCurrency(stats.totalCashOut)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Return on buy-in"
-                    value={
-                      stats.totalBuyIn > 0
-                        ? `${((stats.totalProfit / stats.totalBuyIn) * 100).toFixed(1)}%`
-                        : '—'
-                    }
-                    hint="Profit ÷ total buy-in across finished sessions."
-                    valueColor={
-                      stats.totalBuyIn > 0 ? signedMetricColor(c, stats.totalProfit) : undefined
-                    }
-                  />
-
-                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Time & places</Text>
-                  <StatRow
-                    t={t}
-                    label="Total time played"
-                    value={formatPlayTime(stats.totalPlayTimeMs)}
-                    hint="Sum of session lengths where end time is recorded."
-                  />
-                  <StatRow
-                    t={t}
-                    label="Sessions with a location"
-                    value={String(stats.sessionsWithLocation)}
-                  />
-                  <StatRow
-                    t={t}
-                    label="Unique locations played"
-                    value={String(stats.uniqueSessionLocations)}
-                  />
-
-                  <Text style={[styles.statsSectionLabel, { color: t.muted }]}>Social & saved data</Text>
-                  <StatRow t={t} label="Friends" value={String(stats.friendCount)} />
-                  <StatRow t={t} label="Groups" value={String(stats.groupCount)} />
-                  <StatRow
-                    t={t}
-                    label="Saved locations"
-                    value={`${stats.savedLocationCount} / 10`}
-                  />
-
-                  <Text style={[styles.statsFootnote, { color: t.muted }]}>
-                    Stats include every finished session in the database where you have a saved result.
-                    Sessions without a recorded end time do not add to “time played” or P/L per hour.
-                  </Text>
+                  <StatsBody stats={stats} />
                 </ScrollView>
               ) : null}
             </View>
@@ -519,41 +373,6 @@ export default function SettingsScreen() {
         </View>
       </Modal>
     </ScrollView>
-  );
-}
-
-function StatRow({
-  t,
-  label,
-  value,
-  hint,
-  emphasize,
-  valueColor,
-}: {
-  t: SettingsTheme;
-  label: string;
-  value: string;
-  hint?: string;
-  emphasize?: boolean;
-  valueColor?: string;
-}) {
-  return (
-    <View style={styles.statBlock}>
-      <View style={styles.statRow}>
-        <Text style={[styles.statLabel, { color: t.muted }]}>{label}</Text>
-        <Text
-          style={[
-            emphasize ? styles.statValueStrong : styles.statValue,
-            { color: valueColor ?? t.text },
-          ]}
-          numberOfLines={3}>
-          {value}
-        </Text>
-      </View>
-      {hint ? (
-        <Text style={[styles.statHint, { color: t.muted }]}>{hint}</Text>
-      ) : null}
-    </View>
   );
 }
 
@@ -894,55 +713,6 @@ const styles = StyleSheet.create({
   statsScrollContent: {
     gap: 2,
     paddingBottom: 12,
-  },
-  statsSectionLabel: {
-    marginTop: 12,
-    marginBottom: 4,
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.72,
-    textTransform: 'uppercase',
-  },
-  statBlock: {
-    marginBottom: 6,
-    gap: 2,
-  },
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  statLabel: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  statValue: {
-    maxWidth: '52%',
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'right',
-    lineHeight: 18,
-    fontVariant: ['tabular-nums'],
-  },
-  statValueStrong: {
-    maxWidth: '52%',
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '700',
-    textAlign: 'right',
-    lineHeight: 20,
-  },
-  statHint: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  statsRefCode: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    marginBottom: 4,
   },
   statsLoadingWrap: {
     paddingVertical: 28,
