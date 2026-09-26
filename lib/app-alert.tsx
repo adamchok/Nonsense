@@ -139,9 +139,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
         <View style={styles.root}>
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]} />
           <View pointerEvents="box-none" style={styles.center}>
-            <Pressable
-              onPress={(e) => e.stopPropagation()}
-              accessible={false}
+            <View
               accessibilityViewIsModal
               style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
@@ -187,7 +185,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
                   ))}
                 </View>
               )}
-            </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
