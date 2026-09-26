@@ -12,7 +12,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 const CHART_HEIGHT = 160;
 const Y_LABEL_WIDTH = 40;
 const SECTIONS = 4;
-const HEADER_HEIGHT = 40;
+const HEADER_HEIGHT = 52;
 const MAX_BAR_WIDTH = 22;
 const MARKER_SIZE = 14;
 const MARKER_SHIFT_X = -(1 + MARKER_SIZE / 2);
@@ -373,9 +373,9 @@ const styles = StyleSheet.create({
   headerBtn: {
     flex: 1,
     gap: 10,
-    marginLeft: -8,
-    paddingHorizontal: 8,
-    borderRadius: 10,
+    marginLeft: -12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
   },
   headerValue: {
     fontSize: 16,
