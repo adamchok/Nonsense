@@ -480,7 +480,7 @@ export default function FriendsScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={[layout.content, styles.content]}>
+      contentContainerStyle={[layout.content, styles.content, layout.compactTop]}>
       <Text style={[styles.title, { color: c.text }]}>Friends</Text>
 
       <SegmentedTabs
@@ -888,10 +888,12 @@ export default function FriendsScreen() {
                             styles.manageBtn,
                             { backgroundColor: c.accentBg, borderColor: c.accentBorder },
                           ]}
-                          onPress={() => router.push(`../group/${group.id}/members`)}>
+                          onPress={() => router.push(`../group/${group.id}/members`)}
+                          accessibilityRole="button"
+                          accessibilityLabel={isGroupOwner ? 'Manage members' : 'View members'}>
                           <Icon name={isGroupOwner ? 'edit' : 'people'} size={16} color={c.accentText} />
                           <Text style={[styles.manageBtnLabel, { color: c.accentText }]}>
-                            {isGroupOwner ? 'Manage Members' : 'View Members'}
+                            {layout.isMd ? (isGroupOwner ? 'Manage Members' : 'View Members') : 'Members'}
                           </Text>
                         </PressableScale>
 

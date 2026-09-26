@@ -119,7 +119,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: t.bg }]}
-      contentContainerStyle={[layout.content, styles.content]}>
+      contentContainerStyle={[layout.content, styles.content, layout.compactTop]}>
       <Text style={[styles.title, { color: t.text }]}>Settings</Text>
 
       <View style={styles.section}>

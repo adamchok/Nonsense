@@ -140,7 +140,7 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={[layout.content, styles.content]}>
+      contentContainerStyle={[layout.content, styles.content, layout.compactTop]}>
       {isMd ? null : (
         <Motion.Image
           entering={fadeIn}
