@@ -11,6 +11,7 @@ import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const isWeb = Platform.OS === 'web';
 
@@ -18,6 +19,7 @@ export default function TabLayout() {
   const c = useAppColors();
   const { isMd } = useBreakpoint();
   const reduceMotion = useReducedMotion();
+  const insets = useSafeAreaInsets();
   const { isReady, user, isAnonymous } = useAuth();
   useGuestLinkMigrations();
 
@@ -43,7 +45,15 @@ export default function TabLayout() {
   }
 
   if (!isWeb) {
-    return <Tabs screenOptions={screenOptions}>{tabScreens}</Tabs>;
+    return (
+      <Tabs
+        screenOptions={{
+          ...screenOptions,
+          tabBarStyle: { ...tabBarColors, paddingTop: 4, height: 53 + insets.bottom },
+        }}>
+        {tabScreens}
+      </Tabs>
+    );
   }
 
   return (
