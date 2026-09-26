@@ -156,8 +156,8 @@ export default function HomeScreen() {
         style={[ui.button, { backgroundColor: c.accent }]}
         accessibilityRole="button"
         onPress={() => router.push('../session/new')}>
-        <Icon name="add" size={20} color="#fff" importantForAccessibility="no" />
-        <Text style={[type.button, styles.ctaText]}>Start New Session</Text>
+        <Icon name="add" size={20} color={c.onAccent} importantForAccessibility="no" />
+        <Text style={[type.button, styles.ctaText, { color: c.onAccent }]}>Start New Session</Text>
       </Pressable>
 
       {error ? <Text style={[type.label, { color: c.loss }]}>{error}</Text> : null}
@@ -279,10 +279,9 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   ctaText: {
-    color: '#fff',
   },
   section: {
-    gap: 8,
+    gap: 14,
   },
   refreshBtn: {
     width: 36,

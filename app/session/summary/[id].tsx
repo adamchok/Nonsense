@@ -212,7 +212,7 @@ export default function SessionSummaryScreen() {
   if (loading) {
     return (
       <View style={[styles.screen, styles.centered, { backgroundColor: c.bg }]}>
-        <ActivityIndicator size="large" color={c.accent} />
+        <ActivityIndicator size="large" color={c.accentText} />
         <Text style={[styles.loadingText, { color: c.textMuted }]}>Loading summary…</Text>
       </View>
     );
@@ -222,7 +222,7 @@ export default function SessionSummaryScreen() {
     return (
       <View style={[styles.screen, styles.emptyScreen, { backgroundColor: c.bg }]}>
         <View style={[styles.emptyIconWrap, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
-          <Icon name="clipboard-text-outline" size={40} color={c.accent} />
+          <Icon name="clipboard-text-outline" size={40} color={c.accentText} />
         </View>
         <Text style={[styles.emptyTitle, { color: c.text }]}>
           {loadError ? "Couldn't load summary" : 'No results yet'}
@@ -237,7 +237,7 @@ export default function SessionSummaryScreen() {
           ]}
           accessibilityRole="button"
           onPress={() => router.back()}>
-          <Text style={styles.buttonLabel}>Go back</Text>
+          <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -427,7 +427,7 @@ export default function SessionSummaryScreen() {
           </View>
         ) : (
           <View style={[styles.settlementEmpty, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-            <Icon name="check-circle-outline" size={28} color={c.accent} />
+            <Icon name="check-circle-outline" size={28} color={c.accentText} />
             <Text style={[styles.settlementEmptyTitle, { color: c.text }]}>All square</Text>
             <Text style={[styles.settlementEmptySub, { color: c.textMuted }]}>
               No transfers needed — chip counts already match.
@@ -746,7 +746,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },

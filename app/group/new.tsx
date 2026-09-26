@@ -56,9 +56,9 @@ export default function NewGroupScreen() {
           pressed && canSubmit && styles.pressed,
         ]}>
         {isSaving ? (
-          <ActivityIndicator size="small" color="#fff" />
+          <ActivityIndicator size="small" color={c.onAccent} />
         ) : (
-          <Text style={styles.nextLabel}>Next</Text>
+          <Text style={[styles.nextLabel, { color: c.onAccent }]}>Next</Text>
         )}
       </Pressable>
     </View>
@@ -99,7 +99,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   nextLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },

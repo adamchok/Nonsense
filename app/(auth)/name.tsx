@@ -200,9 +200,9 @@ export default function NameScreen() {
                 onPress={onSave}
                 disabled={!canSubmit}>
                 {isSaving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={c.onAccent} />
                 ) : (
-                  <Text style={styles.buttonLabel}>Save</Text>
+                  <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Save</Text>
                 )}
               </Pressable>
             </View>
@@ -219,9 +219,9 @@ export default function NameScreen() {
               disabled={!canSubmit}
               accessibilityState={{ disabled: !canSubmit, busy: isSaving }}>
               {isSaving ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={c.onAccent} />
               ) : (
-                <Text style={styles.buttonLabel}>Continue</Text>
+                <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Continue</Text>
               )}
             </Pressable>
           )}
@@ -356,7 +356,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   buttonLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },

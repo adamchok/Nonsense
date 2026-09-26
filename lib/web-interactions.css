@@ -12,7 +12,7 @@
  */
 
 :root {
-  --accent: #15803d;
+  --accent: #8a5a00;
   --interaction-hover-filter: brightness(0.97);
   /* Tint painted over the element on hover: visible on transparent buttons too, where a
      brightness filter alone changes nothing. */
@@ -23,7 +23,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --accent: #4ade80;
+    --accent: #f5c451;
     --interaction-hover-filter: brightness(1.1);
     --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
     --input-hover-ring: rgba(148, 163, 184, 0.5);
@@ -31,7 +31,7 @@
 }
 
 :root[data-theme='dark'] {
-  --accent: #4ade80;
+  --accent: #f5c451;
   --interaction-hover-filter: brightness(1.1);
   --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
   --input-hover-ring: rgba(148, 163, 184, 0.5);

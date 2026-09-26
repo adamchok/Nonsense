@@ -574,7 +574,7 @@ export default function CashOutScreen() {
             style={[styles.trackerActionBtn, { backgroundColor: c.accent }]}
             accessibilityRole="button"
             onPress={distributeRemainingEqually}>
-            <Text style={[styles.trackerActionLabel, { color: '#fff' }]}>Split remaining equally</Text>
+            <Text style={[styles.trackerActionLabel, { color: c.onAccent }]}>Split remaining equally</Text>
           </Pressable>
         )}
         {!balanced && remaining < -0.01 && (
@@ -608,7 +608,7 @@ export default function CashOutScreen() {
         accessibilityRole="button"
         accessibilityState={{ disabled: !balanced || saving, busy: saving }}
         disabled={!balanced || saving}>
-        <Text style={[styles.buttonLabel, { color: '#fff' }]}>
+        <Text style={[styles.buttonLabel, { color: c.onAccent }]}>
           {saving ? 'Saving...' : 'Confirm & View Summary'}
         </Text>
       </Pressable>

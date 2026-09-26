@@ -454,8 +454,8 @@ export default function QrCodeScreen() {
                 disabled={!refCode || sharingQr}
                 accessibilityRole="button"
                 accessibilityLabel="Share QR code as image">
-                <Icon name="share" size={20} color="#fff" />
-                <Text style={styles.toolbarBtnPrimaryLabel}>
+                <Icon name="share" size={20} color={c.onAccent} />
+                <Text style={[styles.toolbarBtnPrimaryLabel, { color: c.onAccent }]}>
                   {sharingQr ? 'Sharing…' : 'Share'}
                 </Text>
               </Pressable>
@@ -556,7 +556,7 @@ export default function QrCodeScreen() {
                   ]}
                   onPress={confirmAddFriend}
                   disabled={addingFriend || !pendingFriend}>
-                  <Text style={styles.confirmLabel}>{addingFriend ? 'Sending...' : 'Send request'}</Text>
+                  <Text style={[styles.confirmLabel, { color: c.onAccent }]}>{addingFriend ? 'Sending...' : 'Send request'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -647,7 +647,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   toolbarBtnPrimaryLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },
@@ -842,7 +841,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   confirmLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },

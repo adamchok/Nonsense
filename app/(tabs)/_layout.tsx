@@ -2,9 +2,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { Icon } from '@/components/icon';
 import { WebContentColumn } from '@/components/web/web-app-frame';
 import { WebSidebar } from '@/components/web/web-sidebar';
-import { Colors } from '@/constants/theme';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAppColors } from '@/lib/app-theme';
 import { BottomTabBar, type BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
@@ -14,18 +12,17 @@ import { Platform } from 'react-native';
 const isWeb = Platform.OS === 'web';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
   const c = useAppColors();
   const { isMd } = useBreakpoint();
 
+  // Theme tokens (not the device scheme), so the bar follows the in-app light/dark choice.
   const tabBarColors = {
-    backgroundColor: isDark ? '#151718' : '#ffffff',
-    borderTopColor: isDark ? '#2f3542' : '#e2e8f0',
+    backgroundColor: c.card,
+    borderTopColor: c.border,
   };
   const screenOptions: BottomTabNavigationOptions = {
-    tabBarActiveTintColor: Colors[colorScheme].tint,
-    tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
+    tabBarActiveTintColor: c.accentText,
+    tabBarInactiveTintColor: c.textMuted,
     tabBarStyle: tabBarColors,
     headerShown: false,
     tabBarButton: HapticTab,
@@ -42,8 +39,6 @@ export default function TabLayout() {
         ...screenOptions,
         tabBarPosition: isMd ? 'left' : 'bottom',
         tabBarLabelPosition: 'below-icon',
-        tabBarActiveTintColor: c.accentText,
-        tabBarInactiveTintColor: c.textMuted,
         tabBarItemStyle: { minHeight: 52 },
         tabBarStyle: {
           ...tabBarColors,

@@ -106,7 +106,7 @@ export default function SavedLocationsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Save location"
             disabled={isSaving || !newLocation.trim()}>
-            <Icon name="add" size={20} color="#fff" />
+            <Icon name="add" size={20} color={c.onAccent} />
           </Pressable>
         </View>
       </View>

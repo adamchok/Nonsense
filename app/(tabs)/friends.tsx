@@ -486,8 +486,8 @@ export default function FriendsScreen() {
                 hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel="Add friend">
-                <Icon name="person-add" size={20} color={c.profit} />
-                <Text style={[styles.addBtnLabel, { color: c.profit }]}>Add</Text>
+                <Icon name="person-add" size={20} color={c.accentText} />
+                <Text style={[styles.addBtnLabel, { color: c.accentText }]}>Add</Text>
               </Pressable>
             </View>
           </View>
@@ -530,7 +530,7 @@ export default function FriendsScreen() {
                           appAlert('Error', userMessage(e, 'Failed to accept.'));
                         }
                       }}>
-                      <Text style={styles.requestAcceptLabel}>Accept</Text>
+                      <Text style={[styles.requestAcceptLabel, { color: c.onAccent }]}>Accept</Text>
                     </Pressable>
                     <Pressable
                       hitSlop={8}
@@ -682,8 +682,8 @@ export default function FriendsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="New group"
                 accessibilityState={{ disabled: !canCreateGroup }}>
-                <Icon name="group-add" size={20} color={c.profit} />
-                <Text style={[styles.addBtnLabel, { color: c.profit }]}>New</Text>
+                <Icon name="group-add" size={20} color={c.accentText} />
+                <Text style={[styles.addBtnLabel, { color: c.accentText }]}>New</Text>
               </Pressable>
             </View>
           </View>
@@ -822,8 +822,8 @@ export default function FriendsScreen() {
                             { backgroundColor: c.accentBg, borderColor: c.accentBorder },
                           ]}
                           onPress={() => router.push(`../group/${group.id}/members`)}>
-                          <Icon name={isGroupOwner ? 'edit' : 'people'} size={16} color={c.profit} />
-                          <Text style={[styles.manageBtnLabel, { color: c.profit }]}>
+                          <Icon name={isGroupOwner ? 'edit' : 'people'} size={16} color={c.accentText} />
+                          <Text style={[styles.manageBtnLabel, { color: c.accentText }]}>
                             {isGroupOwner ? 'Manage Members' : 'View Members'}
                           </Text>
                         </Pressable>
@@ -894,7 +894,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Profit</Text>
-                    {leaderboardSortBy === 'profit' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortBy === 'profit' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortBy === 'name' && { backgroundColor: c.accentBg }]}
@@ -905,7 +905,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Name</Text>
-                    {leaderboardSortBy === 'name' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortBy === 'name' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                   <View style={[styles.lbSortDivider, { backgroundColor: c.border }]} />
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Direction</Text>
@@ -918,7 +918,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Descending</Text>
-                    {leaderboardSortDirection === 'desc' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortDirection === 'desc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortDirection === 'asc' && { backgroundColor: c.accentBg }]}
@@ -929,7 +929,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Ascending</Text>
-                    {leaderboardSortDirection === 'asc' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortDirection === 'asc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                 </View>
               ) : null}
@@ -1032,9 +1032,9 @@ export default function FriendsScreen() {
                     onPress={handleAddFriend}
                     disabled={adding || refCodeInput.trim().length < 6}>
                     {adding ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={c.onAccent} />
                     ) : (
-                      <Text style={[styles.confirmLabel, { color: '#fff' }]}>Send request</Text>
+                      <Text style={[styles.confirmLabel, { color: c.onAccent }]}>Send request</Text>
                     )}
                   </Pressable>
                 </View>
@@ -1180,9 +1180,9 @@ export default function FriendsScreen() {
                     disabled={renameGroupSaving || renameGroupName.trim().length < 2}
                     onPress={handleConfirmRenameGroup}>
                     {renameGroupSaving ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={c.onAccent} />
                     ) : (
-                      <Text style={[styles.confirmLabel, { color: '#fff' }]}>Save</Text>
+                      <Text style={[styles.confirmLabel, { color: c.onAccent }]}>Save</Text>
                     )}
                   </Pressable>
                 </View>
@@ -1403,7 +1403,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   requestAcceptLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 13,
   },

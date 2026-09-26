@@ -34,8 +34,8 @@ export function SessionHeader({ title, hostActions }: Props) {
                 transform: [{ scale: pressed ? 0.98 : 1 }],
               },
             ]}>
-            <Icon name="add" size={18} color="#fff" importantForAccessibility="no" />
-            <Text style={styles.buyInLabel}>Buy-In</Text>
+            <Icon name="add" size={18} color={c.onAccent} importantForAccessibility="no" />
+            <Text style={[styles.buyInLabel, { color: c.onAccent }]}>Buy-In</Text>
           </Pressable>
         </View>
       ) : null}
@@ -93,7 +93,6 @@ const styles = StyleSheet.create({
     }),
   },
   buyInLabel: {
-    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
   },

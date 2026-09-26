@@ -25,6 +25,8 @@ export interface AppColors {
   accentBg: string;
   accentBorder: string;
   accentBgDashed: string;
+  /** Text/icons drawn on an `accent` fill (dark ink: gold is too light for white text). */
+  onAccent: string;
 
   profit: string;
   loss: string;
@@ -85,7 +87,7 @@ const dark: AppColors = {
   inputBg: '#12151b',
   border: '#2f3542',
   inputBorder: '#64748b',
-  borderAccent: '#2d6a4f',
+  borderAccent: '#6b5520',
   borderDanger: '#475569',
   borderBlue: '#3b82f6',
   borderAmber: '#78640d',
@@ -96,14 +98,15 @@ const dark: AppColors = {
   textHint: '#919fb4',
   placeholder: '#7a8393',
 
-  accent: '#2d6a4f',
-  accentText: '#4ade80',
-  accentBg: '#1a3a2a',
-  accentBorder: '#2d6a4f',
-  accentBgDashed: '#1a3a2a',
+  accent: '#e0b24a',
+  accentText: '#f5c451',
+  accentBg: '#2e2612',
+  accentBorder: '#6b5520',
+  accentBgDashed: '#2e2612',
+  onAccent: '#241a04',
 
-  profit: '#4ade80',
-  loss: '#ef4444',
+  profit: '#34d399',
+  loss: '#f87171',
   lossLight: '#f87171',
   warning: '#f59e0b',
 
@@ -118,11 +121,11 @@ const dark: AppColors = {
   green: '#279c68',
 
   badge: {
-    host: '#2d6a4f',
+    host: '#7a5d16',
     you: '#3961e3',
     cashedOut: '#475569',
-    live: '#2d6a4f',
-    liveBorder: '#2d6a4f',
+    live: '#1f7a4d',
+    liveBorder: '#1f7a4d',
   },
 
   chipBg: '#2a3140',
@@ -141,11 +144,11 @@ const dark: AppColors = {
   overlay: 'rgba(0,0,0,0.65)',
 
   switchTrackOff: '#2f3542',
-  switchTrackOn: '#2d6a4f',
+  switchTrackOn: '#b8892c',
   switchThumb: '#fff',
 
   chipMinusBg: '#3b1c1c',
-  chipPlusBg: '#1c3b2a',
+  chipPlusBg: '#11352a',
   chipValueText: '#cdd3df',
 
   pressedRow: '#161a22',
@@ -161,7 +164,7 @@ const light: AppColors = {
   inputBg: '#f8fafc',
   border: '#e2e8f0',
   inputBorder: '#8391a7',
-  borderAccent: '#15803d',
+  borderAccent: '#b7791f',
   borderDanger: '#cbd5e1',
   borderBlue: '#3b82f6',
   borderAmber: '#d97706',
@@ -172,13 +175,14 @@ const light: AppColors = {
   textHint: '#5f6f86',
   placeholder: '#64748b',
 
-  accent: '#15803d',
-  accentText: '#15803d',
-  accentBg: '#dcfce7',
-  accentBorder: '#86efac',
-  accentBgDashed: '#dcfce7',
+  accent: '#e0b24a',
+  accentText: '#8a5a00',
+  accentBg: '#fdf3dc',
+  accentBorder: '#e9c77a',
+  accentBgDashed: '#fdf3dc',
+  onAccent: '#241a04',
 
-  profit: '#15803d',
+  profit: '#047857',
   loss: '#dc2626',
   lossLight: '#dc2626',
   warning: '#b45309',
@@ -194,11 +198,11 @@ const light: AppColors = {
   green: '#279c68',
 
   badge: {
-    host: '#15803d',
+    host: '#8a5a00',
     you: '#2563eb',
     cashedOut: '#64748b',
-    live: '#15803d',
-    liveBorder: '#15803d',
+    live: '#047857',
+    liveBorder: '#047857',
   },
 
   chipBg: '#e2e8f0',
@@ -217,11 +221,11 @@ const light: AppColors = {
   overlay: 'rgba(0,0,0,0.35)',
 
   switchTrackOff: '#cbd5e1',
-  switchTrackOn: '#15803d',
+  switchTrackOn: '#b7791f',
   switchThumb: '#fff',
 
   chipMinusBg: '#fef2f2',
-  chipPlusBg: '#dcfce7',
+  chipPlusBg: '#d1fae5',
   chipValueText: '#475569',
 
   pressedRow: '#e2e8f0',

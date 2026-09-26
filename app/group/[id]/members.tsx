@@ -168,8 +168,8 @@ export default function GroupMembersScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Add me (${playerProfile.name})`}
                   onPress={handleAddSelf}>
-                  <Icon name="person" size={16} color={c.profit} />
-                  <Text style={[styles.chipText, { color: c.profit }]}>Me ({playerProfile.name})</Text>
+                  <Icon name="person" size={16} color={c.accentText} />
+                  <Text style={[styles.chipText, { color: c.accentText }]}>Me ({playerProfile.name})</Text>
                 </Pressable>
               )}
               {friendsNotInGroup.map((f) => (
@@ -213,7 +213,7 @@ export default function GroupMembersScreen() {
               accessibilityRole="button"
               accessibilityLabel="Add guest"
               accessibilityState={{ disabled: !guestName.trim() }}>
-              <Text style={styles.guestAddLabel}>Add</Text>
+              <Text style={[styles.guestAddLabel, { color: c.onAccent }]}>Add</Text>
             </Pressable>
           </View>
         </View>
@@ -273,7 +273,7 @@ export default function GroupMembersScreen() {
           style={[styles.doneBtn, { backgroundColor: c.accent }]}
           accessibilityRole="button"
           onPress={() => router.back()}>
-          <Text style={styles.doneLabel}>Done</Text>
+          <Text style={[styles.doneLabel, { color: c.onAccent }]}>Done</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -353,7 +353,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   guestAddLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },
@@ -418,7 +417,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   doneLabel: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: 15,
   },

@@ -80,9 +80,9 @@ export function ModalShell({
             accessibilityLabel={primary.busy ? (primary.busyLabel ?? `${primary.label}, saving`) : primary.label}
             accessibilityState={{ disabled: primaryDisabled, busy: Boolean(primary.busy) }}>
             {primary.busy ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={c.onAccent} />
             ) : (
-              <Text style={styles.primaryLabel}>{primary.label}</Text>
+              <Text style={[styles.primaryLabel, { color: c.onAccent }]}>{primary.label}</Text>
             )}
           </Pressable>
         ) : null}
@@ -173,7 +173,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   primaryLabel: {
-    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
   },

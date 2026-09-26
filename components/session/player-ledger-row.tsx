@@ -125,10 +125,10 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
           <SessionAmountDisplay
             value={values.buyIn}
             unit={displayUnit}
-            color={isCashedOut ? c.textMuted : c.profit}
+            color={isCashedOut ? c.textMuted : c.text}
             iconSize={14}
             valueStyle="ledger"
-            textStyle={[type.amount, { color: isCashedOut ? c.textMuted : c.profit }]}
+            textStyle={[type.amount, { color: isCashedOut ? c.textMuted : c.text }]}
           />
           {isCashedOut ? (
             <View style={styles.cashOutSubline}>

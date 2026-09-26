@@ -28,7 +28,7 @@ export function SessionFooterActions({ canManage, isFinished, onEndSession, onVi
           style={[styles.button, { backgroundColor: c.accent }]}
           onPress={onViewSummary}
           accessibilityRole="button">
-          <Text style={styles.label}>View Summary</Text>
+          <Text style={[styles.label, { color: c.onAccent }]}>View Summary</Text>
         </Pressable>
       ) : null}
     </View>

@@ -438,7 +438,7 @@ export default function NewSessionScreen() {
                 {selectedGroup ? (
                   <View style={styles.selectedGroupRow}>
                     <View style={styles.selectedGroupInfo}>
-                      <Icon name="group" size={20} color={c.profit} />
+                      <Icon name="group" size={20} color={c.accentText} />
                       <Text style={[styles.selectedGroupName, { color: c.text }]}>
                         {selectedGroup.name}
                       </Text>
@@ -551,9 +551,9 @@ export default function NewSessionScreen() {
                 pressed && !isSaving && styles.pressed,
               ]}>
                 {isSaving ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={c.onAccent} />
                 ) : (
-                  <Text style={styles.buttonLabel}>Start Session</Text>
+                  <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Start Session</Text>
                 )}
             </Pressable>
         </ScrollView>
@@ -793,7 +793,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   buttonLabel: {
-    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
   },

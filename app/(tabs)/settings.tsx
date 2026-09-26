@@ -2,7 +2,7 @@ import { AVATAR_EMOJIS } from '@/constants/avatar';
 import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
-import { useAppColors } from '@/lib/app-theme';
+import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { pressBg } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
@@ -41,18 +41,8 @@ export default function SettingsScreen() {
   const { user, playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, linkWithGoogle } = useAuth();
   const c = useAppColors();
   const layout = usePageLayout(40);
-  const { preference, resolvedColorScheme, setPreference } = useThemePreference();
-  const isDark = resolvedColorScheme === 'dark';
-  // Shared surface colors come from the app-wide palette so this screen can't drift from it;
-  // only the settings-specific accents below stay local.
-  const t = {
-    ...(isDark ? theme.dark : theme.light),
-    bg: c.bg,
-    card: c.card,
-    border: c.border,
-    text: c.text,
-    muted: c.textMuted,
-  };
+  const { preference, setPreference } = useThemePreference();
+  const t = settingsTheme(c);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showNameEditor, setShowNameEditor] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
@@ -155,7 +145,7 @@ export default function SettingsScreen() {
               accessibilityLabel="Edit avatar emoji">
               <Text style={styles.avatarEmoji}>{playerProfile?.avatarEmoji ?? '🙂'}</Text>
               <View style={[styles.avatarEditBadge, { backgroundColor: t.accent, borderColor: t.border }]}>
-                <Icon name="edit" size={13} color="#fff" />
+                <Icon name="edit" size={13} color={t.onAccent} />
               </View>
             </Pressable>
             <View style={styles.profileText}>
@@ -182,8 +172,8 @@ export default function SettingsScreen() {
             onPress={() => router.push('../qr-code')}
             accessibilityRole="button"
             accessibilityLabel="Open QR code">
-            <Icon name="qr-code" size={18} color="#fff" />
-            <Text style={styles.primaryBtnLabel}>QR Code</Text>
+            <Icon name="qr-code" size={18} color={t.onAccent} />
+            <Text style={[styles.primaryBtnLabel, { color: t.onAccent }]}>QR Code</Text>
           </Pressable>
           <View style={styles.secondaryBtnRow}>
             <Pressable
@@ -313,7 +303,7 @@ export default function SettingsScreen() {
                 </Text>
               ) : statsLoading ? (
                 <View style={styles.statsLoadingWrap}>
-                  <ActivityIndicator size="large" color={t.accent} />
+                  <ActivityIndicator size="large" color={t.accentText} />
                 </View>
               ) : statsError ? (
                 <Text style={[styles.statsError, { color: '#b91c1c' }]}>{statsError}</Text>
@@ -486,7 +476,7 @@ export default function SettingsScreen() {
                       styles.emojiBtn,
                       { borderColor: t.border, backgroundColor: t.chipBg },
                       (savingAvatar ? pendingAvatarEmoji : playerProfile?.avatarEmoji) === emoji && {
-                        borderColor: t.accent,
+                        borderColor: t.accentText,
                       },
                     ]}
                     onPress={() => onPickAvatar(emoji)}
@@ -498,7 +488,7 @@ export default function SettingsScreen() {
                       disabled: savingAvatar,
                     }}>
                     {savingAvatar && pendingAvatarEmoji === emoji ? (
-                      <ActivityIndicator size="small" color={t.accent} />
+                      <ActivityIndicator size="small" color={t.accentText} />
                     ) : (
                       <Text style={styles.emojiBtnText}>{emoji}</Text>
                     )}
@@ -521,7 +511,7 @@ function StatRow({
   emphasize,
   valueColor,
 }: {
-  t: (typeof theme)['dark'];
+  t: SettingsTheme;
   label: string;
   value: string;
   hint?: string;
@@ -562,7 +552,7 @@ function ThemeOption({
   description: string;
   selected: boolean;
   onPress: () => void;
-  t: (typeof theme)['dark'];
+  t: SettingsTheme;
   /** Rows after the first draw a 1px divider above themselves. */
   showDivider?: boolean;
 }) {
@@ -587,7 +577,7 @@ function ThemeOption({
         <Text style={[styles.themeDesc, { color: t.muted }]}>{description}</Text>
       </View>
       {selected ? (
-        <Icon name="check-circle" size={22} color={t.accent} />
+        <Icon name="check-circle" size={22} color={t.accentText} />
       ) : (
         <View style={[styles.radioOuter, { borderColor: t.border }]}>
           <View style={styles.radioInner} />
@@ -597,32 +587,25 @@ function ThemeOption({
   );
 }
 
-const theme = {
-  dark: {
-    bg: '#0f1115',
-    card: '#1b1f27',
-    border: '#2f3542',
-    text: '#f8fafc',
-    muted: '#94a3b8',
-    accent: '#2d6a4f',
-    avatarBg: '#243548',
-    avatarIcon: '#94a3b8',
-    chipBg: '#12151b',
-    selectedBg: 'rgba(45, 106, 79, 0.25)',
-  },
-  light: {
-    bg: '#f1f5f9',
-    card: '#ffffff',
-    border: '#e2e8f0',
-    text: '#0f172a',
-    muted: '#56667c',
-    accent: '#15803d',
-    avatarBg: '#e2e8f0',
-    avatarIcon: '#475569',
-    chipBg: '#f1f5f9',
-    selectedBg: 'rgba(21, 128, 61, 0.12)',
-  },
-};
+/** The shared palette, narrowed to what this screen and its row helpers draw with. */
+function settingsTheme(c: AppColors) {
+  return {
+    bg: c.bg,
+    card: c.card,
+    border: c.border,
+    text: c.text,
+    muted: c.textMuted,
+    accent: c.accent,
+    accentText: c.accentText,
+    onAccent: c.onAccent,
+    avatarBg: c.avatarBg,
+    avatarIcon: c.avatarIcon,
+    chipBg: c.bg,
+    selectedBg: c.accentBg,
+  };
+}
+
+type SettingsTheme = ReturnType<typeof settingsTheme>;
 
 const styles = StyleSheet.create({
   screen: {
@@ -749,7 +732,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   primaryBtnLabel: {
-    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
   },

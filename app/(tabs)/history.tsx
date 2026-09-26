@@ -448,7 +448,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Date & time</Text>
-                  {sortBy === 'datetime' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'datetime' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'buyIn' && { backgroundColor: c.accentBg }]}
@@ -459,7 +459,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Buy-in</Text>
-                  {sortBy === 'buyIn' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'buyIn' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'profit' && { backgroundColor: c.accentBg }]}
@@ -470,7 +470,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Profit</Text>
-                  {sortBy === 'profit' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'profit' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'duration' && { backgroundColor: c.accentBg }]}
@@ -481,7 +481,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Duration</Text>
-                  {sortBy === 'duration' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'duration' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <View style={[styles.sortDivider, { backgroundColor: c.border }]} />
                 <Text style={[styles.sortSectionTitle, { color: c.textHint }]}>Direction</Text>
@@ -494,7 +494,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Descending</Text>
-                  {sortDirection === 'desc' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                  {sortDirection === 'desc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortDirection === 'asc' && { backgroundColor: c.accentBg }]}
@@ -505,7 +505,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Ascending</Text>
-                  {sortDirection === 'asc' ? <Icon name="check" size={16} color={c.accent} /> : null}
+                  {sortDirection === 'asc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
               </View>
             ) : null}
@@ -524,7 +524,7 @@ export default function HistoryScreen() {
             <Icon
               name="filter-alt"
               size={20}
-              color={hasActiveFilters ? c.accent : c.textMuted}
+              color={hasActiveFilters ? c.accentText : c.textMuted}
             />
           </Pressable>
         </View>
@@ -858,7 +858,7 @@ export default function HistoryScreen() {
                           <Pressable
                             style={[styles.inlineActionBtn, { backgroundColor: c.accent }]}
                             onPress={() => setDatePickerTarget(null)}>
-                            <Text style={styles.inlineActionTextPrimary}>Done</Text>
+                            <Text style={[styles.inlineActionTextPrimary, { color: c.onAccent }]}>Done</Text>
                           </Pressable>
                         </View>
                       ) : null}
@@ -942,7 +942,7 @@ export default function HistoryScreen() {
                 <Pressable
                   style={[styles.actionBtnPrimary, { backgroundColor: c.accent }]}
                   onPress={applyFilters}>
-                  <Text style={styles.actionBtnPrimaryLabel}>
+                  <Text style={[styles.actionBtnPrimaryLabel, { color: c.onAccent }]}>
                     Apply{hasDraftFilters ? '' : ' (Show all)'}
                   </Text>
                 </Pressable>
@@ -1007,7 +1007,7 @@ export default function HistoryScreen() {
                   <Icon
                     name={allLocationsSelected ? 'check-box' : 'check-box-outline-blank'}
                     size={18}
-                    color={allLocationsSelected ? c.accent : c.textHint}
+                    color={allLocationsSelected ? c.accentText : c.textHint}
                   />
                   <Text style={[styles.dropdownOptionText, { color: c.text }]}>All locations</Text>
                 </Pressable>
@@ -1030,7 +1030,7 @@ export default function HistoryScreen() {
                       <Icon
                         name={selected ? 'check-box' : 'check-box-outline-blank'}
                         size={18}
-                        color={selected ? c.accent : c.textHint}
+                        color={selected ? c.accentText : c.textHint}
                       />
                       <Text style={[styles.dropdownOptionText, { color: c.text }]}>
                         {locationName}
@@ -1464,7 +1464,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   inlineActionTextPrimary: {
-    color: '#fff',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -1494,7 +1493,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   actionBtnPrimaryLabel: {
-    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
   },

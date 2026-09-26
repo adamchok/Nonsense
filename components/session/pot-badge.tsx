@@ -13,14 +13,14 @@ export function PotBadge({ total, unit }: { total: number; unit: SessionAmountUn
         accessible
         accessibilityLabel={`Pot ${formatSessionAmountValue(total, unit, 'ledger')}${unit === 'chips' ? ' chips' : ''}`}
         accessibilityLiveRegion="polite">
-        <Text style={[styles.label, { color: c.profit }]}>POT</Text>
+        <Text style={[styles.label, { color: c.accentText }]}>POT</Text>
         <SessionAmountDisplay
           value={total}
           unit={unit}
-          color={c.profit}
+          color={c.text}
           iconSize={14}
           valueStyle="compact"
-          textStyle={[styles.value, { color: c.profit }]}
+          textStyle={[styles.value, { color: c.text }]}
           rowStyle={styles.valueRow}
         />
       </View>
