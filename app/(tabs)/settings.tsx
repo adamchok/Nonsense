@@ -4,7 +4,7 @@ import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
-import { pressBg } from '@/lib/ui';
+import { pressBg, text } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
@@ -673,11 +673,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  pickerTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '600',
-  },
+  pickerTitle: text.modalTitle,
   emojiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -731,11 +727,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  statsTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '600',
-  },
+  statsTitle: text.modalTitle,
   statsScrollContent: {
     gap: 2,
     paddingBottom: 12,

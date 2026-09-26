@@ -1,3 +1,4 @@
+import { text } from '@/lib/ui';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
@@ -964,12 +965,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 4,
   },
-  pickerTitle: {
-    fontWeight: '600',
-    fontSize: 17,
-    lineHeight: 22,
-    marginBottom: 8,
-  },
+  pickerTitle: text.modalTitle,
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',

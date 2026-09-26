@@ -1,3 +1,4 @@
+import { text } from '@/lib/ui';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { useAppColors } from '@/lib/app-theme';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
@@ -289,7 +290,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, marginBottom: 8 },
-  sheetTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.2 },
+  sheetTitle: text.modalTitle,
   sheetMessage: { fontSize: 15, lineHeight: 22 },
   sheetRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   sheetColumn: { gap: 10, marginTop: 10 },
@@ -313,11 +314,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     gap: 12,
   },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
+  title: text.modalTitle,
   message: {
     fontSize: 15,
     lineHeight: 21,

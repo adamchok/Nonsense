@@ -1,7 +1,7 @@
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg } from '@/lib/ui';
+import { pressBg, text } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency,
@@ -1050,11 +1050,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  filterTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '600',
-  },
+  filterTitle: text.modalTitle,
   dropdownOption: {
     flexDirection: 'row',
     alignItems: 'center',

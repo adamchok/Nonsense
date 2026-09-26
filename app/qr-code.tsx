@@ -1,3 +1,4 @@
+import { text } from '@/lib/ui';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
@@ -790,11 +791,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  confirmTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '600',
-  },
+  confirmTitle: text.modalTitle,
   confirmSub: {
     fontSize: 13,
     lineHeight: 18,

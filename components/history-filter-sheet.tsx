@@ -1,3 +1,4 @@
+import { text } from '@/lib/ui';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { Icon, type IconName } from '@/components/icon';
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 6,
   },
-  title: { fontSize: 18, fontWeight: '700' },
+  title: text.modalTitle,
   subtitle: { fontSize: 13, marginTop: 2 },
   closeBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
   scroll: { flexGrow: 0, flexShrink: 1 },

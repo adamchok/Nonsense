@@ -36,6 +36,8 @@ export function scrim(c: AppColors): ViewStyle {
 export const text = StyleSheet.create({
   display: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.3 },
   title: { fontSize: 20, lineHeight: 26, fontWeight: '700', letterSpacing: -0.2 },
+  /** Every modal / sheet / dialog title: title size plus a little air before the body. */
+  modalTitle: { fontSize: 20, lineHeight: 26, fontWeight: '700', letterSpacing: -0.2, marginBottom: 4 },
   heading: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 21, fontWeight: '400' },
   label: { fontSize: 13, lineHeight: 18, fontWeight: '500' },

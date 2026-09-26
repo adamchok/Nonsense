@@ -1,3 +1,4 @@
+import { text } from '@/lib/ui';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
@@ -1716,11 +1717,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  addCardTitle: {
-    fontWeight: '600',
-    fontSize: 17,
-    lineHeight: 22,
-  },
+  addCardTitle: text.modalTitle,
   addCardSub: {
     fontSize: 13,
   },

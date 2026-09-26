@@ -1,7 +1,7 @@
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg } from '@/lib/ui';
+import { pressBg, text } from '@/lib/ui';
 import { BREAKPOINT_MD, SHEET_BREAKPOINT, gutterFor } from '@/lib/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, type ReactNode } from 'react';
@@ -225,11 +225,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  title: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '600',
-  },
+  title: text.modalTitle,
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
