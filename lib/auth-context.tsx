@@ -188,8 +188,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser(firebaseUser);
-        setLinkInfo(linkInfoOf(firebaseUser));
         let profile: PlayerProfile | null = null;
         try {
           profile = await loadProfile(firebaseUser.uid);
@@ -197,6 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('Failed to load player profile:', err);
         }
         if (auth.currentUser?.uid === firebaseUser.uid) {
+          setUser(firebaseUser);
+          setLinkInfo(linkInfoOf(firebaseUser));
           setPlayerProfile(profile);
         }
         setIsReady(true);
