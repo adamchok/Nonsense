@@ -81,6 +81,12 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
 
   const current = MODES.find((m) => m.key === mode) ?? MODES[0];
   const selected: Point | undefined = data[active];
+  const primaryValue = selected ? (mode === 'line' ? selected.value : selected.delta) : 0;
+  const secondaryLabel = selected
+    ? mode === 'line'
+      ? `${formatSignedCurrency(selected.delta)} this session`
+      : `Total ${formatSignedCurrency(selected.value)}`
+    : '';
   const final = data[data.length - 1]?.value ?? 0;
   const values = data.map((p) => p.value);
   const hi = Math.max(0, ...values);
@@ -169,34 +175,15 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
               accessibilityRole="button"
               accessibilityLabel={`Open session on ${formatDateDMY(selected.date)}`}
               style={[styles.header, styles.headerBtn]}>
-              <View>
-                <Text style={[styles.headerDate, { color: c.textMuted }]}>{formatDateDMY(selected.date)}</Text>
-                <Text style={[styles.headerLink, { color: c.accentText }]}>View session</Text>
+              <View style={styles.headerSelectedText}>
+                <Text style={[styles.headerValue, { color: signColor(c, primaryValue) }]}>
+                  {formatSignedCurrency(primaryValue)}
+                </Text>
+                <Text style={[styles.headerHint, { color: c.textMuted }]} numberOfLines={1}>
+                  {`${formatDateDMY(selected.date)} · ${secondaryLabel}`}
+                </Text>
               </View>
-              <View style={styles.headerSelected}>
-                <View style={styles.headerRight}>
-                  {mode === 'line' ? (
-                    <>
-                      <Text style={[styles.headerValue, { color: signColor(c, selected.value) }]}>
-                        {formatSignedCurrency(selected.value)}
-                      </Text>
-                      <Text style={[styles.headerHint, { color: c.textMuted }]}>
-                        {formatSignedCurrency(selected.delta)} this session
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={[styles.headerValue, { color: signColor(c, selected.delta) }]}>
-                        {formatSignedCurrency(selected.delta)}
-                      </Text>
-                      <Text style={[styles.headerHint, { color: c.textMuted }]}>
-                        Total {formatSignedCurrency(selected.value)}
-                      </Text>
-                    </>
-                  )}
-                </View>
-                <Icon name="chevron-right" size={18} color={c.textMuted} />
-              </View>
+              <Icon name="chevron-right" size={18} color={c.textMuted} />
             </PressableScale>
             <PressableScale
               pressedScale={0.9}
@@ -355,20 +342,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  headerDate: {
-    fontSize: 12,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  headerRight: { alignItems: 'flex-end' },
+  headerSelectedText: { flex: 1, minWidth: 0, gap: 2 },
   headerBtn: {
     flex: 1,
+    gap: 10,
     marginLeft: -8,
     paddingHorizontal: 8,
     borderRadius: 10,
   },
-  headerSelected: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerLink: { fontSize: 12, fontWeight: '600' },
   headerValue: {
     fontSize: 16,
     fontWeight: '700',
