@@ -321,14 +321,15 @@ export default function SessionSummaryScreen() {
         <Pressable
           onPress={handleShareWhatsApp}
           hitSlop={8}
-          style={styles.headerShareBtn}
+          // Web header has no end padding: line up with the page gutter.
+          style={[styles.headerShareBtn, Platform.OS === 'web' && { marginRight: layout.gutter }]}
           accessibilityRole="button"
           accessibilityLabel="Share on WhatsApp">
           <Icon name="whatsapp" size={16} color="#fff" />
         </Pressable>
       ),
     });
-  }, [navigation, sessionDate, handleShareWhatsApp, goToHistory, c.text]);
+  }, [navigation, sessionDate, handleShareWhatsApp, goToHistory, c.text, layout.gutter]);
 
   if (loading) {
     return (

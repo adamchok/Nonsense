@@ -37,7 +37,7 @@ import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/motion';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
 /** Only one Modal is ever on screen, so a single discriminated state drives them all. */
@@ -223,7 +223,8 @@ export default function ActiveSessionScreen() {
           pressedScale={0.9}
           onPress={actions.confirmDeleteSession}
           disabled={actions.isDeletingSession}
-          style={styles.headerIconBtn}
+          // Web header has no end padding: line the 24px glyph (10px inset) up with the page gutter.
+          style={[styles.headerIconBtn, Platform.OS === 'web' && { marginRight: layout.gutter - 10 }]}
           accessibilityRole="button"
           accessibilityLabel="Delete session"
           accessibilityState={{ disabled: actions.isDeletingSession, busy: actions.isDeletingSession }}>
