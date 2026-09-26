@@ -261,7 +261,7 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
 
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 36 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 36, marginBottom: 8 },
   toggle: { flexDirection: 'row', borderWidth: 1, borderRadius: 999, padding: 2 },
   toggleBtn: { minHeight: 28, paddingHorizontal: 12, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   toggleText: { fontSize: 12, fontWeight: '600' },
