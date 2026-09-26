@@ -11,7 +11,7 @@ import {
 } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { appAlert } from '@/lib/app-alert';
-import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
+import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -258,35 +258,6 @@ export default function HistoryScreen() {
         </View>
       ) : null,
     [filteredHistory, c.card, c.border, layout.sectionGap, openSessionSummary]
-  );
-
-  const confirmLeaveSession = useCallback(
-    (sessionId: string) => {
-      const playerId = playerProfile?.id;
-      if (!playerId) return;
-      appAlert(
-        'Remove this session?',
-        'It leaves your history, statistics and leaderboards, and your result for it is deleted. Other players keep their own records. This cannot be undone.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Remove',
-            style: 'destructive',
-            onPress: () => {
-              void (async () => {
-                try {
-                  await leaveSession(sessionId, playerId);
-                  await loadHistory();
-                } catch (e) {
-                  appAlert('Error', userMessage(e, 'Failed to remove session.'));
-                }
-              })();
-            },
-          },
-        ]
-      );
-    },
-    [playerProfile?.id, loadHistory]
   );
 
   const confirmDeleteSession = useCallback(
@@ -563,7 +534,7 @@ export default function HistoryScreen() {
                 isLast={index === sortedHistory.length - 1}
                 entering={isFirstShow ? listItemEntering(index) : undefined}
                 onOpen={() => router.push(`../session/summary/${item.id}`)}
-                onRemove={() => (isHost ? confirmDeleteSession(item.id) : confirmLeaveSession(item.id))}
+                onRemove={isHost ? () => confirmDeleteSession(item.id) : undefined}
               />
             );
           }}
@@ -695,24 +666,25 @@ type HistoryRowProps = {
   isLast: boolean;
   entering: ReturnType<typeof listItemEntering> | undefined;
   onOpen: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
 };
 
 function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove }: HistoryRowProps) {
   const c = useAppColors();
   const swipeRef = useRef<SwipeableMethods>(null);
-  const removeLabel = isHost ? 'Delete session' : 'Remove from history';
+  const removeLabel = 'Delete session';
   const blindsText = formatSessionBlindsForDisplay(item.smallBlind, item.bigBlind, item.amountUnit, item.dollarsPerChip);
 
   const remove = () => {
     swipeRef.current?.close();
-    onRemove();
+    onRemove?.();
   };
 
   return (
     <Motion.View entering={entering} exiting={fadeOut}>
       <ReanimatedSwipeable
         ref={swipeRef}
+        enabled={Boolean(onRemove)}
         friction={2}
         rightThreshold={SWIPE_ACTION_WIDTH / 2}
         overshootRight={false}
@@ -731,7 +703,7 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
             importantForAccessibility="no-hide-descendants"
             tabIndex={-1}>
             <Icon name="delete-outline" size={20} color="#fff" />
-            <Text style={styles.historySwipeLabel}>{isHost ? 'Delete' : 'Remove'}</Text>
+            <Text style={styles.historySwipeLabel}>Delete</Text>
           </Pressable>
         )}>
         <PressableScale
@@ -748,9 +720,9 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
           accessibilityRole="button"
           accessibilityLabel={`${formatDateTimeDMY(item.date)}, ${isHost ? 'host' : 'participant'}, ${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}, ${item.location ? item.location : 'no location'}`}
           accessibilityHint="Opens the session summary"
-          accessibilityActions={[{ name: 'remove', label: removeLabel }]}
+          accessibilityActions={onRemove ? [{ name: 'remove', label: removeLabel }] : undefined}
           onAccessibilityAction={(e) => {
-            if (e.nativeEvent.actionName === 'remove') onRemove();
+            if (e.nativeEvent.actionName === 'remove') onRemove?.();
           }}>
           <View style={styles.historyTop}>
             <View style={styles.historyTitleRow}>
@@ -765,15 +737,17 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
               <Text style={[styles.historyProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
                 {formatSignedCurrency(item.profit)}
               </Text>
-              <PressableScale
-                onPress={onRemove}
-                hitSlop={8}
-                pressedScale={0.9}
-                style={styles.historyMoreBtn}
-                accessibilityRole="button"
-                accessibilityLabel={removeLabel}>
-                <Icon name="delete-outline" size={18} color={c.textMuted} />
-              </PressableScale>
+              {onRemove ? (
+                <PressableScale
+                  onPress={onRemove}
+                  hitSlop={8}
+                  pressedScale={0.9}
+                  style={styles.historyMoreBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={removeLabel}>
+                  <Icon name="delete-outline" size={18} color={c.textMuted} />
+                </PressableScale>
+              ) : null}
             </View>
           </View>
           <Text style={[styles.historyMeta, { color: c.textMuted }]}>

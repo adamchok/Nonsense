@@ -14,7 +14,6 @@ import type {
 } from '@/types';
 import {
   addDoc,
-  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
@@ -903,18 +902,6 @@ export async function deleteSession(sessionId: string): Promise<void> {
     refs.slice(i, i + 500).forEach((r) => batch.delete(r));
     await batch.commit();
   }
-  invalidateSessionScanCache();
-}
-
-export async function leaveSession(sessionId: string, playerId: string): Promise<void> {
-  const db = getFirestoreDb();
-  await updateDoc(doc(db, 'sessions', sessionId), {
-    participantIds: arrayRemove(playerId),
-  });
-  const batch = writeBatch(db);
-  batch.delete(doc(db, 'sessions', sessionId, 'results', playerId));
-  batch.delete(doc(db, 'sessions', sessionId, SESSION_PARTICIPANTS_SUBCOLLECTION, playerId));
-  await batch.commit();
   invalidateSessionScanCache();
 }
 

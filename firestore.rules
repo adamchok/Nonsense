@@ -33,14 +33,6 @@ service cloud.firestore {
       return getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.status == 'active';
     }
 
-    function removesOnlySelfFromParticipants() {
-      return signedIn()
-        && request.auth.uid != resource.data.hostId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds'])
-        && resource.data.get('participantIds', []).removeAll([request.auth.uid])
-          == request.resource.data.participantIds;
-    }
-
     function canReadSession(sessionId) {
       return signedIn()
         && (
@@ -287,13 +279,10 @@ service cloud.firestore {
         && request.resource.data.status == 'active'
         && validSessionShape(request.resource.data);
 
-      allow update: if (
-          isSessionHost(sessionId)
-          && request.resource.data.hostId == resource.data.hostId
-          && validSessionShape(request.resource.data)
-          && !(resource.data.status == 'finished' && request.resource.data.status == 'active')
-        )
-        || removesOnlySelfFromParticipants();
+      allow update: if isSessionHost(sessionId)
+        && request.resource.data.hostId == resource.data.hostId
+        && validSessionShape(request.resource.data)
+        && !(resource.data.status == 'finished' && request.resource.data.status == 'active');
 
       allow delete: if isSessionHost(sessionId);
 
@@ -324,18 +313,14 @@ service cloud.firestore {
           && validNonNegativeAmount(request.resource.data.totalBuyIn)
           && validNonNegativeAmount(request.resource.data.cashOut)
           && validSignedAmount(request.resource.data.profit);
-        allow delete: if isSessionHost(sessionId)
-          || (signedIn()
-            && resultPlayerId == request.auth.uid
-            && !(request.auth.uid in sessionData(sessionId).get('participantIds', [])));
+        allow delete: if isSessionHost(sessionId);
       }
 
       match /session_participants/{participantId} {
         allow read: if signedIn()
           && (participantId == request.auth.uid || canReadSession(sessionId));
         allow create, update: if isSessionHostAfter(sessionId);
-        allow delete: if isSessionHost(sessionId)
-          || (signedIn() && participantId == request.auth.uid);
+        allow delete: if isSessionHost(sessionId);
       }
     }
 

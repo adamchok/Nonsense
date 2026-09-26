@@ -214,18 +214,15 @@ async function seedFinishedWithResult(sessionId: string, participantIds: string[
   });
 }
 
-test('a participant can leave: remove self, then delete own result and participant row', async () => {
+test('a participant cannot leave a session or delete their own result or participant row', async () => {
   const id = sid();
   await seedFinishedWithResult(id, [HOST, PLAYER, OTHER_PLAYER]);
   const db = dbAs(env, PLAYER);
 
-  await assertSucceeds(updateDoc(doc(db, 'sessions', id), { participantIds: arrayRemove(PLAYER) }));
-  const batch = writeBatch(db);
-  batch.delete(doc(db, 'sessions', id, 'results', PLAYER));
-  batch.delete(doc(db, 'sessions', id, 'session_participants', PLAYER));
-  await assertSucceeds(batch.commit());
-
-  await assertFails(getDoc(doc(db, 'sessions', id)));
+  await assertFails(updateDoc(doc(db, 'sessions', id), { participantIds: arrayRemove(PLAYER) }));
+  await assertFails(deleteDoc(doc(db, 'sessions', id, 'results', PLAYER)));
+  await assertFails(deleteDoc(doc(db, 'sessions', id, 'session_participants', PLAYER)));
+  await assertSucceeds(getDoc(doc(db, 'sessions', id)));
 });
 
 test('a participant cannot delete their result while still in the session', async () => {
@@ -249,17 +246,12 @@ test('a player cannot delete a result written about someone else', async () => {
   await assertFails(deleteDoc(doc(dbAs(env, STRANGER), 'sessions', id, 'results', PLAYER)));
 });
 
-test(
-  'a participant of a legacy session without participantIds can leave',
-  async () => {
-    const id = sid();
-    await seedFinishedWithResult(id, null);
-    const db = dbAs(env, PLAYER);
-    await assertSucceeds(
-      updateDoc(doc(db, 'sessions', id), { participantIds: arrayRemove(PLAYER) })
-    );
-  }
-);
+test('a participant of a legacy session without participantIds cannot rewrite it', async () => {
+  const id = sid();
+  await seedFinishedWithResult(id, null);
+  const db = dbAs(env, PLAYER);
+  await assertFails(updateDoc(doc(db, 'sessions', id), { participantIds: arrayRemove(PLAYER) }));
+});
 
 test('the host can delete a finished session with its results; other players cannot', async () => {
   const id = sid();
