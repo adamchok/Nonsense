@@ -835,9 +835,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerBackBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },

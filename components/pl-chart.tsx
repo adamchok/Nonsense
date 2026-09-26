@@ -98,6 +98,8 @@ export const PLChart = memo(function PLChart({
   const hi = Math.max(0, ...values);
   const lo = Math.min(0, ...values);
   const zeroAt = hi - lo > 0 ? hi / (hi - lo) : 1;
+  const aboveZero = hi > 0 ? c.profit : c.loss;
+  const belowZero = lo < 0 ? c.loss : c.profit;
   const lineData = useMemo(
     () =>
       data.map((p) => ({
@@ -251,19 +253,19 @@ export const PLChart = memo(function PLChart({
             lineGradientId="plLine"
             lineGradientComponent={() => (
               <LinearGradient id="plLine" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={c.profit} />
-                <Stop offset={zeroAt} stopColor={c.profit} />
-                <Stop offset={zeroAt} stopColor={c.loss} />
-                <Stop offset="1" stopColor={c.loss} />
+                <Stop offset="0" stopColor={aboveZero} />
+                <Stop offset={zeroAt} stopColor={aboveZero} />
+                <Stop offset={zeroAt} stopColor={belowZero} />
+                <Stop offset="1" stopColor={belowZero} />
               </LinearGradient>
             )}
             areaGradientId="plArea"
             areaGradientComponent={() => (
               <LinearGradient id="plArea" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={c.profit} stopOpacity={0.3} />
-                <Stop offset={zeroAt} stopColor={c.profit} stopOpacity={0.04} />
-                <Stop offset={zeroAt} stopColor={c.loss} stopOpacity={0.04} />
-                <Stop offset="1" stopColor={c.loss} stopOpacity={0.3} />
+                <Stop offset="0" stopColor={aboveZero} stopOpacity={0.3} />
+                <Stop offset={zeroAt} stopColor={aboveZero} stopOpacity={0.04} />
+                <Stop offset={zeroAt} stopColor={belowZero} stopOpacity={0.04} />
+                <Stop offset="1" stopColor={belowZero} stopOpacity={0.3} />
               </LinearGradient>
             )}
             hideDataPoints={data.length > 12}
@@ -324,7 +326,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: -6,
   },
-  caption: { fontSize: 11, textAlign: 'center', marginTop: 4 },
+  caption: { fontSize: 11, textAlign: 'center' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
