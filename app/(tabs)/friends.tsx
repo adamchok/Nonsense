@@ -112,6 +112,7 @@ export default function FriendsScreen() {
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [groupLeaderboard, setGroupLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [groupLbLoading, setGroupLbLoading] = useState(false);
+  const [groupLbRefreshKey, setGroupLbRefreshKey] = useState(0);
   const [groupLeaderboardModalGroup, setGroupLeaderboardModalGroup] = useState<PokerGroup | null>(null);
   const [showGroupLeaderboardModal, setShowGroupLeaderboardModal] = useState(false);
   const [renameGroupTarget, setRenameGroupTarget] = useState<PokerGroup | null>(null);
@@ -312,7 +313,7 @@ export default function FriendsScreen() {
       }
       setGroupLbLoading(true);
       try {
-        const lb = await getGroupLeaderboard(user.uid, expandedGroupId);
+        const lb = await getGroupLeaderboard(user.uid, expandedGroupId, groupLbRefreshKey > 0);
         if (!cancelled) setGroupLeaderboard(lb);
       } catch (e) {
         console.error('Group leaderboard load failed:', e);
@@ -325,7 +326,7 @@ export default function FriendsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user, expandedGroupId]);
+  }, [user, expandedGroupId, groupLbRefreshKey]);
 
   function openRenameGroupModal(group: PokerGroup) {
     setRenameGroupTarget(group);
@@ -656,6 +657,7 @@ export default function FriendsScreen() {
                 const isBusy = busyGuestLinkId === link.id;
                 const sessionsLabel = `${link.sessionCount} past ${link.sessionCount === 1 ? 'session' : 'sessions'}`;
                 const isAccepted = link.status === 'accepted';
+                const isFailed = link.status === 'failed';
                 return (
                   <Motion.View
                     key={link.id}
@@ -671,14 +673,22 @@ export default function FriendsScreen() {
                     ]}>
                     <View style={styles.friendInfo}>
                       <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
-                        <Icon name={isAccepted ? 'clock-outline' : 'link'} size={18} color={c.textMuted} />
+                        {isAccepted ? (
+                          <ActivityIndicator size="small" color={c.textMuted} />
+                        ) : (
+                          <Icon name={isFailed ? 'error-outline' : 'link'} size={18} color={isFailed ? c.loss : c.textMuted} />
+                        )}
                       </View>
                       <View style={styles.guestLinkText}>
                         {isAccepted ? (
                           <Text style={[styles.guestLinkBody, { color: c.textSecondary }]}>
-                            Accepted. {sessionsLabel} played as{' '}
-                            <Text style={styles.guestLinkStrong}>{link.guestName}</Text> will appear in your history
-                            the next time <Text style={styles.guestLinkStrong}>{link.ownerName}</Text> opens Nonsense.
+                            Moving {sessionsLabel} played as <Text style={styles.guestLinkStrong}>{link.guestName}</Text>{' '}
+                            to your history…
+                          </Text>
+                        ) : isFailed ? (
+                          <Text style={[styles.guestLinkBody, { color: c.textSecondary }]}>
+                            Couldn’t move <Text style={styles.guestLinkStrong}>{link.guestName}</Text>’s history. Ask{' '}
+                            <Text style={styles.guestLinkStrong}>{link.ownerName}</Text> to send the request again.
                           </Text>
                         ) : (
                           <Text style={[styles.guestLinkBody, { color: c.textSecondary }]}>
@@ -691,7 +701,21 @@ export default function FriendsScreen() {
                         </Text>
                       </View>
                     </View>
-                    {isAccepted ? null : (
+                    {isAccepted ? null : isFailed ? (
+                      <PressableScale
+                        pressedScale={0.9}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        style={styles.requestCloseBtn}
+                        accessibilityLabel="Dismiss"
+                        onPress={() =>
+                          void declineGuestLink(link).catch((e) =>
+                            appAlert('Error', userMessage(e, 'Failed to dismiss.'))
+                          )
+                        }>
+                        <Icon name="close" size={20} color={c.textHint} />
+                      </PressableScale>
+                    ) : (
                       <View style={styles.requestActions}>
                         <PressableScale
                           pressedScale={0.97}
@@ -1276,13 +1300,24 @@ export default function FriendsScreen() {
                 <Text style={[styles.leaderboardTitle, { color: c.text }]}>
                   {groupLeaderboardModalGroup?.name ? `${groupLeaderboardModalGroup.name} Leaderboard` : 'Leaderboard'}
                 </Text>
-                <Pressable
+                <PressableScale
+                  pressedScale={0.9}
+                  disabled={groupLbLoading}
+                  onPress={() => setGroupLbRefreshKey((k) => k + 1)}
+                  style={[styles.requestCloseBtn, groupLbLoading && styles.disabled]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh leaderboard"
+                  accessibilityState={{ disabled: groupLbLoading, busy: groupLbLoading }}>
+                  <Icon name="refresh" size={18} color={c.textMuted} />
+                </PressableScale>
+                <PressableScale
+                  pressedScale={0.9}
                   onPress={() => setShowGroupLeaderboardModal(false)}
-                  hitSlop={10}
+                  style={styles.requestCloseBtn}
                   accessibilityRole="button"
                   accessibilityLabel="Close leaderboard">
                   <Icon name="close" size={20} color={c.textHint} />
-                </Pressable>
+                </PressableScale>
               </View>
 
               <ScrollView

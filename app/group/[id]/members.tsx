@@ -146,6 +146,10 @@ export default function GroupMembersScreen() {
   function handleCancelLink(link: GuestLink) {
     if (!user || !isOwner) return;
     const uid = user.uid;
+    if (link.status === 'failed') {
+      void cancelGuestLink(uid, link.guestId).catch((e) => appAlert('Error', userMessage(e, 'Failed to clear.')));
+      return;
+    }
     appAlert(
       `Cancel request to ${link.targetName}?`,
       `${link.guestName} stays a guest. You can send a new request later.`,
@@ -307,19 +311,29 @@ export default function GroupMembersScreen() {
                         {isOwner && link ? (
                           <View style={styles.linkCaptionRow}>
                             <Icon
-                              name={link.status === 'accepted' ? 'refresh' : 'clock-outline'}
+                              name={
+                                link.status === 'accepted'
+                                  ? 'refresh'
+                                  : link.status === 'failed'
+                                    ? 'error-outline'
+                                    : 'clock-outline'
+                              }
                               size={12}
-                              color={c.textHint}
+                              color={link.status === 'failed' ? c.loss : c.textHint}
                             />
-                            <Text style={[styles.linkCaption, { color: c.textHint }]} numberOfLines={1}>
+                            <Text
+                              style={[styles.linkCaption, { color: link.status === 'failed' ? c.loss : c.textHint }]}
+                              numberOfLines={1}>
                               {link.status === 'accepted'
                                 ? `Moving history to ${link.targetName}`
-                                : `Waiting for ${link.targetName} to accept`}
+                                : link.status === 'failed'
+                                  ? `Couldn’t move history to ${link.targetName}`
+                                  : `Waiting for ${link.targetName} to accept`}
                             </Text>
                           </View>
                         ) : null}
                       </View>
-                      {isOwner && link?.status === 'pending' ? (
+                      {isOwner && link && link.status !== 'accepted' ? (
                         <PressableScale
                           pressedScale={0.95}
                           style={[
@@ -332,14 +346,18 @@ export default function GroupMembersScreen() {
                           onHoverIn={() => setHoveredCancelId(link.id)}
                           onHoverOut={() => setHoveredCancelId(null)}
                           accessibilityRole="button"
-                          accessibilityLabel={`Cancel link request to ${link.targetName}`}
+                          accessibilityLabel={
+                            link.status === 'failed'
+                              ? `Clear failed link to ${link.targetName}`
+                              : `Cancel link request to ${link.targetName}`
+                          }
                           onPress={() => handleCancelLink(link)}>
                           <Text
                             style={[
                               styles.requestedPillText,
                               { color: hoveredCancelId === link.id ? c.loss : c.text },
                             ]}>
-                            Cancel request
+                            {link.status === 'failed' ? 'Clear' : 'Cancel request'}
                           </Text>
                         </PressableScale>
                       ) : null}
