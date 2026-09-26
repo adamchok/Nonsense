@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetFrame: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   sheetBtnPressed: { opacity: 0.85 },
   sheetBtnLabel: { fontSize: 16, fontWeight: '700' },
   center: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 28,

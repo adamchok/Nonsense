@@ -1631,7 +1631,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   menuBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 5,
   },
   menuAnchorRaised: {
@@ -1954,7 +1954,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalCenter: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,

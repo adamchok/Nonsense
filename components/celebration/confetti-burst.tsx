@@ -125,7 +125,7 @@ export function ConfettiBurst({ colors, count = DEFAULT_COUNT }: Props) {
 
 const styles = StyleSheet.create({
   layer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
     pointerEvents: 'none',
   },

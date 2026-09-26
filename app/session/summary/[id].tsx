@@ -23,7 +23,7 @@ import { SessionSummarySkeleton } from '@/components/session/session-skeletons';
 import { ConfettiBurst, ScaleFadeIn } from '@/components/celebration';
 import { Animated, PressableScale, fadeIn, listItemEntering, useCountUp } from '@/components/motion';
 import { FadeIn, FadeInDown, ReduceMotion, useReducedMotion } from 'react-native-reanimated';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from "expo-router/react-navigation";
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {

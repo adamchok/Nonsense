@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   centerWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalCenter: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   statsModalCenter: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,

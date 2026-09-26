@@ -937,7 +937,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalCenter: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,

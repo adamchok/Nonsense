@@ -19,5 +19,5 @@ export function useColorScheme(): 'light' | 'dark' | null {
   if (ctx) {
     return ctx.resolvedColorScheme;
   }
-  return system ?? null;
+  return system === 'light' || system === 'dark' ? system : null;
 }

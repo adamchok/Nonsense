@@ -15,7 +15,7 @@ const WEB_BLUR = { backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)
 
 export function scrim(c: AppColors): ViewStyle {
   return {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: c.overlay,
     ...(Platform.OS === 'web' ? WEB_BLUR : null),
   };

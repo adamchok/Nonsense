@@ -25,7 +25,7 @@ import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import ViewShot, { captureRef } from 'react-native-view-shot';
+import ViewShot, { captureRef, type ViewShotRef } from 'react-native-view-shot';
 import { userMessage } from '@/lib/user-message';
 
 type Tab = 'my' | 'scan';
@@ -50,7 +50,7 @@ export default function QrCodeScreen() {
   const [pickingGalleryImage, setPickingGalleryImage] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const scanLock = useRef(false);
-  const shareCardRef = useRef<ViewShot | null>(null);
+  const shareCardRef = useRef<ViewShotRef | null>(null);
   const lastDismissedRef = useRef<{ code: string; at: number } | null>(null);
   const friendsRef = useRef<FriendRecord[]>([]);
   const incomingRef = useRef<FriendRequestRecord[]>([]);
@@ -473,7 +473,7 @@ export default function QrCodeScreen() {
         <Animated.View key="scan" entering={fadeIn} style={styles.scanRoot}>
           <View style={[styles.scanCard, { borderColor: c.border }]}>
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleBarCodeScanned}
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
     minHeight: 360,
   },
   scanOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalCenter: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,

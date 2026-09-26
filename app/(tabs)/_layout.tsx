@@ -5,7 +5,7 @@ import { WebSidebar } from '@/components/web/web-sidebar';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { BottomTabBar, type BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
+import { BottomTabBar, type BottomTabNavigationOptions } from "expo-router/js-tabs";
 import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
@@ -82,7 +82,7 @@ const tabScreens = [
     options={{
       title: 'Home',
       tabBarIcon: ({ color, size, focused }) => (
-        <Icon size={isWeb ? size : 28} name="home" color={color} weight={focused ? 'fill' : 'regular'} />
+        <Icon size={isWeb ? size : 28} name="home" color={color as string} weight={focused ? 'fill' : 'regular'} />
       ),
     }}
   />,
@@ -92,7 +92,7 @@ const tabScreens = [
     options={{
       title: 'History',
       tabBarIcon: ({ color, size, focused }) => (
-        <Icon size={isWeb ? size : 28} name="history" color={color} weight={focused ? 'fill' : 'regular'} />
+        <Icon size={isWeb ? size : 28} name="history" color={color as string} weight={focused ? 'fill' : 'regular'} />
       ),
     }}
   />,
@@ -102,7 +102,7 @@ const tabScreens = [
     options={{
       title: 'Friends',
       tabBarIcon: ({ color, size, focused }) => (
-        <Icon size={isWeb ? size : 28} name="people" color={color} weight={focused ? 'fill' : 'regular'} />
+        <Icon size={isWeb ? size : 28} name="people" color={color as string} weight={focused ? 'fill' : 'regular'} />
       ),
     }}
   />,
@@ -112,7 +112,7 @@ const tabScreens = [
     options={{
       title: 'Settings',
       tabBarIcon: ({ color, size, focused }) => (
-        <Icon size={isWeb ? size : 28} name="settings" color={color} weight={focused ? 'fill' : 'regular'} />
+        <Icon size={isWeb ? size : 28} name="settings" color={color as string} weight={focused ? 'fill' : 'regular'} />
       ),
     }}
   />,

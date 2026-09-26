@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "allowImportingTsExtensions": true,
+    "types": ["node"],
     "paths": {
       "@firebase/auth": ["./node_modules/@firebase/auth/dist/index.rn.d.ts"],
       "phosphor-react-native/src/icons/*": ["./node_modules/phosphor-react-native/lib/typescript/icons/*"],

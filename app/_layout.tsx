@@ -2,7 +2,7 @@ import { WebAppFrame, WebContentColumn } from '@/components/web/web-app-frame';
 import { AppAlertProvider } from '@/lib/app-alert';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemePreferenceProvider, useThemePreference } from '@/lib/theme-context';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';

@@ -1,6 +1,5 @@
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { PlatformPressable } from '@react-navigation/elements';
-import { CommonActions, useLinkBuilder } from '@react-navigation/native';
+import type { BottomTabBarProps } from "expo-router/js-tabs";
+import { PlatformPressable, CommonActions, useLinkBuilder } from "expo-router/react-navigation";
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
