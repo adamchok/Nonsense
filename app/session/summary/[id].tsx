@@ -232,6 +232,19 @@ export default function SessionSummaryScreen() {
   const settlements = useMemo(() => computeSettlements(results), [results]);
   const isHost = Boolean(user && sessionHostId && user.uid === sessionHostId);
   const locationText = sessionLocation?.trim() ? sessionLocation.trim() : '—';
+  const locationCell = (
+    <>
+      <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
+        <Icon name="map-marker-outline" size={16} color={c.green} />
+      </View>
+      <View style={styles.metaItemText}>
+        <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
+        <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+          {locationText}
+        </Text>
+      </View>
+    </>
+  );
 
   async function saveLocation(next: string) {
     if (!id) return;
@@ -399,24 +412,19 @@ export default function SessionSummaryScreen() {
         <Animated.View entering={fadeIn} style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <View style={styles.metaGrid}>
             <View style={styles.metaGridRow}>
-              <PressableScale
-                pressedScale={0.98}
-                disabled={!isHost}
-                onPress={() => setIsEditingLocation(true)}
-                accessibilityRole={isHost ? 'button' : undefined}
-                accessibilityLabel={isHost ? `Location, ${locationText}. Edit location` : undefined}
-                style={styles.metaGridCell}>
-                <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
-                  <Icon name="map-marker-outline" size={16} color={c.green} />
-                </View>
-                <View style={styles.metaItemText}>
-                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
-                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
-                    {locationText}
-                  </Text>
-                </View>
-                {isHost ? <Icon name="edit" size={14} color={c.textMuted} /> : null}
-              </PressableScale>
+              {isHost ? (
+                <PressableScale
+                  pressedScale={0.98}
+                  onPress={() => setIsEditingLocation(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Location, ${locationText}. Edit location`}
+                  style={styles.metaGridCell}>
+                  {locationCell}
+                  <Icon name="edit" size={14} color={c.textMuted} />
+                </PressableScale>
+              ) : (
+                <View style={styles.metaGridCell}>{locationCell}</View>
+              )}
               <View style={styles.metaGridCell}>
                 <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
                   <Icon name="crown-outline" size={16} color={c.yellow} />
