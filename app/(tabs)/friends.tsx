@@ -631,6 +631,7 @@ export default function FriendsScreen() {
                       pressedScale={0.9}
                       hitSlop={8}
                       accessibilityRole="button"
+                      style={styles.requestCloseBtn}
                       accessibilityLabel={`Decline friend request from ${req.name}`}
                       onPress={async () => {
                         if (!user) return;
@@ -640,7 +641,7 @@ export default function FriendsScreen() {
                           appAlert('Error', userMessage(e, 'Failed to decline.'));
                         }
                       }}>
-                      <Icon name="close" size={22} color={c.textHint} />
+                      <Icon name="close" size={20} color={c.textHint} />
                     </PressableScale>
                   </View>
                 </Motion.View>
@@ -706,9 +707,10 @@ export default function FriendsScreen() {
                         hitSlop={8}
                         disabled={isBusy}
                         accessibilityRole="button"
+                        style={styles.requestCloseBtn}
                         accessibilityLabel={`Decline sessions from ${link.ownerName}`}
                         onPress={() => handleDeclineGuestLink(link)}>
-                        <Icon name="close" size={22} color={c.textHint} />
+                        <Icon name="close" size={20} color={c.textHint} />
                       </PressableScale>
                     </View>
                   </Motion.View>
@@ -1523,6 +1525,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
