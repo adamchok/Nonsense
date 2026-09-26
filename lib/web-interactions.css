@@ -186,11 +186,14 @@
   }
 }
 
-:is(input, textarea):not([readonly]):focus {
-  box-shadow: 0 0 0 1px var(--accent);
+/* Focus recolours the field's own border rather than drawing a ring outside it: an outer
+ * ring gets clipped on some sides inside modals/scroll views with overflow hidden.
+ * !important is needed because react-native-web writes border colours inline. */
+:is(input, textarea)[class*='r-borderWidth']:not([readonly]):focus {
+  border-color: var(--accent) !important;
 }
 
-/* The accent ring above replaces the browser's own focus outline on text fields. */
+/* The accent border above replaces the browser's own focus outline on text fields. */
 :is(input, textarea) {
   outline: none;
 }
@@ -198,12 +201,8 @@
 /* Borderless inputs inside a bordered wrapper (e.g. "$ [amount]" fields): ring the wrapper,
  * not the bare input. react-native-web emits atomic `r-borderWidth-*` classes only when a
  * border is set, which is how a bordered input is told apart from a bare one. */
-:is(input, textarea):not([class*='r-borderWidth']):focus {
-  box-shadow: none;
-}
-
 :has(> :is(input, textarea):not([class*='r-borderWidth'], [readonly]):focus) {
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--accent) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
