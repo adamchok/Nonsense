@@ -52,6 +52,7 @@ import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
 import { EmptyState } from '@/components/empty-state';
 import { Animated as Motion, PressableScale, fadeOut, layoutTransition, listItemEntering, webSafe } from '@/components/motion';
 import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
+import { NewGroupModal } from '@/components/new-group-modal';
 
 /** Dropdown menus grow from their top-right anchor: fade + scale up from 0.96. */
 const menuEntering = webSafe(
@@ -84,6 +85,7 @@ export default function FriendsScreen() {
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestRecord[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestRecord[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showNewGroup, setShowNewGroup] = useState(false);
   const [refCodeInput, setRefCodeInput] = useState('');
   const addFriendScrollRef = useRef<ScrollView>(null);
   const [adding, setAdding] = useState(false);
@@ -713,7 +715,7 @@ export default function FriendsScreen() {
                   { backgroundColor: c.accentBg, borderColor: c.accentBorder },
                   !canCreateGroup && styles.disabled,
                 ]}
-                onPress={() => router.push('../group/new')}
+                onPress={() => setShowNewGroup(true)}
                 disabled={!canCreateGroup}
                 hitSlop={4}
                 accessibilityRole="button"
@@ -741,7 +743,7 @@ export default function FriendsScreen() {
               icon="groups"
               title="No groups yet"
               message="Create a group to start sessions with your regulars in one tap."
-              action={{ label: 'Create group', icon: 'add', onPress: () => router.push('../group/new') }}
+              action={{ label: 'Create group', icon: 'add', onPress: () => setShowNewGroup(true) }}
             />
           ) : filteredGroups.length === 0 ? (
             <EmptyState compact icon="search" title="No matches" message={`No group named “${groupSearchQuery.trim()}”.`} />
@@ -1254,6 +1256,7 @@ export default function FriendsScreen() {
           </View>
         </View>
       </Modal>
+      {showNewGroup ? <NewGroupModal onClose={() => setShowNewGroup(false)} /> : null}
     </ScrollView>
   );
 }

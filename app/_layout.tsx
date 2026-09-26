@@ -61,10 +61,6 @@ function RootNavigator() {
           options={{ title: 'Session Summary', headerBackTitle: 'Back' }}
         />
         <Stack.Screen
-          name="group/new"
-          options={{ title: 'New Group', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
           name="group/[id]/members"
           options={{ title: 'Group Members', headerBackTitle: 'Back' }}
         />
