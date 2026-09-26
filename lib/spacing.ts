@@ -4,6 +4,8 @@
  */
 export const BREAKPOINT_SM = 480;
 export const BREAKPOINT_MD = 768;
+/** Below this width, modals (filters, confirmations) open as bottom sheets. */
+export const SHEET_BREAKPOINT = 600;
 
 export const space = {
   xxs: 2,

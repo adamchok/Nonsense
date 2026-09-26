@@ -6,9 +6,16 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type StyleProp,
   type TextStyle,
+  type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SHEET_BREAKPOINT } from '@/lib/spacing';
+
+/** Filled destructive button: white text meets 4.5:1 on this red in both themes. */
+const DANGER_FILL = '#dc2626';
 
 export type AppAlertButtonStyle = 'default' | 'cancel' | 'destructive';
 
@@ -87,8 +94,26 @@ function buttonTextStyle(
   }
 }
 
+/** Sheet buttons are filled: gold for the main action, red for destructive, outlined cancel. */
+function sheetButtonStyle(
+  style: AppAlertButtonStyle | undefined,
+  c: ReturnType<typeof useAppColors>
+): { box: StyleProp<ViewStyle>; text: StyleProp<TextStyle> } {
+  switch (style) {
+    case 'destructive':
+      return { box: { backgroundColor: DANGER_FILL }, text: { color: '#fff' } };
+    case 'cancel':
+      return { box: { borderWidth: 1, borderColor: c.border }, text: { color: c.text } };
+    default:
+      return { box: { backgroundColor: c.accent }, text: { color: c.onAccent } };
+  }
+}
+
 export function AppAlertProvider({ children }: { children: ReactNode }) {
   const c = useAppColors();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isSheet = width < SHEET_BREAKPOINT;
   const [payload, setPayload] = useState<AlertPayload | null>(null);
 
   const show = useCallback((next: AlertPayload) => {
@@ -126,6 +151,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
   const visible = payload != null;
   const buttons = payload?.buttons ?? [];
   const isStacked = buttons.length > 2;
+  const cancelButton = buttons.find((b) => b.style === 'cancel');
 
   return (
     <>
@@ -137,7 +163,52 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
         statusBarTranslucent
         onRequestClose={close}>
         <View style={styles.root}>
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]} />
+          {/* Tapping outside a sheet counts as Cancel (only when there is one to press). */}
+          <Pressable
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: c.overlay }]}
+            onPress={isSheet && cancelButton ? () => onButtonPress(cancelButton) : undefined}
+            disabled={!(isSheet && cancelButton)}
+            accessible={false}
+            tabIndex={-1}
+          />
+          {isSheet ? (
+            <View pointerEvents="box-none" style={styles.sheetFrame}>
+              <View
+                accessibilityViewIsModal
+                style={[
+                  styles.sheet,
+                  { backgroundColor: c.card, borderColor: c.border, paddingBottom: Math.max(20, insets.bottom + 12) },
+                ]}>
+                <View style={[styles.grabber, { backgroundColor: c.border }]} />
+                <Text style={[styles.sheetTitle, { color: c.text }]} accessibilityRole="header">
+                  {payload?.title ?? ''}
+                </Text>
+                {payload?.message ? (
+                  <Text style={[styles.sheetMessage, { color: c.textSecondary }]}>{payload.message}</Text>
+                ) : null}
+                {/* Two buttons sit side by side in the order given; more stack full-width. */}
+                <View style={isStacked ? styles.sheetColumn : styles.sheetRow}>
+                  {buttons.map((btn, i) => {
+                    const look = sheetButtonStyle(btn.style, c);
+                    return (
+                      <Pressable
+                        key={`${btn.text}-${i}`}
+                        onPress={() => onButtonPress(btn)}
+                        accessibilityRole="button"
+                        style={({ pressed }) => [
+                          styles.sheetBtn,
+                          !isStacked && styles.sheetBtnFlex,
+                          look.box,
+                          pressed && styles.sheetBtnPressed,
+                        ]}>
+                        <Text style={[styles.sheetBtnLabel, look.text]}>{btn.text}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          ) : (
           <View pointerEvents="box-none" style={styles.center}>
             <View
               accessibilityViewIsModal
@@ -187,6 +258,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
               )}
             </View>
           </View>
+          )}
         </View>
       </Modal>
     </>
@@ -197,6 +269,29 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  sheetFrame: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    width: '100%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    gap: 10,
+  },
+  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, marginBottom: 8 },
+  sheetTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.2 },
+  sheetMessage: { fontSize: 15, lineHeight: 22 },
+  sheetRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  sheetColumn: { gap: 10, marginTop: 10 },
+  sheetBtn: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  sheetBtnFlex: { flex: 1 },
+  sheetBtnPressed: { opacity: 0.85 },
+  sheetBtnLabel: { fontSize: 16, fontWeight: '700' },
   center: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',

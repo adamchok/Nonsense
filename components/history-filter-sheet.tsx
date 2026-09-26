@@ -4,6 +4,7 @@ import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { countActiveFilters, type FilterState } from '@/lib/history-filters';
 import { sanitizeAmountInput } from '@/lib/parse-amount';
+import { SHEET_BREAKPOINT } from '@/lib/spacing';
 import { useRef, type ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
@@ -19,8 +20,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/** Below this width the filters open as a bottom sheet; above, as a centred card. */
-const SHEET_BREAKPOINT = 600;
 
 type Props = {
   visible: boolean;
