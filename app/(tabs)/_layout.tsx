@@ -43,7 +43,8 @@ export default function TabLayout() {
         ...screenOptions,
         tabBarPosition: isMd ? 'left' : 'bottom',
         tabBarLabelPosition: 'below-icon',
-        tabBarItemStyle: { minHeight: 52 },
+        // Rounded, inset items so the web hover tint reads as a pill, not a full-bleed square.
+        tabBarItemStyle: { minHeight: 52, borderRadius: 14, marginHorizontal: 6 },
         tabBarStyle: {
           ...tabBarColors,
           height: 'auto',
