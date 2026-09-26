@@ -755,9 +755,11 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
           <View style={styles.historyTop}>
             <View style={styles.historyTitleRow}>
               <Text style={[styles.historyLabel, { color: c.text }]}>{formatDateTimeDMY(item.date)}</Text>
-              <View style={[styles.roleBadge, { backgroundColor: isHost ? c.badge.host : c.badge.you }]}>
-                <Text style={styles.roleBadgeText}>{isHost ? 'HOST' : 'PARTICIPANT'}</Text>
-              </View>
+              {isHost ? (
+                <View style={[styles.roleBadge, { backgroundColor: c.badge.host }]}>
+                  <Text style={styles.roleBadgeText}>HOST</Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.historyTopRight}>
               <Text style={[styles.historyProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
@@ -770,7 +772,7 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
                 style={styles.historyMoreBtn}
                 accessibilityRole="button"
                 accessibilityLabel={removeLabel}>
-                <Icon name="more-vert" size={20} color={c.textMuted} />
+                <Icon name="delete-outline" size={18} color={c.textMuted} />
               </PressableScale>
             </View>
           </View>
@@ -840,7 +842,7 @@ function HistorySkeleton() {
             <View style={styles.historyTopRight}>
               <Skeleton width={row.profit} height={15} />
               <View style={styles.historyMoreBtn}>
-                <Icon name="more-vert" size={20} color={c.textMuted} />
+                <Icon name="delete-outline" size={18} color={c.textMuted} />
               </View>
             </View>
           </View>
