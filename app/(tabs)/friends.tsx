@@ -56,6 +56,7 @@ import { EmptyState } from '@/components/empty-state';
 import { Animated as Motion, PressableScale, fadeOut, layoutTransition, listItemEntering, webSafe } from '@/components/motion';
 import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
 import { NewGroupModal } from '@/components/new-group-modal';
+import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 
 /** Dropdown menus grow from their top-right anchor: fade + scale up from 0.96. */
 const menuEntering = webSafe(
@@ -85,6 +86,9 @@ export default function FriendsScreen() {
   const router = useRouter();
   const { user, playerProfile } = useAuth();
   const [friends, setFriends] = useState<FriendRecord[]>([]);
+  // False until the first friends / groups snapshot lands, so the lists show skeletons, not an empty state.
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestRecord[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestRecord[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -94,7 +98,8 @@ export default function FriendsScreen() {
   const addFriendScrollRef = useRef<ScrollView>(null);
   const [adding, setAdding] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [lbLoading, setLbLoading] = useState(false);
+  // Starts true: the leaderboard waits on the friends list, so show its skeleton from the first frame.
+  const [lbLoading, setLbLoading] = useState(true);
   // A leaderboard that fails to load looks identical to one with no results — say which it is.
   const [lbFailed, setLbFailed] = useState(false);
 
@@ -118,7 +123,7 @@ export default function FriendsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
   /**
-   * Leaderboard rows already shown since the tab was opened. Refresh swaps in a spinner and
+   * Leaderboard rows already shown since the tab was opened. Refresh swaps in a skeleton and
    * remounts the rows, so only ids not seen yet play their entrance.
    */
   const shownLbIdsRef = useRef(new Set<string>());
@@ -212,8 +217,16 @@ export default function FriendsScreen() {
 
   useEffect(() => {
     if (!user) return;
-    return subscribeFriends(user.uid, setFriends, (e) =>
-      console.error('Friends subscription error:', e)
+    return subscribeFriends(
+      user.uid,
+      (list) => {
+        setFriends(list);
+        setFriendsLoaded(true);
+      },
+      (e) => {
+        console.error('Friends subscription error:', e);
+        setFriendsLoaded(true);
+      }
     );
   }, [user]);
 
@@ -234,6 +247,8 @@ export default function FriendsScreen() {
   useEffect(() => {
     if (!user || friends.length === 0) {
       setLeaderboard([]);
+      // Nothing to rank once the friends snapshot confirms there are no friends.
+      if (!user || friendsLoaded) setLbLoading(false);
       return;
     }
     let cancelled = false;
@@ -254,12 +269,20 @@ export default function FriendsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user, friends]);
+  }, [user, friends, friendsLoaded]);
 
   useEffect(() => {
     if (!user) return;
-    return subscribeGroups(user.uid, setGroups, (e) =>
-      console.error('Groups subscription error:', e)
+    return subscribeGroups(
+      user.uid,
+      (list) => {
+        setGroups(list);
+        setGroupsLoaded(true);
+      },
+      (e) => {
+        console.error('Groups subscription error:', e);
+        setGroupsLoaded(true);
+      }
     );
   }, [user]);
 
@@ -488,7 +511,7 @@ export default function FriendsScreen() {
         <>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>
-              Friends ({friends.length})
+              {friendsLoaded ? `Friends (${friends.length})` : 'Friends'}
             </Text>
             <View style={styles.addBtnGroup}>
               <PressableScale
@@ -645,7 +668,9 @@ export default function FriendsScreen() {
             </View>
           ) : null}
 
-          {friends.length === 0 ? (
+          {!friendsLoaded ? (
+            <FriendRowsSkeleton />
+          ) : friends.length === 0 ? (
             <EmptyState
               icon="people"
               title="No friends yet"
@@ -701,7 +726,7 @@ export default function FriendsScreen() {
         <>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>
-              Groups ({groups.length})
+              {groupsLoaded ? `Groups (${groups.length})` : 'Groups'}
             </Text>
             <View style={styles.sectionHeaderActions}>
               <PressableScale
@@ -748,7 +773,9 @@ export default function FriendsScreen() {
             autoCorrect={false}
           />
 
-          {groups.length === 0 ? (
+          {!groupsLoaded ? (
+            <GroupCardsSkeleton gap={layout.sectionGap} />
+          ) : groups.length === 0 ? (
             <EmptyState
               icon="groups"
               title="No groups yet"
@@ -1004,9 +1031,7 @@ export default function FriendsScreen() {
             </View>
           </View>
           {lbLoading ? (
-            <View style={styles.lbLoadingWrap}>
-              <ActivityIndicator size="large" color={c.textMuted} />
-            </View>
+            <LeaderboardSkeleton rows={5} label="Loading leaderboard" />
           ) : leaderboard.length === 0 ? (
             <EmptyState
               icon="leaderboard"
@@ -1157,9 +1182,7 @@ export default function FriendsScreen() {
               <ScrollView
                 contentContainerStyle={styles.leaderboardBody}>
                 {groupLbLoading ? (
-                  <View style={styles.lbLoadingWrap}>
-                    <ActivityIndicator size="large" color={c.textMuted} />
-                  </View>
+                  <LeaderboardSkeleton rows={4} label="Loading group leaderboard" />
                 ) : groupLeaderboard.length === 0 ? (
                   <EmptyState
                     compact
@@ -1284,6 +1307,93 @@ export default function FriendsScreen() {
       </Modal>
       {showNewGroup ? <NewGroupModal onClose={() => setShowNewGroup(false)} /> : null}
     </ScrollView>
+  );
+}
+
+/** Name bone widths per skeleton row, so a loading list reads as varied names, not a barcode. */
+const SKELETON_NAME_WIDTHS = [118, 86, 140, 98, 124];
+const skeletonName = (i: number) => SKELETON_NAME_WIDTHS[i % SKELETON_NAME_WIDTHS.length];
+
+/** Leaderboard rows in loading form: same row chrome, bones for rank, avatar, name and amount. */
+function LeaderboardSkeleton({ rows, label }: { rows: number; label: string }) {
+  const c = useAppColors();
+  return (
+    <SkeletonGroup label={label}>
+      {Array.from({ length: rows }, (_, i) => (
+        <View
+          key={i}
+          style={[
+            styles.lbRow,
+            styles.vRow,
+            i === 0 && styles.vFirst,
+            i === rows - 1 && styles.vLast,
+            { backgroundColor: c.card, borderColor: c.border },
+          ]}>
+          <View style={styles.lbLeft}>
+            <View style={styles.lbRankSlot}>
+              <Skeleton width={20} height={12} />
+            </View>
+            <Skeleton width={22} height={22} radius={11} />
+            <Skeleton width={skeletonName(i)} height={14} />
+          </View>
+          <Skeleton width={64} height={14} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
+/** Friend rows in loading form: avatar tile, name and "Friends since" line as bones. */
+function FriendRowsSkeleton({ rows = 4 }: { rows?: number }) {
+  const c = useAppColors();
+  return (
+    <SkeletonGroup label="Loading friends" style={styles.friendList}>
+      {Array.from({ length: rows }, (_, i) => (
+        <View
+          key={i}
+          style={[
+            styles.friendRow,
+            styles.vRow,
+            i === 0 && styles.vFirst,
+            i === rows - 1 && styles.vLast,
+            { backgroundColor: c.card, borderColor: c.border },
+          ]}>
+          <View style={styles.friendInfo}>
+            <Skeleton width={32} height={32} radius={9} />
+            <View style={styles.friendTextBlock}>
+              <Skeleton width={skeletonName(i)} height={14} style={styles.skelNameLine} />
+              <Skeleton width={128} height={12} style={styles.skelMetaLine} />
+            </View>
+          </View>
+          <View style={styles.rowIconBtn} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
+/** Collapsed group cards in loading form: icon, name and player count as bones. */
+function GroupCardsSkeleton({ gap, cards = 3 }: { gap: number; cards?: number }) {
+  const c = useAppColors();
+  return (
+    <SkeletonGroup label="Loading groups" style={{ gap }}>
+      {Array.from({ length: cards }, (_, i) => (
+        <View key={i} style={[styles.groupCard, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={styles.groupHeader}>
+            <View style={styles.groupHeaderLeft}>
+              <Skeleton width={20} height={20} radius={6} />
+              <Skeleton width={skeletonName(i + 1)} height={14} />
+              <Skeleton width={52} height={12} />
+            </View>
+            <View style={styles.groupHeaderRight}>
+              <View style={styles.groupIconBtn}>
+                <Skeleton width={18} height={18} radius={9} />
+              </View>
+            </View>
+          </View>
+        </View>
+      ))}
+    </SkeletonGroup>
   );
 }
 
@@ -1425,11 +1535,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     marginVertical: 4,
   },
-  lbLoadingWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-  },
   sectionTitle: {
     fontWeight: '600',
     fontSize: 17,
@@ -1559,6 +1664,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  /** Holds the rank bone at the rank column's width, so names line up with loaded rows. */
+  lbRankSlot: {
+    width: 28,
+  },
+  /** Pads 14px / 12px bones to the 15px name and 16px meta line heights of a loaded friend row. */
+  skelNameLine: {
+    marginVertical: 3,
+  },
+  skelMetaLine: {
+    marginTop: 4,
+    marginBottom: 2,
   },
   lbRank: {
     fontWeight: '600',
