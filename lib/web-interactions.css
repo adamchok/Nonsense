@@ -241,8 +241,8 @@
 
 /* Scrollbars: thin rounded thumb in theme colours, no arrows, transparent track. */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
@@ -254,8 +254,10 @@
 ::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);
   border-radius: 999px;
-  /* Transparent border insets the thumb from the edge so it reads as a slim pill. */
+  /* Transparent borders inset the 4px thumb: 4px from the content, 2px from the edge. */
   border: 2px solid transparent;
+  border-left-width: 4px;
+  border-top-width: 4px;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
