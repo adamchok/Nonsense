@@ -6,6 +6,7 @@ import { formatDateDMY } from '@/lib/date-format';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
+import { LinearGradient, Stop } from 'react-native-svg';
 import { useReducedMotion } from 'react-native-reanimated';
 
 const CHART_HEIGHT = 160;
@@ -81,7 +82,14 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
   const current = MODES.find((m) => m.key === mode) ?? MODES[0];
   const selected: Point | undefined = data[active];
   const final = data[data.length - 1]?.value ?? 0;
-  const lineColor = final >= 0 ? c.profit : c.loss;
+  const values = data.map((p) => p.value);
+  const hi = Math.max(0, ...values);
+  const lo = Math.min(0, ...values);
+  // Where $0 falls in the line/area bounding box (gradients default to objectBoundingBox),
+  // so the colour flips from green to red exactly at the zero line.
+  const zeroAt = hi - lo > 0 ? hi / (hi - lo) : 1;
+  const lineData = data.map((p) => ({ ...p, dataPointColor: p.value < 0 ? c.loss : c.profit }));
+  const markerColor = selected && selected.value < 0 ? c.loss : c.profit;
   const plotWidth = Math.max(0, width - Y_LABEL_WIDTH - 8);
 
   // Shared y-axis/grid props; gifted-charts `height` covers only the sections above the x-axis.
@@ -205,7 +213,7 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
         ) : mode === 'line' ? (
           <LineChart
             {...axisProps}
-            data={data}
+            data={lineData}
             adjustToWidth
             initialSpacing={6}
             endSpacing={6}
@@ -213,14 +221,28 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
             animateOnDataChange={!reduceMotion}
             onDataChangeAnimationDuration={400}
             thickness={2.5}
-            color={lineColor}
             areaChart
-            startFillColor={lineColor}
-            endFillColor={lineColor}
-            startOpacity={0.28}
-            endOpacity={0.02}
+            lineGradient
+            lineGradientId="plLine"
+            lineGradientComponent={() => (
+              <LinearGradient id="plLine" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={c.profit} />
+                <Stop offset={zeroAt} stopColor={c.profit} />
+                <Stop offset={zeroAt} stopColor={c.loss} />
+                <Stop offset="1" stopColor={c.loss} />
+              </LinearGradient>
+            )}
+            areaGradientId="plArea"
+            areaGradientComponent={() => (
+              // Strongest away from $0, fading into the zero line from both sides.
+              <LinearGradient id="plArea" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={c.profit} stopOpacity={0.3} />
+                <Stop offset={zeroAt} stopColor={c.profit} stopOpacity={0.04} />
+                <Stop offset={zeroAt} stopColor={c.loss} stopOpacity={0.04} />
+                <Stop offset="1" stopColor={c.loss} stopOpacity={0.3} />
+              </LinearGradient>
+            )}
             hideDataPoints={data.length > 12}
-            dataPointsColor={lineColor}
             dataPointsRadius={3}
             getPointerProps={({ pointerIndex }: { pointerIndex: number }) => setActive(pointerIndex)}
             pointerConfig={{
@@ -232,7 +254,7 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
                 <View
                   style={[
                     styles.marker,
-                    { borderColor: lineColor, backgroundColor: c.card, marginLeft: MARKER_SHIFT_X, marginTop: MARKER_SHIFT_Y },
+                    { borderColor: markerColor, backgroundColor: c.card, marginLeft: MARKER_SHIFT_X, marginTop: MARKER_SHIFT_Y },
                   ]}
                 />
               ),
