@@ -1063,14 +1063,15 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
         overshootRight={false}
         containerStyle={[
           styles.historySwipeContainer,
-          { backgroundColor: c.loss },
           isFirst && styles.historyCardFirst,
           isLast && styles.historySwipeContainerLast,
         ]}
         renderRightActions={() => (
           <Pressable
             onPress={remove}
-            style={styles.historySwipeAction}
+            // Red lives on the action, not the container: a red container bleeds through the
+            // card's anti-aliased rounded corners.
+            style={[styles.historySwipeAction, { backgroundColor: c.loss }]}
             accessibilityRole="button"
             accessibilityLabel={removeLabel}
             // The row already exposes this action (more button + accessibility action).
