@@ -18,15 +18,7 @@ import { Icon } from '@/components/icon';
 import { Animated, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
 const INITIAL_STAGGER_WINDOW_MS = 600;
@@ -39,20 +31,17 @@ export default function GroupMembersScreen() {
   const [friends, setFriends] = useState<FriendRecord[]>([]);
   const [guestName, setGuestName] = useState('');
   const [guestError, setGuestError] = useState<string | null>(null);
+  const [hoveredCancelId, setHoveredCancelId] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [groupMeta, setGroupMeta] = useState<PokerGroup | null>(null);
   const [guestLinks, setGuestLinks] = useState<GuestLink[]>([]);
   const [linkTarget, setLinkTarget] = useState<GroupMember | null>(null);
 
-  const isOwner = Boolean(
-    user && groupMeta && (groupMeta.ownerId === user.uid || groupMeta.myRole === 'owner')
-  );
+  const isOwner = Boolean(user && groupMeta && (groupMeta.ownerId === user.uid || groupMeta.myRole === 'owner'));
 
   useEffect(() => {
     if (!user || !id) return;
-    return subscribeGroupMembers(user.uid, id, setMembers, (e) =>
-      console.error('Group members error:', e)
-    );
+    return subscribeGroupMembers(user.uid, id, setMembers, (e) => console.error('Group members error:', e));
   }, [user, id]);
 
   useEffect(() => {
@@ -86,12 +75,8 @@ export default function GroupMembersScreen() {
     return () => clearTimeout(t);
   }, [hasMembers]);
 
-  const friendsNotInGroup = friends.filter(
-    (f) => !members.some((m) => m.id === f.playerId)
-  );
-  const selfInGroup = playerProfile
-    ? members.some((m) => m.id === playerProfile.id)
-    : true;
+  const friendsNotInGroup = friends.filter((f) => !members.some((m) => m.id === f.playerId));
+  const selfInGroup = playerProfile ? members.some((m) => m.id === playerProfile.id) : true;
 
   async function handleAddFriend(friend: FriendRecord) {
     if (!user || !id || !isOwner) return;
@@ -161,22 +146,26 @@ export default function GroupMembersScreen() {
   function handleCancelLink(link: GuestLink) {
     if (!user || !isOwner) return;
     const uid = user.uid;
-    appAlert('Cancel link request?', `Stop waiting for ${link.targetName} to accept?`, [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Cancel request',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            try {
-              await cancelGuestLink(uid, link.guestId);
-            } catch (e) {
-              appAlert('Error', userMessage(e, 'Failed to cancel.'));
-            }
-          })();
+    appAlert(
+      `Cancel request to ${link.targetName}?`,
+      `${link.guestName} stays a guest. You can send a new request later.`,
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Cancel request',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await cancelGuestLink(uid, link.guestId);
+              } catch (e) {
+                appAlert('Error', userMessage(e, 'Failed to cancel.'));
+              }
+            })();
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
   const canAddGuest = guestName.trim().length > 0;
@@ -195,9 +184,7 @@ export default function GroupMembersScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {!isOwner ? (
-          <Text style={[styles.ownerNote, { color: c.textMuted }]}>
-            Only the group owner can add or remove people.
-          </Text>
+          <Text style={[styles.ownerNote, { color: c.textMuted }]}>Only the group owner can add or remove people.</Text>
         ) : (
           <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={styles.cardHeader}>
@@ -280,8 +267,8 @@ export default function GroupMembersScreen() {
           <View style={[styles.cardHeader, styles.membersHeader]}>
             <Icon name="group" size={20} color={c.textMuted} />
             <Text style={[styles.cardTitle, { color: c.text }]}>Members</Text>
-            <View style={[styles.countPill, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-              <Text style={[styles.countText, { color: c.textMuted }]}>{members.length}</Text>
+            <View style={[styles.countPill, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
+              <Text style={[styles.countText, { color: c.accentText }]}>{members.length}</Text>
             </View>
           </View>
           {members.length === 0 ? (
@@ -304,36 +291,57 @@ export default function GroupMembersScreen() {
                   style={[styles.memberRow, { borderTopColor: c.border }]}>
                   <View style={styles.memberInfo}>
                     <GroupMemberAvatar member={member} viewerProfile={playerProfile} />
-                    <View style={styles.memberText}>
-                      <View style={styles.memberNameRow}>
-                        <Text style={[styles.memberName, { color: c.text }]} numberOfLines={1}>
-                          {member.id === playerProfile?.id ? (playerProfile?.name ?? member.name) : member.name}
-                          {member.id === playerProfile?.id ? ' (You)' : ''}
-                        </Text>
-                        {!member.isRegistered && (
-                          <View style={[styles.guestBadge, { backgroundColor: c.chipBg }]}>
-                            <Text style={[styles.guestBadgeText, { color: c.chipText }]}>GUEST</Text>
-                          </View>
-                        )}
-                      </View>
-                      {isOwner && link ? (
-                        <View style={styles.linkCaptionRow}>
-                          <Text style={[styles.linkCaption, { color: c.textHint }]} numberOfLines={1}>
-                            {link.status === 'accepted'
-                              ? `Moving history to ${link.targetName}`
-                              : `Waiting for ${link.targetName}`}
+                    <View style={styles.memberMain}>
+                      <View style={styles.memberText}>
+                        <View style={styles.memberNameRow}>
+                          <Text style={[styles.memberName, { color: c.text }]} numberOfLines={1}>
+                            {member.id === playerProfile?.id ? (playerProfile?.name ?? member.name) : member.name}
+                            {member.id === playerProfile?.id ? ' (You)' : ''}
                           </Text>
-                          {link.status === 'pending' ? (
-                            <PressableScale
-                              pressedScale={0.95}
-                              hitSlop={8}
-                              accessibilityRole="button"
-                              accessibilityLabel={`Cancel link request for ${member.name}`}
-                              onPress={() => handleCancelLink(link)}>
-                              <Text style={[styles.linkCancel, { color: c.lossLight }]}>Cancel</Text>
-                            </PressableScale>
-                          ) : null}
+                          {!member.isRegistered && (
+                            <View style={[styles.guestBadge, { backgroundColor: c.chipBg }]}>
+                              <Text style={[styles.guestBadgeText, { color: c.chipText }]}>GUEST</Text>
+                            </View>
+                          )}
                         </View>
+                        {isOwner && link ? (
+                          <View style={styles.linkCaptionRow}>
+                            <Icon
+                              name={link.status === 'accepted' ? 'refresh' : 'clock-outline'}
+                              size={12}
+                              color={c.textHint}
+                            />
+                            <Text style={[styles.linkCaption, { color: c.textHint }]} numberOfLines={1}>
+                              {link.status === 'accepted'
+                                ? `Moving history to ${link.targetName}`
+                                : `Waiting for ${link.targetName} to accept`}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {isOwner && link?.status === 'pending' ? (
+                        <PressableScale
+                          pressedScale={0.95}
+                          style={[
+                            styles.requestedPill,
+                            {
+                              borderColor: hoveredCancelId === link.id ? c.loss : c.inputBorder,
+                              backgroundColor: c.card,
+                            },
+                          ]}
+                          onHoverIn={() => setHoveredCancelId(link.id)}
+                          onHoverOut={() => setHoveredCancelId(null)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Cancel link request to ${link.targetName}`}
+                          onPress={() => handleCancelLink(link)}>
+                          <Text
+                            style={[
+                              styles.requestedPillText,
+                              { color: hoveredCancelId === link.id ? c.loss : c.text },
+                            ]}>
+                            Cancel request
+                          </Text>
+                        </PressableScale>
                       ) : null}
                     </View>
                   </View>
@@ -507,8 +515,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   memberText: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  memberMain: {
     flex: 1,
     minWidth: 0,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 12,
+    rowGap: 8,
   },
   memberNameRow: {
     flexDirection: 'row',
@@ -518,7 +536,7 @@ const styles = StyleSheet.create({
   linkCaptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     marginTop: 2,
   },
   linkCaption: {
@@ -526,9 +544,16 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     flexShrink: 1,
   },
-  linkCancel: {
+  requestedPill: {
+    minHeight: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestedPillText: {
     fontSize: 12,
-    lineHeight: 16,
     fontWeight: '600',
   },
   memberName: {
