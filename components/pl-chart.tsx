@@ -10,6 +10,11 @@ const CHART_HEIGHT = 160;
 const Y_LABEL_WIDTH = 40;
 const SECTIONS = 4;
 const HEADER_HEIGHT = 40;
+const MARKER_SIZE = 14;
+// gifted-charts puts the pointer's top-left at (pointerX + 1, pointY - 4 + xAxisThickness);
+// these re-centre our marker on the data point (measured in the browser).
+const MARKER_SHIFT_X = -(1 + MARKER_SIZE / 2);
+const MARKER_SHIFT_Y = -1;
 
 type Entry = { date: Date; profit: number };
 type Point = { value: number; date: Date; delta: number };
@@ -124,10 +129,17 @@ export function PLChart({ entries }: { entries: readonly Entry[] }) {
           dashGap={4}
           getPointerProps={({ pointerIndex }: { pointerIndex: number }) => setActive(pointerIndex)}
           pointerConfig={{
-            pointerStripColor: c.textMuted,
-            pointerStripWidth: 1,
-            pointerColor: lineColor,
-            radius: 5,
+            // gifted-charts' strip runs the wrong way once values go negative, and its default
+            // dot is offset by fixed pixels; draw our own centred marker instead.
+            showPointerStrip: false,
+            pointerComponent: () => (
+              <View
+                style={[
+                  styles.marker,
+                  { borderColor: lineColor, backgroundColor: c.card, marginLeft: MARKER_SHIFT_X, marginTop: MARKER_SHIFT_Y },
+                ]}
+              />
+            ),
             // Mobile: a floating tooltip sits under the finger, so the selected session
             // replaces the card header instead (via getPointerProps).
             pointerLabelComponent: () => null,
@@ -143,6 +155,12 @@ export function PLChart({ entries }: { entries: readonly Entry[] }) {
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
   axisText: { fontSize: 10, fontVariant: ['tabular-nums'] },
+  marker: {
+    width: MARKER_SIZE,
+    height: MARKER_SIZE,
+    borderRadius: MARKER_SIZE / 2,
+    borderWidth: 3,
+  },
   header: {
     height: HEADER_HEIGHT,
     flexDirection: 'row',
