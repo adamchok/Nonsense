@@ -214,7 +214,7 @@ export const PLChart = memo(function PLChart({
             </PressableScale>
           </View>
         ) : (
-          <View style={[styles.valueRow, styles.header]}>
+          <View style={[styles.valueRow, styles.header, styles.valueRowIdle]}>
             <View style={styles.headerSelectedText}>
               <Text style={[styles.headerValue, { color: signColor(c, final) }]}>{formatSignedCurrency(final)}</Text>
               <Text style={[styles.headerHint, { color: c.textMuted }]} numberOfLines={1}>
@@ -313,6 +313,7 @@ export const PLChart = memo(function PLChart({
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
   top: { marginBottom: 8, gap: 4 },
+  valueRowIdle: { paddingHorizontal: 8 },
   valueRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -373,7 +374,6 @@ const styles = StyleSheet.create({
   headerBtn: {
     flex: 1,
     gap: 10,
-    marginLeft: -8,
     paddingHorizontal: 8,
     borderRadius: 10,
   },
