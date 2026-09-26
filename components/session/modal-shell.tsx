@@ -1,7 +1,8 @@
 import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { pressBg } from '@/lib/ui';
-import { BREAKPOINT_MD, gutterFor } from '@/lib/spacing';
+import { BREAKPOINT_MD, SHEET_BREAKPOINT, gutterFor } from '@/lib/spacing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, type ReactNode } from 'react';
 import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import {
@@ -39,8 +40,8 @@ type Props = {
   cardStyle?: StyleProp<ViewStyle>;
 };
 
-/** Phones: how far below its resting place the card starts before springing up. */
-const PHONE_RISE_PX = 28;
+/** Phones: how far below its resting place the sheet starts before springing up. */
+const PHONE_RISE_PX = 48;
 /** Wide screens: the card grows from this scale while the Modal fades in. */
 const WIDE_START_SCALE = 0.96;
 
@@ -74,23 +75,38 @@ export function ModalShell({
 }: Props) {
   const c = useAppColors();
   const { width } = useWindowDimensions();
-  // Phones: near full width inside the gutter; tablet/desktop: a centred 480 column.
+  const insets = useSafeAreaInsets();
+  // Phones: a bottom sheet, like the filters and confirmations; wider: a centred card.
+  const isSheet = width < SHEET_BREAKPOINT;
   const isWide = width >= BREAKPOINT_MD;
-  const frame = { maxWidth: isWide ? 480 : 400 };
+  const frame = { maxWidth: isSheet ? undefined : isWide ? 480 : 400 };
   const primaryDisabled = Boolean(primary?.disabled || primary?.busy);
   const entrance = useCardEntrance(visible, isWide);
 
   const card = (
-    <Animated.View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }, cardStyle, entrance]}>
+    <Animated.View
+      style={[
+        styles.card,
+        { backgroundColor: c.card, borderColor: c.border },
+        isSheet && [styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 12) }],
+        cardStyle,
+        entrance,
+      ]}>
+      {isSheet ? <View style={[styles.grabber, { backgroundColor: c.border }]} /> : null}
       {title != null ? (
         <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
           {title}
         </Text>
       ) : null}
       {children}
-      <View style={styles.actions}>
+      <View style={[styles.actions, isSheet && styles.actionsSheet]}>
         <PressableScale
-          style={(state) => [styles.cancelBtn, { borderColor: c.inputBorder }, pressBg(c, state, c.card)]}
+          style={(state) => [
+            styles.cancelBtn,
+            isSheet && styles.flexBtn,
+            { borderColor: c.inputBorder },
+            pressBg(c, state, c.card),
+          ]}
           onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel={primary ? 'Cancel' : 'Close'}>
@@ -100,7 +116,12 @@ export function ModalShell({
         </PressableScale>
         {primary ? (
           <PressableScale
-            style={[styles.primaryBtn, { backgroundColor: c.accent }, primaryDisabled && styles.disabled]}
+            style={[
+              styles.primaryBtn,
+              isSheet && styles.flexBtn,
+              { backgroundColor: c.accent },
+              primaryDisabled && styles.disabled,
+            ]}
             onPress={primary.onPress}
             disabled={primaryDisabled}
             accessibilityRole="button"
@@ -127,12 +148,14 @@ export function ModalShell({
           importantForAccessibility="no"
           accessibilityElementsHidden
         />
-        <View pointerEvents="box-none" style={[styles.centerWrap, { paddingHorizontal: gutterFor(width) }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.centerWrap, isSheet ? styles.sheetWrap : { paddingHorizontal: gutterFor(width) }]}>
           {avoidKeyboard ? (
             <KeyboardAvoidingView
               behavior="padding"
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-              style={[styles.keyboard, frame, styles.kav]}>
+              keyboardVerticalOffset={Platform.OS === 'ios' && !isSheet ? 64 : 0}
+              style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet]}>
               {card}
             </KeyboardAvoidingView>
           ) : (
@@ -153,8 +176,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  sheetWrap: {
+    justifyContent: 'flex-end',
+  },
   keyboard: {
     width: '100%',
+  },
+  kavSheet: {
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    maxHeight: '92%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+    paddingTop: 8,
+  },
+  grabber: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 4,
+  },
+  actionsSheet: {
+    justifyContent: 'space-between',
+  },
+  flexBtn: {
+    flex: 1,
   },
   kav: {
     flex: 1,
