@@ -2,6 +2,8 @@ export type VoiceRosterEntry = {
   playerId: string;
   name: string;
   inSession?: boolean;
+  /** Learned mishearings (e.g. "john fong" for "Chun Fong"), matched as extra names. */
+  aliases?: readonly string[];
 };
 
 export type VoiceUnparsedReason =
@@ -15,8 +17,15 @@ export type VoiceUnparsedReason =
   | 'no-intent';
 
 export type VoiceCommand =
-  | { kind: 'buyIn'; playerId: string | null; playerName: string; amount: number }
-  | { kind: 'cashOut'; playerId: string; playerName: string; amount: number }
+  | {
+      kind: 'buyIn';
+      playerId: string | null;
+      playerName: string;
+      amount: number;
+      /** Title-cased words heard for the player (e.g. "John Fong" for Chun Fong). */
+      heardName?: string;
+    }
+  | { kind: 'cashOut'; playerId: string; playerName: string; amount: number; heardName?: string }
   | {
       kind: 'unparsed';
       transcript: string;
@@ -350,9 +359,114 @@ function firstToken(value: string): string {
   return space === -1 ? value : value.slice(0, space);
 }
 
-const FUZZY_TIER_START = 3;
+/**
+ * Coarse sound-alike key so English STT output ("John Fong", "Way Jay", "Shin Yi")
+ * lands on romanised Chinese/Malay names ("Chun Fong", "Wei Jie", "Xin Yi").
+ */
+export function phoneticKey(text: string): string {
+  return normalizeText(text)
+    .replace(/[^a-z]/g, '')
+    .replace(/tch|ch|zh|tz|ts/g, 'j')
+    .replace(/sh|x/g, 's')
+    .replace(/ph/g, 'f')
+    .replace(/gh/g, '')
+    .replace(/ck|q/g, 'k')
+    .replace(/c(?=[eiy])/g, 's')
+    .replace(/c/g, 'k')
+    .replace(/ng/g, 'n')
+    .replace(/g(?=[eiy])/g, 'j')
+    .replace(/g/g, 'k')
+    .replace(/z/g, 'j')
+    .replace(/b/g, 'p')
+    .replace(/d/g, 't')
+    .replace(/^y(?=[aeiou])/, '')
+    .replace(/w(?![aeiouy])/g, 'u')
+    .replace(/h/g, '')
+    .replace(/(.)\1+/g, '$1')
+    .replace(/[aeiouy]+/g, (group) => (/[eiy]/.test(group) ? 'i' : 'a'));
+}
 
-function resolveLiteralTiers(tiers: VoiceRosterEntry[][]): VoiceNameMatch | null {
+const MIN_PHONETIC_KEY_LENGTH = 2;
+const MIN_PHONETIC_NEAR_LENGTH = 4;
+
+const TIER_EXACT = 0;
+const TIER_FIRST_TOKEN = 1;
+const TIER_PREFIX = 2;
+const TIER_PHONETIC_FULL = 3;
+const TIER_FUZZY_FULL = 4;
+const TIER_PHONETIC_NEAR = 5;
+const TIER_PHONETIC_FIRST = 6;
+const TIER_FUZZY_PARTIAL = 7;
+const TIER_COUNT = 8;
+
+const FUZZY_TIER_START = TIER_PHONETIC_FULL;
+
+type SpokenForm = { text: string; first: string; key: string; firstKey: string };
+
+function spokenForm(text: string): SpokenForm {
+  const first = firstToken(text);
+  return { text, first, key: phoneticKey(text), firstKey: phoneticKey(first) };
+}
+
+type NameHit = { tier: number; distance: number };
+
+function literalHit(needle: SpokenForm, name: SpokenForm): NameHit | null {
+  if (name.text === needle.text) return { tier: TIER_EXACT, distance: 0 };
+  if (name.first === needle.first || name.first === needle.text || name.text === needle.first) {
+    return { tier: TIER_FIRST_TOKEN, distance: 0 };
+  }
+  if (
+    needle.text.length >= 3 &&
+    (name.text.startsWith(needle.text) || needle.text.startsWith(name.text))
+  ) {
+    return { tier: TIER_PREFIX, distance: 0 };
+  }
+  return null;
+}
+
+function fuzzyHit(needle: SpokenForm, name: SpokenForm): NameHit | null {
+  if (needle.key.length >= MIN_PHONETIC_KEY_LENGTH && name.key === needle.key) {
+    return { tier: TIER_PHONETIC_FULL, distance: 0 };
+  }
+  const full = levenshteinWithin(needle.text, name.text, distanceThreshold(needle.text, name.text));
+  if (full !== null) return { tier: TIER_FUZZY_FULL, distance: full };
+
+  // Whole-name sound-alike ("Jan Bing" ~ Yan Bing) outranks a first-word one ("Jan" ~ Chun).
+  if (
+    needle.key.length >= MIN_PHONETIC_NEAR_LENGTH &&
+    name.key.length >= MIN_PHONETIC_NEAR_LENGTH
+  ) {
+    const near = levenshteinWithin(needle.key, name.key, 1);
+    if (near !== null) return { tier: TIER_PHONETIC_NEAR, distance: near };
+  }
+  if (needle.firstKey.length >= MIN_PHONETIC_KEY_LENGTH && name.firstKey === needle.firstKey) {
+    return { tier: TIER_PHONETIC_FIRST, distance: 0 };
+  }
+  const partial = levenshteinWithin(
+    needle.first,
+    name.first,
+    distanceThreshold(needle.first, name.first)
+  );
+  if (partial !== null) return { tier: TIER_FUZZY_PARTIAL, distance: partial };
+  return null;
+}
+
+function isBetterHit(candidate: NameHit, current: NameHit | null): boolean {
+  if (!current) return true;
+  return (
+    candidate.tier < current.tier ||
+    (candidate.tier === current.tier && candidate.distance < current.distance)
+  );
+}
+
+function entryNames(entry: VoiceRosterEntry): string[] {
+  return [entry.name, ...(entry.aliases ?? [])].map(normalizeText).filter((n) => n.length > 0);
+}
+
+function resolveLiteralTiers(
+  tiers: VoiceRosterEntry[][],
+  soundsAlike: Set<string>
+): VoiceNameMatch | null {
   const hits: { entry: VoiceRosterEntry; tier: number }[] = [];
   for (let tier = 0; tier < FUZZY_TIER_START; tier += 1) {
     for (const entry of tiers[tier]) hits.push({ entry, tier });
@@ -364,6 +478,10 @@ function resolveLiteralTiers(tiers: VoiceRosterEntry[][]): VoiceNameMatch | null
   const tier = Math.min(...pool.map((h) => h.tier));
   const finalists = dedupeById(pool.filter((h) => h.tier === tier).map((h) => h.entry));
   if (finalists.length === 1) return { status: 'match', entry: finalists[0], tier };
+
+  // "Chun E" literally shares "Chun" with two players, but the whole phrase sounds like one.
+  const bySound = finalists.filter((e) => soundsAlike.has(e.playerId));
+  if (bySound.length === 1) return { status: 'match', entry: bySound[0], tier };
   return { status: 'ambiguous', candidates: finalists.map((e) => e.name), tier };
 }
 
@@ -371,48 +489,30 @@ export function matchRosterName(
   spoken: string,
   roster: readonly VoiceRosterEntry[]
 ): VoiceNameMatch {
-  const needle = normalizeText(spoken);
-  if (!needle) return { status: 'none' };
+  const text = normalizeText(spoken);
+  if (!text) return { status: 'none' };
 
-  const needleFirst = firstToken(needle);
-  const tiers: VoiceRosterEntry[][] = [[], [], [], [], []];
+  const needle = spokenForm(text);
+  const tiers: VoiceRosterEntry[][] = Array.from({ length: TIER_COUNT }, () => []);
   const distances = new Map<string, number>();
+  const soundsAlike = new Set<string>();
 
   for (const entry of roster) {
-    const name = normalizeText(entry.name);
-    if (!name) continue;
-    const nameFirst = firstToken(name);
-
-    if (name === needle) {
-      tiers[0].push(entry);
-      continue;
+    let best: NameHit | null = null;
+    for (const name of entryNames(entry)) {
+      const form = spokenForm(name);
+      if (needle.key.length >= MIN_PHONETIC_KEY_LENGTH && form.key === needle.key) {
+        soundsAlike.add(entry.playerId);
+      }
+      const hit = literalHit(needle, form) ?? fuzzyHit(needle, form);
+      if (hit && isBetterHit(hit, best)) best = hit;
     }
-    if (nameFirst === needleFirst || nameFirst === needle || name === needleFirst) {
-      tiers[1].push(entry);
-      continue;
-    }
-    if (needle.length >= 3 && (name.startsWith(needle) || needle.startsWith(name))) {
-      tiers[2].push(entry);
-      continue;
-    }
-    const full = levenshteinWithin(needle, name, distanceThreshold(needle, name));
-    if (full !== null) {
-      tiers[3].push(entry);
-      distances.set(entry.playerId, full);
-      continue;
-    }
-    const partial = levenshteinWithin(
-      needleFirst,
-      nameFirst,
-      distanceThreshold(needleFirst, nameFirst)
-    );
-    if (partial !== null) {
-      tiers[4].push(entry);
-      distances.set(entry.playerId, partial);
-    }
+    if (!best) continue;
+    tiers[best.tier].push(entry);
+    if (best.tier >= FUZZY_TIER_START) distances.set(entry.playerId, best.distance);
   }
 
-  const literal = resolveLiteralTiers(tiers);
+  const literal = resolveLiteralTiers(tiers, soundsAlike);
   if (literal) return literal;
 
   for (let tier = FUZZY_TIER_START; tier < tiers.length; tier += 1) {
@@ -495,8 +595,10 @@ function titleCase(tokens: string[]): string {
 function rosterNameTokens(roster: readonly VoiceRosterEntry[]): Set<string> {
   const out = new Set<string>();
   for (const entry of roster) {
-    for (const token of normalizeText(entry.name).split(' ')) {
-      if (token) out.add(token);
+    for (const name of entryNames(entry)) {
+      for (const token of name.split(' ')) {
+        if (token) out.add(token);
+      }
     }
   }
   return out;
@@ -536,7 +638,9 @@ function nameSpans(
 
 type SpanMatch = { from: number; to: number; result: Exclude<VoiceNameMatch, { status: 'none' }> };
 
-function bestRosterMatch(spans: NameSpan[], roster: readonly VoiceRosterEntry[]): VoiceNameMatch {
+type RosterMention = { result: VoiceNameMatch; from?: number; to?: number };
+
+function bestRosterMatch(spans: NameSpan[], roster: readonly VoiceRosterEntry[]): RosterMention {
   const candidates: SpanMatch[] = [];
   for (const span of spans) {
     for (let size = Math.min(3, span.tokens.length); size >= 1; size -= 1) {
@@ -547,7 +651,7 @@ function bestRosterMatch(spans: NameSpan[], roster: readonly VoiceRosterEntry[])
       }
     }
   }
-  if (candidates.length === 0) return { status: 'none' };
+  if (candidates.length === 0) return { result: { status: 'none' } };
 
   candidates.sort(
     (a, b) =>
@@ -573,10 +677,10 @@ function bestRosterMatch(spans: NameSpan[], roster: readonly VoiceRosterEntry[])
         if (!names.includes(name)) names.push(name);
       }
     }
-    return { status: 'ambiguous', candidates: names, tier: mentions[0].result.tier };
+    return { result: { status: 'ambiguous', candidates: names, tier: mentions[0].result.tier } };
   }
 
-  return mentions[0].result;
+  return mentions[0];
 }
 
 export function parseVoiceCommand(
@@ -608,7 +712,10 @@ export function parseVoiceCommand(
   const amountStart = amount ? amount.start : tokens.length;
   const amountEnd = amount ? amount.end : tokens.length;
   const spans = nameSpans(tokens, amountStart, amountEnd, rosterNameTokens(roster));
-  const nameMatch = bestRosterMatch(spans, roster);
+  const mention = bestRosterMatch(spans, roster);
+  const nameMatch = mention.result;
+  const heardName =
+    mention.from !== undefined ? titleCase(tokens.slice(mention.from, mention.to)) : undefined;
   const spokenName = spans.length > 0 ? titleCase(spans[0].tokens) : undefined;
 
   if (nameMatch.status === 'ambiguous') {
@@ -648,6 +755,7 @@ export function parseVoiceCommand(
       playerId: nameMatch.entry.playerId,
       playerName: nameMatch.entry.name,
       amount: amount.value,
+      heardName,
     };
   }
 
@@ -657,6 +765,7 @@ export function parseVoiceCommand(
       playerId: nameMatch.entry.playerId,
       playerName: nameMatch.entry.name,
       amount: amount.value,
+      heardName,
     };
   }
 
@@ -670,7 +779,13 @@ export function parseVoiceCommand(
         amount: amount.value,
       };
     }
-    return { kind: 'buyIn', playerId: null, playerName: spokenName, amount: amount.value };
+    return {
+      kind: 'buyIn',
+      playerId: null,
+      playerName: spokenName,
+      amount: amount.value,
+      heardName: spokenName,
+    };
   }
 
   return { kind: 'unparsed', transcript, reason: 'no-name', amount: amount.value };

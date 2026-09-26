@@ -21,8 +21,13 @@ export type VoiceSessionOptions = {
   amountUnit: SessionAmountUnit;
   roster: readonly VoiceRosterEntry[];
   findSeatedPlayer: (playerId: string) => VoiceSeatedPlayer | null;
-  prefillBuyIn: (input: { playerId: string | null; playerName: string; amount: number }) => void;
-  prefillCashOut: (player: VoiceSeatedPlayer, amount: number) => void;
+  prefillBuyIn: (input: {
+    playerId: string | null;
+    playerName: string;
+    amount: number;
+    heardName?: string;
+  }) => void;
+  prefillCashOut: (player: VoiceSeatedPlayer, amount: number, heardName?: string) => void;
   prefillManualEntry: (input: { playerName: string; amount: string }) => void;
 };
 
@@ -45,6 +50,19 @@ function voiceHaptic(kind: 'start' | 'success' | 'warning') {
   } else {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   }
+}
+
+function pickCommand(
+  alternatives: readonly string[],
+  roster: readonly VoiceRosterEntry[]
+): { command: VoiceCommand; heard: string } {
+  const parsed = alternatives.map((heard) => ({ command: parseVoiceCommand(heard, roster), heard }));
+  const rosterHit = parsed.find(
+    ({ command }) =>
+      (command.kind === 'buyIn' && command.playerId !== null) || command.kind === 'cashOut'
+  );
+  const newPlayer = parsed.find(({ command }) => command.kind === 'buyIn');
+  return rosterHit ?? newPlayer ?? parsed[0] ?? { command: parseVoiceCommand('', roster), heard: '' };
 }
 
 export function useVoiceSession(options: VoiceSessionOptions): VoiceSession {
@@ -108,6 +126,7 @@ export function useVoiceSession(options: VoiceSessionOptions): VoiceSession {
         playerId: command.playerId,
         playerName: command.playerName,
         amount: command.amount,
+        heardName: command.heardName,
       });
       return;
     }
@@ -123,7 +142,7 @@ export function useVoiceSession(options: VoiceSessionOptions): VoiceSession {
         return;
       }
       voiceHaptic('success');
-      prefillCashOut(player, command.amount);
+      prefillCashOut(player, command.amount, command.heardName);
       return;
     }
 
@@ -132,7 +151,10 @@ export function useVoiceSession(options: VoiceSessionOptions): VoiceSession {
 
   const voice = useVoiceCommand({
     contextualStrings,
-    onTranscript: (heard) => apply(parseVoiceCommand(heard, roster), heard),
+    onTranscript: (alternatives) => {
+      const { command, heard } = pickCommand(alternatives, roster);
+      apply(command, heard);
+    },
   });
 
   const isListening = voice.status === 'listening';

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { matchRosterName, parseVoiceCommand } from '../../lib/voice-command.ts';
+import { matchRosterName, parseVoiceCommand, phoneticKey } from '../../lib/voice-command.ts';
 import type { VoiceCommand, VoiceRosterEntry } from '../../lib/voice-command.ts';
 
 const ROSTER: VoiceRosterEntry[] = [
@@ -300,4 +300,135 @@ test('a player appearing twice in the roster is not ambiguous with itself', () =
     { playerId: 'adam', name: 'Adam', inSession: false },
   ];
   assertBuyIn('Adam buys in fifty', 'adam', 50, roster);
+});
+
+const MY_ROSTER: VoiceRosterEntry[] = [
+  ...ROSTER,
+  { playerId: 'chun_fong', name: 'Chun Fong', inSession: true },
+  { playerId: 'chun_yi', name: 'Chun Yi', inSession: true },
+  { playerId: 'kah_seng', name: 'Kah Seng', inSession: true },
+  { playerId: 'eejin', name: 'Eejin', inSession: true },
+  { playerId: 'yan_bing', name: 'Yan Bing', inSession: true },
+  { playerId: 'wing_xuen', name: 'Wing Xuen', inSession: true },
+  { playerId: 'bryan_tan', name: 'Bryan Tan', inSession: true },
+  { playerId: 'wei_jie', name: 'Wei Jie', inSession: true },
+  { playerId: 'xin_yi', name: 'Xin Yi', inSession: true },
+  { playerId: 'zhi_hao', name: 'Zhi Hao', inSession: true },
+  { playerId: 'jun_hao', name: 'Jun Hao', inSession: true },
+  { playerId: 'kok_leong', name: 'Kok Leong', inSession: true },
+];
+
+test('phoneticKey folds English spellings onto romanised names', () => {
+  assert.equal(phoneticKey('John Fong'), phoneticKey('Chun Fong'));
+  assert.equal(phoneticKey('Chan Fung'), phoneticKey('Chun Fong'));
+  assert.equal(phoneticKey('Way Jay'), phoneticKey('Wei Jie'));
+  assert.equal(phoneticKey('Shin Yi'), phoneticKey('Xin Yi'));
+  assert.equal(phoneticKey('E Jin'), phoneticKey('Eejin'));
+  assert.equal(phoneticKey('Gee How'), phoneticKey('Zhi Hao'));
+  assert.notEqual(phoneticKey('Sam'), phoneticKey('Xin Yi'));
+});
+
+test('English mishearings of Chinese/Malaysian names reach the right player', () => {
+  assertBuyIn('John Fong buys in fifty', 'chun_fong', 50, MY_ROSTER);
+  assertBuyIn('Chan Fung buys in fifty', 'chun_fong', 50, MY_ROSTER);
+  assertBuyIn('chunfong buys in fifty', 'chun_fong', 50, MY_ROSTER);
+  assertBuyIn('chun e buys in 50', 'chun_yi', 50, MY_ROSTER);
+  assertBuyIn('Eugene buys in 50', 'eejin', 50, MY_ROSTER);
+  assertBuyIn('E Jin buys in 50', 'eejin', 50, MY_ROSTER);
+  assertBuyIn('Way Jay buys in 50', 'wei_jie', 50, MY_ROSTER);
+  assertBuyIn('Shin Yi buys in 50', 'xin_yi', 50, MY_ROSTER);
+
+  assertBuyIn('Ka Sing buys in 50', 'kah_seng', 50, MY_ROSTER);
+  assertBuyIn('Casing buys in 50', 'kah_seng', 50, MY_ROSTER);
+  assertBuyIn('car sing buys in 50', 'kah_seng', 50, MY_ROSTER);
+
+  assertBuyIn('Yen Bing buys in 50', 'yan_bing', 50, MY_ROSTER);
+  assertBuyIn('Yanbing buys in 50', 'yan_bing', 50, MY_ROSTER);
+  assertBuyIn('Jan Bing buys in 50', 'yan_bing', 50, MY_ROSTER);
+
+  assertBuyIn('Wing Shuen buys in 50', 'wing_xuen', 50, MY_ROSTER);
+  assertBuyIn('Wing Swen buys in 50', 'wing_xuen', 50, MY_ROSTER);
+  assertBuyIn('Wing Sun buys in 50', 'wing_xuen', 50, MY_ROSTER);
+
+  assertBuyIn('Brian Tan buys in 50', 'bryan_tan', 50, MY_ROSTER);
+  assertBuyIn('Brian buys in 50', 'bryan_tan', 50, MY_ROSTER);
+  assertBuyIn('Ryan Tan buys in 50', 'bryan_tan', 50, MY_ROSTER);
+});
+
+test('similar-sounding roster names stay distinct', () => {
+  const keys = MY_ROSTER.map((e) => phoneticKey(e.name));
+  assert.equal(new Set(keys).size, keys.length, keys.join(', '));
+  assert.notEqual(phoneticKey('Yan Bing'), phoneticKey('Wing Xuen'));
+  assert.notEqual(phoneticKey('Chun Yi'), phoneticKey('Eejin'));
+
+  assertBuyIn('Chun Yi buys in 50', 'chun_yi', 50, MY_ROSTER);
+  assertBuyIn('Eejin buys in 50', 'eejin', 50, MY_ROSTER);
+  assertBuyIn('Yan Bing buys in 50', 'yan_bing', 50, MY_ROSTER);
+  assertBuyIn('Wing Xuen buys in 50', 'wing_xuen', 50, MY_ROSTER);
+  assertBuyIn('Kah Seng buys in 50', 'kah_seng', 50, MY_ROSTER);
+  assertBuyIn('Bryan Tan buys in 50', 'bryan_tan', 50, MY_ROSTER);
+});
+
+test('a sound-alike first name shared by two players is ambiguous', () => {
+  const result = parse('John buys in 50', MY_ROSTER);
+  assert.equal(result.kind, 'unparsed', JSON.stringify(result));
+  if (result.kind !== 'unparsed') return;
+  assert.equal(result.reason, 'ambiguous-name');
+  // "Jun" sounds like "John" too.
+  assert.deepEqual([...(result.candidates ?? [])].sort(), ['Chun Fong', 'Chun Yi', 'Jun Hao']);
+});
+
+test('phonetic matching does not swallow new or literal names', () => {
+  const sam = parse('Sam buys in 50', MY_ROSTER);
+  assert.equal(sam.kind, 'buyIn', JSON.stringify(sam));
+  if (sam.kind === 'buyIn') {
+    assert.equal(sam.playerId, null);
+    assert.equal(sam.playerName, 'Sam');
+    assert.equal(sam.heardName, 'Sam');
+  }
+  assertBuyIn('Adam buys in 50', 'adam', 50, MY_ROSTER);
+});
+
+test('learned aliases resolve to the real player', () => {
+  const roster: VoiceRosterEntry[] = [
+    { playerId: 'ryan_lim', name: 'Ryan Lim', inSession: true, aliases: ['brian'] },
+    { playerId: 'adam', name: 'Adam', inSession: true },
+  ];
+  const result = parse('brian buys in 50', roster);
+  assert.equal(result.kind, 'buyIn', JSON.stringify(result));
+  if (result.kind !== 'buyIn') return;
+  assert.equal(result.playerId, 'ryan_lim');
+  assert.equal(result.playerName, 'Ryan Lim');
+  assert.equal(result.heardName, 'Brian');
+
+  const match = matchRosterName('Brian', roster);
+  assert.equal(match.status, 'match');
+  if (match.status === 'match') {
+    assert.equal(match.entry.playerId, 'ryan_lim');
+    assert.equal(match.tier, 0);
+  }
+
+  const aliasToken = parse('cash out john fong 200', [
+    { playerId: 'cf', name: 'Chun Fong', inSession: true, aliases: ['john fong'] },
+  ]);
+  assert.equal(aliasToken.kind, 'cashOut', JSON.stringify(aliasToken));
+});
+
+test('heardName reports the words that were actually heard', () => {
+  const buyIn = parse('John Fong buys in fifty', MY_ROSTER);
+  assert.equal(buyIn.kind, 'buyIn');
+  if (buyIn.kind === 'buyIn') {
+    assert.equal(buyIn.playerName, 'Chun Fong');
+    assert.equal(buyIn.heardName, 'John Fong');
+  }
+
+  const cashOut = parse('cash out Shin Yi two hundred', MY_ROSTER);
+  assert.equal(cashOut.kind, 'cashOut', JSON.stringify(cashOut));
+  if (cashOut.kind === 'cashOut') {
+    assert.equal(cashOut.playerId, 'xin_yi');
+    assert.equal(cashOut.heardName, 'Shin Yi');
+  }
+
+  const literal = parse('Adam buys in fifty');
+  if (literal.kind === 'buyIn') assert.equal(literal.heardName, 'Adam');
 });

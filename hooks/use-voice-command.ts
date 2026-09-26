@@ -44,6 +44,21 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 const MAX_CONTEXTUAL_STRINGS = 100;
 
+const MAX_ALTERNATIVES = 5;
+
+const FALLBACK_LANG = 'en-US';
+
+let recognitionLang = 'en-SG';
+
+function alternativesOf(results: readonly { transcript: string }[]): string[] {
+  const out: string[] = [];
+  for (const result of results) {
+    const text = result.transcript.trim();
+    if (text && !out.includes(text)) out.push(text);
+  }
+  return out;
+}
+
 function detectAvailability(): boolean {
   if (!recogniser) return false;
   try {
@@ -68,7 +83,7 @@ function releaseOwnership(owner: object) {
 
 export function useVoiceCommand(options: {
   contextualStrings: readonly string[];
-  onTranscript: (transcript: string) => void;
+  onTranscript: (alternatives: readonly string[]) => void;
 }): UseVoiceCommand {
   const { contextualStrings, onTranscript } = options;
 
@@ -82,8 +97,8 @@ export function useVoiceCommand(options: {
     setStatus(next);
   }, []);
 
-  const finalRef = useRef('');
-  const interimRef = useRef('');
+  const finalRef = useRef<string[]>([]);
+  const interimRef = useRef<string[]>([]);
   const cancelledRef = useRef(false);
   const errorRef = useRef<string | null>(null);
 
@@ -106,13 +121,13 @@ export function useVoiceCommand(options: {
 
   useSpeechEvent('result', (event) => {
     if (!owns()) return;
-    const text = event.results[0]?.transcript ?? '';
+    const alternatives = alternativesOf(event.results);
     if (event.isFinal) {
-      finalRef.current = text;
-    } else if (text) {
-      interimRef.current = text;
+      finalRef.current = alternatives;
+    } else if (alternatives.length > 0) {
+      interimRef.current = alternatives;
     }
-    setTranscript(text);
+    setTranscript(alternatives[0] ?? '');
   });
 
   useSpeechEvent('error', (event) => {
@@ -126,16 +141,21 @@ export function useVoiceCommand(options: {
 
     const wasCancelled = cancelledRef.current;
     const error = errorRef.current;
-    const heard = (finalRef.current || interimRef.current).trim();
+    const heard = finalRef.current.length > 0 ? finalRef.current : interimRef.current;
 
     cancelledRef.current = false;
     errorRef.current = null;
-    finalRef.current = '';
-    interimRef.current = '';
+    finalRef.current = [];
+    interimRef.current = [];
     applyStatus('idle');
     setTranscript('');
 
     if (wasCancelled) return;
+    if (error === 'language-not-supported' && recognitionLang !== FALLBACK_LANG) {
+      recognitionLang = FALLBACK_LANG;
+      startRef.current();
+      return;
+    }
     if (error && !SILENT_ERRORS.has(error)) {
       appAlert('Voice unavailable', ERROR_MESSAGES[error] ?? 'Could not process that. Try again.');
       return;
@@ -166,15 +186,15 @@ export function useVoiceCommand(options: {
 
         cancelledRef.current = false;
         errorRef.current = null;
-        finalRef.current = '';
-        interimRef.current = '';
+        finalRef.current = [];
+        interimRef.current = [];
         setTranscript('');
 
         recogniser.start({
-          lang: 'en-US',
+          lang: recognitionLang,
           interimResults: true,
           continuous: false,
-          maxAlternatives: 1,
+          maxAlternatives: MAX_ALTERNATIVES,
           contextualStrings: contextualRef.current.slice(0, MAX_CONTEXTUAL_STRINGS),
           iosTaskHint: 'confirmation',
           androidIntentOptions: {
@@ -193,6 +213,11 @@ export function useVoiceCommand(options: {
     })();
   }, [available, applyStatus]);
 
+  const startRef = useRef(start);
+  useEffect(() => {
+    startRef.current = start;
+  }, [start]);
+
   const stop = useCallback(() => {
     try {
       recogniser?.stop();
@@ -203,8 +228,8 @@ export function useVoiceCommand(options: {
 
   const discard = useCallback(() => {
     cancelledRef.current = true;
-    finalRef.current = '';
-    interimRef.current = '';
+    finalRef.current = [];
+    interimRef.current = [];
     errorRef.current = null;
     releaseOwnership(ownerRef.current);
     abortQuietly();
