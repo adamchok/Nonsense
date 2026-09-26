@@ -1,3 +1,4 @@
+import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { appAlert } from '@/lib/app-alert';
@@ -21,11 +22,17 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
   const c = useAppColors();
   const [name, setName] = useState(initialName.slice(0, MAX_NAME_LEN));
   const [isSaving, setIsSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const trimmed = name.trim();
-  const canSave = trimmed.length >= MIN_NAME_LEN && trimmed !== initialName && !isSaving;
+  // Too-short names stay tappable so the problem is explained under the field.
+  const canSave = trimmed !== initialName && !isSaving;
 
   async function save() {
     if (!canSave) return;
+    if (trimmed.length < MIN_NAME_LEN) {
+      setNameError(trimmed ? `Use at least ${MIN_NAME_LEN} characters` : 'Enter a display name');
+      return;
+    }
     setIsSaving(true);
     try {
       await onSave(trimmed);
@@ -47,7 +54,10 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
         <Text style={[styles.hint, { color: c.textMuted }]}>Shown to everyone in your poker sessions.</Text>
         <TextInput
           value={name}
-          onChangeText={setName}
+          onChangeText={(t) => {
+            setName(t);
+            setNameError(null);
+          }}
           maxLength={MAX_NAME_LEN}
           placeholder="Enter display name"
           accessibilityLabel="Display name"
@@ -56,8 +66,14 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
           returnKeyType="done"
           onSubmitEditing={() => void save()}
           placeholderTextColor={c.placeholder}
-          style={[formStyles.input, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
+          style={[
+            formStyles.input,
+            { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+            errorBorder(c, nameError),
+          ]}
+          {...invalidProps(nameError)}
         />
+        <FieldError message={nameError} />
         <Text style={[styles.counter, { color: c.textMuted }]}>
           {name.length} / {MAX_NAME_LEN}
         </Text>

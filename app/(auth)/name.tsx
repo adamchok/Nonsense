@@ -1,10 +1,11 @@
 import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
+import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import { Redirect, router, useNavigation } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -33,6 +34,7 @@ export default function NameScreen() {
   const { isReady, user, playerProfile, saveDisplayName, isLinked, linkedEmail, signInWithGoogle } =
     useAuth();
   const [name, setName] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   // Set once Google sign-in succeeds; the profile may arrive a moment later via the auth listener.
@@ -56,10 +58,8 @@ export default function NameScreen() {
 
   const trimmed = name.trim();
   const isBusy = isSaving || isSigningIn;
-  const canSubmit = useMemo(() => {
-    if (isBusy) return false;
-    return trimmed.length >= 2 && trimmed.length <= MAX_NAME_LEN;
-  }, [trimmed, isBusy]);
+  // Stays enabled for bad input so a tap can explain what's wrong under the field.
+  const canSubmit = !isBusy;
 
   if (!isReady) {
     return (
@@ -77,8 +77,16 @@ export default function NameScreen() {
     if (!canSubmit) {
       return;
     }
+    if (trimmed.length === 0) {
+      setNameError('Enter a display name');
+      return;
+    }
+    if (trimmed.length < 2) {
+      setNameError('Use at least 2 characters');
+      return;
+    }
     if (trimmed.length > MAX_NAME_LEN) {
-      appAlert('Name too long', `Please keep your display name within ${MAX_NAME_LEN} characters.`);
+      setNameError(`Use at most ${MAX_NAME_LEN} characters`);
       return;
     }
 
@@ -158,7 +166,10 @@ export default function NameScreen() {
           <View style={styles.inputBlock}>
             <TextInput
               value={name}
-              onChangeText={setName}
+              onChangeText={(t) => {
+                setName(t);
+                setNameError(null);
+              }}
               accessibilityLabel="Display name"
               placeholder="Enter display name"
               placeholderTextColor={c.placeholder}
@@ -166,9 +177,15 @@ export default function NameScreen() {
               autoCorrect={false}
               maxLength={MAX_NAME_LEN}
               onFocus={() => scrollModalFieldToTop(nameScrollRef)}
-              style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
+              style={[
+                styles.input,
+                { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
+                errorBorder(c, nameError),
+              ]}
               editable={!isBusy}
+              {...invalidProps(nameError)}
             />
+            <FieldError message={nameError} />
             <Text
               style={[
                 styles.charCounter,

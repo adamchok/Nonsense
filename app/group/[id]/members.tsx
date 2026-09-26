@@ -1,4 +1,5 @@
 import { EmptyState } from '@/components/empty-state';
+import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
@@ -35,6 +36,7 @@ export default function GroupMembersScreen() {
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [friends, setFriends] = useState<FriendRecord[]>([]);
   const [guestName, setGuestName] = useState('');
+  const [guestError, setGuestError] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [groupMeta, setGroupMeta] = useState<PokerGroup | null>(null);
 
@@ -116,7 +118,7 @@ export default function GroupMembersScreen() {
     const name = guestName.trim();
     const memberId = name.toLowerCase().replace(/\s+/g, '_');
     if (members.some((m) => m.id === memberId)) {
-      appAlert('Already in group', `${name} is already a member.`);
+      setGuestError(`${name} is already a member`);
       return;
     }
     try {
@@ -211,11 +213,19 @@ export default function GroupMembersScreen() {
               <View style={styles.guestRow}>
                 <TextInput
                   value={guestName}
-                  onChangeText={setGuestName}
+                  onChangeText={(t) => {
+                    setGuestName(t);
+                    setGuestError(null);
+                  }}
                   placeholder="Name"
                   accessibilityLabel="Guest name"
                   placeholderTextColor={c.placeholder}
-                  style={[styles.guestInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
+                  style={[
+                    styles.guestInput,
+                    { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                    errorBorder(c, guestError),
+                  ]}
+                  {...invalidProps(guestError)}
                   returnKeyType="done"
                   onSubmitEditing={handleAddGuest}
                 />
@@ -230,6 +240,7 @@ export default function GroupMembersScreen() {
                   <Text style={[styles.guestAddLabel, { color: c.onAccent }]}>Add</Text>
                 </PressableScale>
               </View>
+              <FieldError message={guestError} />
             </View>
           </View>
         )}

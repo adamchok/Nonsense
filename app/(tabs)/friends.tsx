@@ -1,4 +1,5 @@
 import { ModalBackdrop } from '@/components/modal-backdrop';
+import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
@@ -88,6 +89,7 @@ export default function FriendsScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [refCodeInput, setRefCodeInput] = useState('');
+  const [refCodeError, setRefCodeError] = useState<string | null>(null);
   const addFriendScrollRef = useRef<ScrollView>(null);
   const [adding, setAdding] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -105,6 +107,7 @@ export default function FriendsScreen() {
   const [renameGroupTarget, setRenameGroupTarget] = useState<PokerGroup | null>(null);
   const [renameGroupName, setRenameGroupName] = useState('');
   const [renameGroupSaving, setRenameGroupSaving] = useState(false);
+  const [renameGroupError, setRenameGroupError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FriendsSectionTab>('friends');
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
@@ -300,13 +303,14 @@ export default function FriendsScreen() {
   function openRenameGroupModal(group: PokerGroup) {
     setRenameGroupTarget(group);
     setRenameGroupName(group.name);
+    setRenameGroupError(null);
   }
 
   async function handleConfirmRenameGroup() {
     if (!user || !renameGroupTarget) return;
     const trimmed = renameGroupName.trim();
     if (trimmed.length < 2) {
-      appAlert('Invalid name', 'Use at least 2 characters.');
+      setRenameGroupError('Use at least 2 characters');
       return;
     }
     try {
@@ -361,11 +365,15 @@ export default function FriendsScreen() {
   }
 
   async function handleAddFriend() {
-    if (!user || !refCodeInput.trim()) return;
+    if (!user) return;
     const code = refCodeInput.trim().toUpperCase();
+    if (code.length < 6) {
+      setRefCodeError('Enter the 6-character code');
+      return;
+    }
 
     if (code === playerProfile?.refCode) {
-      appAlert('Oops', "That's your own code!");
+      setRefCodeError("That's your own code");
       return;
     }
 
@@ -373,7 +381,7 @@ export default function FriendsScreen() {
       (f) => f.playerId === code || f.name.toUpperCase() === code
     );
     if (existing) {
-      appAlert('Already friends', `You're already friends with ${existing.name}.`);
+      setRefCodeError(`You're already friends with ${existing.name}`);
       return;
     }
 
@@ -381,11 +389,11 @@ export default function FriendsScreen() {
       setAdding(true);
       const found = await lookupPlayerByRefCode(code);
       if (!found) {
-        appAlert('Not found', 'No player found with that code.');
+        setRefCodeError('No player with that code');
         return;
       }
       if (friends.some((f) => f.playerId === found.id)) {
-        appAlert('Already friends', `You're already friends with ${found.name}.`);
+        setRefCodeError(`You're already friends with ${found.name}`);
         return;
       }
 
@@ -417,11 +425,11 @@ export default function FriendsScreen() {
       const result = await sendFriendRequest(user.uid, found);
       if (!result.ok) {
         if (result.reason === 'already_friends') {
-          appAlert('Already friends', `You're already friends with ${found.name}.`);
+          setRefCodeError(`You're already friends with ${found.name}`);
         } else if (result.reason === 'already_sent') {
-          appAlert('Request pending', `You already sent a request to ${found.name}.`);
+          setRefCodeError(`You already sent ${found.name} a request`);
         } else {
-          appAlert('Oops', "That's your own code!");
+          setRefCodeError("That's your own code");
         }
         return;
       }
@@ -1070,7 +1078,10 @@ export default function FriendsScreen() {
                   contentContainerStyle={styles.addFriendModalFieldsScrollContent}>
                   <TextInput
                     value={refCodeInput}
-                    onChangeText={(t) => setRefCodeInput(t.toUpperCase())}
+                    onChangeText={(t) => {
+                      setRefCodeInput(t.toUpperCase());
+                      setRefCodeError(null);
+                    }}
                     accessibilityLabel="Friend's 6-character ref code"
                     placeholder="e.g. A3X7KP"
                     placeholderTextColor={c.placeholder}
@@ -1078,23 +1089,29 @@ export default function FriendsScreen() {
                     autoCapitalize="characters"
                     autoFocus
                     onFocus={() => scrollModalFieldToTop(addFriendScrollRef)}
-                    style={[styles.codeInput, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
+                    style={[
+                      styles.codeInput,
+                      { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
+                      errorBorder(c, refCodeError),
+                    ]}
+                    {...invalidProps(refCodeError)}
                   />
+                  <FieldError message={refCodeError} />
                 </ScrollView>
                 <View style={styles.addCardActions}>
                   <Pressable
                     style={styles.cancelBtn}
-                    onPress={() => { setShowAddModal(false); setRefCodeInput(''); }}>
+                    onPress={() => { setShowAddModal(false); setRefCodeInput(''); setRefCodeError(null); }}>
                     <Text style={[styles.cancelLabel, { color: c.lossLight }]}>Cancel</Text>
                   </Pressable>
                   <Pressable
                     style={[
                       styles.confirmBtn,
                       { backgroundColor: c.accent },
-                      (adding || refCodeInput.trim().length < 6) && styles.disabled,
+                      adding && styles.disabled,
                     ]}
                     onPress={handleAddFriend}
-                    disabled={adding || refCodeInput.trim().length < 6}>
+                    disabled={adding}>
                     {adding ? (
                       <ActivityIndicator size="small" color={c.onAccent} />
                     ) : (
@@ -1218,7 +1235,10 @@ export default function FriendsScreen() {
                 </Text>
                 <TextInput
                   value={renameGroupName}
-                  onChangeText={setRenameGroupName}
+                  onChangeText={(t) => {
+                    setRenameGroupName(t);
+                    setRenameGroupError(null);
+                  }}
                   placeholder="Group name"
                   placeholderTextColor={c.placeholder}
                   autoCapitalize="words"
@@ -1227,8 +1247,11 @@ export default function FriendsScreen() {
                   style={[
                     styles.renameGroupInput,
                     { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
+                    errorBorder(c, renameGroupError),
                   ]}
+                  {...invalidProps(renameGroupError)}
                 />
+                <FieldError message={renameGroupError} />
                 <View style={styles.addCardActions}>
                   <Pressable
                     style={styles.cancelBtn}
@@ -1243,9 +1266,9 @@ export default function FriendsScreen() {
                     style={[
                       styles.confirmBtn,
                       { backgroundColor: c.accent },
-                      (renameGroupSaving || renameGroupName.trim().length < 2) && styles.disabled,
+                      renameGroupSaving && styles.disabled,
                     ]}
-                    disabled={renameGroupSaving || renameGroupName.trim().length < 2}
+                    disabled={renameGroupSaving}
                     onPress={handleConfirmRenameGroup}>
                     {renameGroupSaving ? (
                       <ActivityIndicator size="small" color={c.onAccent} />

@@ -1,3 +1,4 @@
+import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { appAlert } from '@/lib/app-alert';
@@ -19,13 +20,20 @@ export function NewGroupModal({ onClose }: Props) {
   const { playerProfile } = useAuth();
   const [name, setName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const canCreate = name.trim().length >= MIN_NAME_LEN && !isSaving;
+  const [nameError, setNameError] = useState<string | null>(null);
+  const trimmed = name.trim();
+  // Stays tappable for a short name so the problem is explained under the field.
+  const canCreate = !isSaving;
 
   async function create() {
     if (!playerProfile || !canCreate) return;
+    if (trimmed.length < MIN_NAME_LEN) {
+      setNameError(trimmed ? `Use at least ${MIN_NAME_LEN} characters` : 'Enter a group name');
+      return;
+    }
     setIsSaving(true);
     try {
-      const groupId = await createGroup(playerProfile.id, name.trim());
+      const groupId = await createGroup(playerProfile.id, trimmed);
       onClose();
       router.push(`../group/${groupId}/members`);
     } catch (e) {
@@ -42,7 +50,10 @@ export function NewGroupModal({ onClose }: Props) {
       primary={{ label: 'Create', onPress: () => void create(), disabled: !canCreate, busy: isSaving }}>
       <TextInput
         value={name}
-        onChangeText={setName}
+        onChangeText={(t) => {
+          setName(t);
+          setNameError(null);
+        }}
         placeholder="Friday Boys"
         accessibilityLabel="Group name"
         autoFocus
@@ -51,8 +62,14 @@ export function NewGroupModal({ onClose }: Props) {
         returnKeyType="done"
         onSubmitEditing={() => void create()}
         placeholderTextColor={c.placeholder}
-        style={[formStyles.input, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
+        style={[
+          formStyles.input,
+          { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+          errorBorder(c, nameError),
+        ]}
+        {...invalidProps(nameError)}
       />
+      <FieldError message={nameError} />
     </ModalShell>
   );
 }
