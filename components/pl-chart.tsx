@@ -1,3 +1,5 @@
+import { Icon } from '@/components/icon';
+import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { formatSignedCurrency, formatTightCompactNumber } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
@@ -16,8 +18,8 @@ const MARKER_SIZE = 14;
 const MARKER_SHIFT_X = -(1 + MARKER_SIZE / 2);
 const MARKER_SHIFT_Y = -1;
 
-type Entry = { date: Date; profit: number };
-type Point = { value: number; date: Date; delta: number };
+type Entry = { id: string; date: Date; profit: number };
+type Point = { value: number; date: Date; delta: number; id: string };
 
 /** Rounds a raw step up to 1/2/2.5/5 × 10^n so axis labels stay readable. */
 function niceStep(raw: number): number {
@@ -35,7 +37,7 @@ function formatAxisLabel(label: string): string {
 }
 
 /** Running profit/loss across sessions, oldest to newest; drag across to inspect a session. */
-export function PLChart({ entries }: { entries: readonly Entry[] }) {
+export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen: (id: string) => void }) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
@@ -46,7 +48,7 @@ export function PLChart({ entries }: { entries: readonly Entry[] }) {
     let total = 0;
     const points = sorted.map((e) => {
       total += e.profit;
-      return { value: total, date: e.date, delta: e.profit };
+      return { value: total, date: e.date, delta: e.profit, id: e.id };
     });
     const max = Math.max(0, ...points.map((p) => p.value));
     const min = Math.min(0, ...points.map((p) => p.value));
@@ -71,21 +73,33 @@ export function PLChart({ entries }: { entries: readonly Entry[] }) {
       accessible
       accessibilityLabel={`Profit and loss over ${data.length} sessions, ending at ${formatSignedCurrency(final)}`}>
       {selected ? (
-        <View style={styles.header}>
-          <Text style={[styles.headerLabel, { color: c.textMuted }]}>{formatDateDMY(selected.date)}</Text>
-          <View style={styles.headerRight}>
-            <Text style={[styles.headerValue, { color: selected.value >= 0 ? c.profit : c.loss }]}>
-              {formatSignedCurrency(selected.value)}
-            </Text>
-            <Text style={[styles.headerHint, { color: c.textMuted }]}>
-              {formatSignedCurrency(selected.delta)} this session
-            </Text>
+        // Selection stays after release, so the header doubles as the way into that session.
+        <PressableScale
+          pressedScale={0.98}
+          onPress={() => onOpen(selected.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open session on ${formatDateDMY(selected.date)}`}
+          style={[styles.header, styles.headerBtn]}>
+          <View>
+            <Text style={[styles.headerLabel, { color: c.textMuted }]}>{formatDateDMY(selected.date)}</Text>
+            <Text style={[styles.headerLink, { color: c.accentText }]}>View session</Text>
           </View>
-        </View>
+          <View style={styles.headerSelected}>
+            <View style={styles.headerRight}>
+              <Text style={[styles.headerValue, { color: selected.value >= 0 ? c.profit : c.loss }]}>
+                {formatSignedCurrency(selected.value)}
+              </Text>
+              <Text style={[styles.headerHint, { color: c.textMuted }]}>
+                {formatSignedCurrency(selected.delta)} this session
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={18} color={c.textMuted} />
+          </View>
+        </PressableScale>
       ) : (
         <View style={styles.header}>
           <Text style={[styles.headerLabel, { color: c.textMuted }]}>Profit over time</Text>
-          <Text style={[styles.headerHint, { color: c.textMuted }]}>Drag to inspect</Text>
+          <Text style={[styles.headerHint, { color: c.textMuted }]}>Tap or drag a point</Text>
         </View>
       )}
       {plotWidth > 0 ? (
@@ -132,6 +146,7 @@ export function PLChart({ entries }: { entries: readonly Entry[] }) {
             // gifted-charts' strip runs the wrong way once values go negative, and its default
             // dot is offset by fixed pixels; draw our own centred marker instead.
             showPointerStrip: false,
+            persistPointer: true,
             pointerComponent: () => (
               <View
                 style={[
@@ -170,6 +185,9 @@ const styles = StyleSheet.create({
   },
   headerLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
   headerRight: { alignItems: 'flex-end' },
+  headerBtn: { marginHorizontal: -8, paddingHorizontal: 8, borderRadius: 10 },
+  headerSelected: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  headerLink: { fontSize: 12, fontWeight: '600' },
   headerValue: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
   headerHint: { fontSize: 11, fontVariant: ['tabular-nums'] },
 });

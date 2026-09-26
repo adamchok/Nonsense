@@ -598,7 +598,7 @@ export default function HistoryScreen() {
 
       {!loading && filteredHistory.length >= 2 ? (
         <View style={[styles.chartCard, { backgroundColor: c.card, borderColor: c.border }]}>
-          <PLChart entries={filteredHistory} />
+          <PLChart entries={filteredHistory} onOpen={(id) => router.push(`../session/summary/${id}`)} />
         </View>
       ) : null}
 
