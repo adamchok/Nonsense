@@ -7,7 +7,8 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, type ReactElement } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '@/lib/reanimated-setup';
 
 SplashScreen.preventAutoHideAsync();
@@ -95,12 +96,17 @@ function ThemedNavigation() {
 
 export default function RootLayout() {
   return (
-    <ThemePreferenceProvider>
-      <AppAlertProvider>
-        <WebAppFrame>
-          <ThemedNavigation />
-        </WebAppFrame>
-      </AppAlertProvider>
-    </ThemePreferenceProvider>
+    // Swipeable rows (history, session players) need the gesture root above every screen.
+    <GestureHandlerRootView style={styles.root}>
+      <ThemePreferenceProvider>
+        <AppAlertProvider>
+          <WebAppFrame>
+            <ThemedNavigation />
+          </WebAppFrame>
+        </AppAlertProvider>
+      </ThemePreferenceProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } });

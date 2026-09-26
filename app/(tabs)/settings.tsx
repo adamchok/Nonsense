@@ -17,6 +17,19 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View
 import { userMessage } from '@/lib/user-message';
 import { GoogleButton } from '@/components/google-button';
 import { EditNameModal } from '@/components/edit-name-modal';
+import { Animated as Motion, PressableScale, webSafe } from '@/components/motion';
+import { LayoutAnimationConfig, ReduceMotion, ZoomIn, FadeIn } from 'react-native-reanimated';
+
+/** Theme radio: the check pops in when a row becomes selected. */
+const checkEntering = webSafe(
+  ZoomIn.springify()
+    .damping(16)
+    .stiffness(320)
+    .mass(0.6)
+    .withInitialValues({ transform: [{ scale: 0.4 }] })
+    .reduceMotion(ReduceMotion.System),
+  FadeIn.duration(150).reduceMotion(ReduceMotion.System),
+);
 
 function formatPlayTime(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000);
@@ -138,7 +151,8 @@ export default function SettingsScreen() {
         </Text>
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
           <View style={styles.profileRow}>
-            <Pressable
+            <PressableScale
+              pressedScale={0.94}
               style={[styles.avatar, { backgroundColor: t.avatarBg }]}
               onPress={() => setShowAvatarPicker(true)}
               accessibilityRole="button"
@@ -147,7 +161,7 @@ export default function SettingsScreen() {
               <View style={[styles.avatarEditBadge, { backgroundColor: t.accent, borderColor: t.border }]}>
                 <Icon name="edit" size={13} color={t.onAccent} />
               </View>
-            </Pressable>
+            </PressableScale>
             <View style={styles.profileText}>
               <View style={styles.displayNameRow}>
                 <Text
@@ -156,27 +170,28 @@ export default function SettingsScreen() {
                   ellipsizeMode="tail">
                   {playerProfile?.name ?? 'Guest'}
                 </Text>
-                <Pressable
+                <PressableScale
+                  pressedScale={0.9}
                   style={styles.editNameBtn}
                   onPress={() => setShowNameEditor(true)}
                   hitSlop={4}
                   accessibilityRole="button"
                   accessibilityLabel="Edit display name">
                   <Icon name="edit" size={18} color={t.muted} />
-                </Pressable>
+                </PressableScale>
               </View>
             </View>
           </View>
-          <Pressable
+          <PressableScale
             style={[styles.primaryBtn, { backgroundColor: t.accent }]}
             onPress={() => router.push('../qr-code')}
             accessibilityRole="button"
             accessibilityLabel="Open QR code">
             <Icon name="qr-code" size={18} color={t.onAccent} />
             <Text style={[styles.primaryBtnLabel, { color: t.onAccent }]}>QR Code</Text>
-          </Pressable>
+          </PressableScale>
           <View style={styles.secondaryBtnRow}>
-            <Pressable
+            <PressableScale
               style={[
                 styles.secondaryBtn,
                 styles.secondaryBtnHalf,
@@ -189,8 +204,8 @@ export default function SettingsScreen() {
                 <Icon name="location-on" size={18} color={t.text} />
                 <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
               </View>
-            </Pressable>
-            <Pressable
+            </PressableScale>
+            <PressableScale
               style={[
                 styles.secondaryBtn,
                 styles.secondaryBtnHalf,
@@ -203,7 +218,7 @@ export default function SettingsScreen() {
                 <Icon name="bar-chart" size={18} color={t.text} />
                 <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Statistics</Text>
               </View>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
       </View>
@@ -244,6 +259,8 @@ export default function SettingsScreen() {
           Appearance
         </Text>
         <Text style={[styles.sectionHint, { color: t.muted }]}>Choose light, dark, or match your device.</Text>
+        {/* The current choice's check shows without a pop on first render; later picks pop in. */}
+        <LayoutAnimationConfig skipEntering>
         <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
           <ThemeOption
             icon="phone-iphone"
@@ -272,6 +289,7 @@ export default function SettingsScreen() {
             showDivider
           />
         </View>
+        </LayoutAnimationConfig>
       </View>
 
       <Modal
@@ -470,8 +488,9 @@ export default function SettingsScreen() {
               <Text style={[styles.pickerTitle, { color: t.text }]}>Pick an avatar</Text>
               <View style={styles.emojiGrid} accessibilityRole="radiogroup">
                 {AVATAR_EMOJIS.map((emoji) => (
-                  <Pressable
+                  <PressableScale
                     key={emoji}
+                    pressedScale={0.92}
                     style={[
                       styles.emojiBtn,
                       { borderColor: t.border, backgroundColor: t.chipBg },
@@ -492,7 +511,7 @@ export default function SettingsScreen() {
                     ) : (
                       <Text style={styles.emojiBtnText}>{emoji}</Text>
                     )}
-                  </Pressable>
+                  </PressableScale>
                 ))}
               </View>
             </View>
@@ -558,7 +577,8 @@ function ThemeOption({
 }) {
   const c = useAppColors();
   return (
-    <Pressable
+    <PressableScale
+      pressedScale={0.985}
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
@@ -577,13 +597,15 @@ function ThemeOption({
         <Text style={[styles.themeDesc, { color: t.muted }]}>{description}</Text>
       </View>
       {selected ? (
-        <Icon name="check-circle" size={22} color={t.accentText} />
+        <Motion.View entering={checkEntering}>
+          <Icon name="check-circle" size={22} color={t.accentText} />
+        </Motion.View>
       ) : (
         <View style={[styles.radioOuter, { borderColor: t.border }]}>
           <View style={styles.radioInner} />
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 

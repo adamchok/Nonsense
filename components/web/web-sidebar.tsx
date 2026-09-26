@@ -1,8 +1,11 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import { CommonActions, useLinkBuilder } from '@react-navigation/native';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
+import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+
+import { Animated, SPRING } from '@/components/motion';
 
 import { useAppColors } from '@/lib/app-theme';
 import { radius, sidebarWidth } from '@/lib/spacing';
@@ -11,6 +14,8 @@ import { useResolvedColorScheme } from '@/lib/theme-context';
 const ICON_SIZE = 20;
 const ACTIVE_BG_ALPHA = 0.16;
 const HOVER_BG_ALPHA = 0.07;
+const ITEM_HEIGHT = 42;
+const ITEM_GAP = 2;
 
 /** `#rrggbb` + alpha -> `rgba(...)`; theme accents are all 6-digit hex. */
 function withAlpha(hex: string, alpha: number): string {
@@ -27,6 +32,19 @@ export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps
   const c = useAppColors();
   const scheme = useResolvedColorScheme();
   const { buildHref } = useLinkBuilder();
+  const pillY = useSharedValue(state.index * (ITEM_HEIGHT + ITEM_GAP));
+  const isFirstRender = useRef(true);
+
+  // The active pill springs between items instead of the highlight jumping.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    pillY.value = withSpring(state.index * (ITEM_HEIGHT + ITEM_GAP), SPRING);
+  }, [state.index, pillY]);
+
+  const pillStyle = useAnimatedStyle(() => ({ transform: [{ translateY: pillY.value }] }));
 
   return (
     <View
@@ -48,6 +66,10 @@ export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps
       </View>
 
       <View style={styles.items}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.activePill, { backgroundColor: withAlpha(c.accentText, ACTIVE_BG_ALPHA) }, pillStyle]}
+        />
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const focused = state.index === index;
@@ -99,11 +121,8 @@ function SidebarItem({ label, focused, href, onPress, onLongPress, renderIcon }:
   const c = useAppColors();
   const [hovered, setHovered] = useState(false);
   const color = focused || hovered ? (focused ? c.accentText : c.text) : c.textMuted;
-  const backgroundColor = focused
-    ? withAlpha(c.accentText, ACTIVE_BG_ALPHA)
-    : hovered
-      ? withAlpha(c.textMuted, HOVER_BG_ALPHA)
-      : 'transparent';
+  // The focused item's tint is the sliding pill drawn behind the items.
+  const backgroundColor = !focused && hovered ? withAlpha(c.textMuted, HOVER_BG_ALPHA) : 'transparent';
 
   return (
     <PlatformPressable
@@ -150,13 +169,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   items: {
-    gap: 2,
+    gap: ITEM_GAP,
+  },
+  activePill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: ITEM_HEIGHT,
+    borderRadius: radius.sm,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    height: 42,
+    height: ITEM_HEIGHT,
     paddingHorizontal: 12,
     borderRadius: radius.sm,
   },

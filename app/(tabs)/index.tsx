@@ -9,10 +9,11 @@ import type { SessionRecord } from '@/types';
 import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, type AppStateStatus, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, type AppStateStatus, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { text as type, pressBg, ui } from '@/lib/ui';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
+import { Animated as Motion, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
 
 export default function HomeScreen() {
   const c = useAppColors();
@@ -127,7 +128,8 @@ export default function HomeScreen() {
       contentContainerStyle={[layout.content, styles.content]}
       showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <Image
+        <Motion.Image
+          entering={fadeIn}
           source={
             scheme === 'dark'
               ? require('@/assets/images/logo-large.png')
@@ -138,12 +140,12 @@ export default function HomeScreen() {
         />
         {playerProfile ? (
           <>
-            <Text style={[styles.welcomeGreeting, { color: c.text }]}>
+            <Motion.Text entering={listItemEntering(1)} style={[styles.welcomeGreeting, { color: c.text }]}>
               Hey, {playerProfile.name} 👋
-            </Text>
-            <Text style={[styles.welcomeSub, { color: c.textMuted }]}>
+            </Motion.Text>
+            <Motion.Text entering={listItemEntering(2)} style={[styles.welcomeSub, { color: c.textMuted }]}>
               Ready to deal some cards?
-            </Text>
+            </Motion.Text>
           </>
         ) : (
           <Text style={[styles.welcomeSub, { color: c.textMuted }]}>
@@ -152,13 +154,13 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <Pressable
+      <PressableScale
         style={[ui.button, { backgroundColor: c.accent }]}
         accessibilityRole="button"
         onPress={() => router.push('../session/new')}>
         <Icon name="add" size={20} color={c.onAccent} importantForAccessibility="no" />
         <Text style={[type.button, styles.ctaText, { color: c.onAccent }]}>Start New Session</Text>
-      </Pressable>
+      </PressableScale>
 
       {error ? <Text style={[type.label, { color: c.loss }]}>{error}</Text> : null}
 
@@ -167,7 +169,8 @@ export default function HomeScreen() {
           <Text style={[type.section, { color: c.textMuted }]} accessibilityRole="header">
             Active sessions
           </Text>
-          <Pressable
+          <PressableScale
+            pressedScale={0.92}
             style={(state) => [ui.iconButton, styles.refreshBtn, { borderColor: c.border }, pressBg(c, state, c.card)]}
             onPress={() => void handleRefresh()}
             disabled={isRefreshing}
@@ -177,7 +180,7 @@ export default function HomeScreen() {
             <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
               <Icon name="refresh" size={18} color={c.textMuted} />
             </Animated.View>
-          </Pressable>
+          </PressableScale>
         </View>
         <View style={[ui.card, { backgroundColor: c.card, borderColor: c.border }]}>
           {activeSessions.length === 0 ? (
@@ -196,8 +199,13 @@ export default function HomeScreen() {
                 session.dollarsPerChip
               );
               return (
-              <Pressable
+              <Motion.View
                 key={session.id}
+                entering={listItemEntering(index)}
+                exiting={fadeOut}
+                layout={layoutTransition}>
+              <PressableScale
+                pressedScale={0.985}
                 onPress={() => router.push(`../session/${session.id}`)}
                 accessibilityRole="button"
                 accessibilityLabel={[
@@ -241,7 +249,8 @@ export default function HomeScreen() {
                   <Text style={styles.liveBadgeText}>LIVE</Text>
                 </View>
                 <Icon name="chevron-right" size={20} color={c.textMuted} importantForAccessibility="no" />
-              </Pressable>
+              </PressableScale>
+              </Motion.View>
               );
             })
           )}

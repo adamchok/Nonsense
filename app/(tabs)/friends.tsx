@@ -50,6 +50,19 @@ import { userMessage } from '@/lib/user-message';
 import { SearchInput } from '@/components/search-input';
 import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
 import { EmptyState } from '@/components/empty-state';
+import { Animated as Motion, PressableScale, fadeOut, layoutTransition, listItemEntering, webSafe } from '@/components/motion';
+import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
+
+/** Dropdown menus grow from their top-right anchor: fade + scale up from 0.96. */
+const menuEntering = webSafe(
+  new Keyframe({
+    0: { opacity: 0, transform: [{ scale: 0.96 }] },
+    100: { opacity: 1, transform: [{ scale: 1 }] },
+  })
+    .duration(160)
+    .reduceMotion(ReduceMotion.System),
+  FadeIn.duration(160).reduceMotion(ReduceMotion.System),
+);
 
 const FRIENDS_TABS: readonly SegmentedTab<'friends' | 'groups' | 'leaderboard'>[] = [
   { key: 'friends', label: 'Friends', icon: 'people' },
@@ -97,6 +110,11 @@ export default function FriendsScreen() {
   const [leaderboardSortDirection, setLeaderboardSortDirection] = useState<SortDirection>('desc');
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
+  /**
+   * Leaderboard rows already shown since the tab was opened. Refresh swaps in a spinner and
+   * remounts the rows, so only ids not seen yet play their entrance.
+   */
+  const shownLbIdsRef = useRef(new Set<string>());
 
   const sortedLeaderboard = useMemo(() => {
     const next = [...leaderboard];
@@ -447,6 +465,7 @@ export default function FriendsScreen() {
         tabs={FRIENDS_TABS}
         value={activeTab}
         onChange={(tab) => {
+          if (tab === 'leaderboard') shownLbIdsRef.current.clear();
           setActiveTab(tab);
           setShowLeaderboardSortDropdown(false);
         }}
@@ -460,7 +479,8 @@ export default function FriendsScreen() {
               Friends ({friends.length})
             </Text>
             <View style={styles.addBtnGroup}>
-              <Pressable
+              <PressableScale
+                pressedScale={0.92}
                 style={[
                   styles.refreshBtn,
                   { backgroundColor: c.cardAlt, borderColor: c.border },
@@ -472,15 +492,17 @@ export default function FriendsScreen() {
                 <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
                   <Icon name="refresh" size={20} color={c.textMuted} />
                 </Animated.View>
-              </Pressable>
-              <Pressable
+              </PressableScale>
+              <PressableScale
+                pressedScale={0.92}
                 style={[styles.scanBtn, { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder }]}
                 onPress={() => router.push('../qr-code?tab=scan')}
                 accessibilityRole="button"
                 accessibilityLabel="Scan a friend's QR code">
                 <Icon name="qr-code-scanner" size={20} color={c.blue} />
-              </Pressable>
-              <Pressable
+              </PressableScale>
+              <PressableScale
+                pressedScale={0.97}
                 style={[styles.addBtn, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
                 onPress={() => setShowAddModal(true)}
                 hitSlop={4}
@@ -488,7 +510,7 @@ export default function FriendsScreen() {
                 accessibilityLabel="Add friend">
                 <Icon name="person-add" size={20} color={c.accentText} />
                 <Text style={[styles.addBtnLabel, { color: c.accentText }]}>Add</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
           <SearchInput
@@ -504,8 +526,11 @@ export default function FriendsScreen() {
             <View style={styles.requestBlock}>
               <Text style={[styles.requestBlockTitle, { color: c.textMuted }]}>Incoming requests</Text>
               {incomingRequests.map((req, i) => (
-                <View
+                <Motion.View
                   key={req.playerId}
+                  entering={listItemEntering(i)}
+                  exiting={fadeOut}
+                  layout={layoutTransition}
                   style={[
                     styles.requestRow,
                     styles.vRow,
@@ -520,7 +545,8 @@ export default function FriendsScreen() {
                     <Text style={[styles.friendName, { color: c.textSecondary }]}>{req.name}</Text>
                   </View>
                   <View style={styles.requestActions}>
-                    <Pressable
+                    <PressableScale
+                      pressedScale={0.97}
                       style={[styles.requestAcceptBtn, { backgroundColor: c.accent }]}
                       onPress={async () => {
                         if (!user) return;
@@ -531,8 +557,9 @@ export default function FriendsScreen() {
                         }
                       }}>
                       <Text style={[styles.requestAcceptLabel, { color: c.onAccent }]}>Accept</Text>
-                    </Pressable>
-                    <Pressable
+                    </PressableScale>
+                    <PressableScale
+                      pressedScale={0.9}
                       hitSlop={8}
                       accessibilityRole="button"
                       accessibilityLabel={`Decline friend request from ${req.name}`}
@@ -545,9 +572,9 @@ export default function FriendsScreen() {
                         }
                       }}>
                       <Icon name="close" size={22} color={c.textHint} />
-                    </Pressable>
+                    </PressableScale>
                   </View>
-                </View>
+                </Motion.View>
               ))}
             </View>
           ) : null}
@@ -556,8 +583,11 @@ export default function FriendsScreen() {
             <View style={styles.requestBlock}>
               <Text style={[styles.requestBlockTitle, { color: c.textMuted }]}>Sent requests</Text>
               {outgoingRequests.map((req, i) => (
-                <View
+                <Motion.View
                   key={req.playerId}
+                  entering={listItemEntering(i)}
+                  exiting={fadeOut}
+                  layout={layoutTransition}
                   style={[
                     styles.requestRow,
                     styles.vRow,
@@ -574,7 +604,8 @@ export default function FriendsScreen() {
                       <Text style={[styles.pendingHint, { color: c.textHint }]}>Pending</Text>
                     </View>
                   </View>
-                  <Pressable
+                  <PressableScale
+                    pressedScale={0.9}
                     hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel={`Cancel friend request to ${req.name}`}
@@ -596,8 +627,8 @@ export default function FriendsScreen() {
                       ]);
                     }}>
                     <Text style={[styles.cancelRequestLabel, { color: c.lossLight }]}>Cancel</Text>
-                  </Pressable>
-                </View>
+                  </PressableScale>
+                </Motion.View>
               ))}
             </View>
           ) : null}
@@ -614,8 +645,11 @@ export default function FriendsScreen() {
           ) : (
             <View style={styles.friendList}>
               {filteredFriends.map((item, i) => (
-                <View
+                <Motion.View
                   key={item.playerId}
+                  entering={listItemEntering(i)}
+                  exiting={fadeOut}
+                  layout={layoutTransition}
                   style={[
                     styles.friendRow,
                     styles.vRow,
@@ -634,15 +668,16 @@ export default function FriendsScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Pressable
+                  <PressableScale
+                    pressedScale={0.92}
                     hitSlop={4}
                     style={styles.rowIconBtn}
                     accessibilityRole="button"
                     accessibilityLabel={`Remove ${item.name} from friends`}
                     onPress={() => handleRemoveFriend(item.playerId, item.name)}>
                     <Icon name="close" size={20} color={c.textHint} />
-                  </Pressable>
-                </View>
+                  </PressableScale>
+                </Motion.View>
               ))}
             </View>
           )}
@@ -657,7 +692,8 @@ export default function FriendsScreen() {
               Groups ({groups.length})
             </Text>
             <View style={styles.sectionHeaderActions}>
-              <Pressable
+              <PressableScale
+                pressedScale={0.92}
                 style={[
                   styles.refreshBtn,
                   { backgroundColor: c.cardAlt, borderColor: c.border },
@@ -669,8 +705,9 @@ export default function FriendsScreen() {
                 <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
                   <Icon name="refresh" size={20} color={c.textMuted} />
                 </Animated.View>
-              </Pressable>
-              <Pressable
+              </PressableScale>
+              <PressableScale
+                pressedScale={0.97}
                 style={[
                   styles.addBtn,
                   { backgroundColor: c.accentBg, borderColor: c.accentBorder },
@@ -684,7 +721,7 @@ export default function FriendsScreen() {
                 accessibilityState={{ disabled: !canCreateGroup }}>
                 <Icon name="group-add" size={20} color={c.accentText} />
                 <Text style={[styles.addBtnLabel, { color: c.accentText }]}>New</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
           <Text style={[styles.groupTabSub, { color: c.textHint }]}>
@@ -709,16 +746,20 @@ export default function FriendsScreen() {
           ) : filteredGroups.length === 0 ? (
             <EmptyState compact icon="search" title="No matches" message={`No group named “${groupSearchQuery.trim()}”.`} />
           ) : (
-            filteredGroups.map((group) => {
+            filteredGroups.map((group, groupIndex) => {
               const isExpanded = expandedGroupId === group.id;
               const isGroupOwner = group.ownerId === user?.uid || group.myRole === 'owner';
 
               return (
-                <View
+                <Motion.View
                   key={group.id}
+                  entering={listItemEntering(groupIndex)}
+                  exiting={fadeOut}
+                  layout={layoutTransition}
                   style={[styles.groupCard, { backgroundColor: c.card, borderColor: isExpanded ? c.borderAccent : c.border }]}>
                   <View style={styles.groupHeader}>
-                    <Pressable
+                    <PressableScale
+                      pressedScale={0.985}
                       style={styles.groupHeaderLeft}
                       onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
                       <Icon name="group" size={20} color={c.textMuted} />
@@ -726,36 +767,44 @@ export default function FriendsScreen() {
                       <Text style={[styles.groupCount, { color: c.textHint }]}>
                         {group.memberCount ?? 0} {(group.memberCount ?? 0) === 1 ? 'player' : 'players'}
                       </Text>
-                    </Pressable>
+                    </PressableScale>
                     <View style={styles.groupHeaderRight}>
                       {isGroupOwner ? (
                         <>
-                          <Pressable
-                            hitSlop={8}
+                          <PressableScale
+                            pressedScale={0.9}
+                            hitSlop={4}
+                            style={styles.groupIconBtn}
                             accessibilityRole="button"
                             accessibilityLabel={`Rename group ${group.name}`}
                             onPress={() => openRenameGroupModal(group)}>
                             <Icon name="edit" size={20} color={c.textHint} />
-                          </Pressable>
-                          <Pressable
-                            hitSlop={8}
+                          </PressableScale>
+                          <PressableScale
+                            pressedScale={0.9}
+                            hitSlop={4}
+                            style={styles.groupIconBtn}
                             accessibilityRole="button"
                             accessibilityLabel={`Delete group ${group.name}`}
                             onPress={() => handleDeleteGroup(group.id, group.name)}>
                             <Icon name="delete-outline" size={20} color={c.textHint} />
-                          </Pressable>
+                          </PressableScale>
                         </>
                       ) : (
-                        <Pressable
-                          hitSlop={8}
+                        <PressableScale
+                          pressedScale={0.9}
+                          hitSlop={4}
+                          style={styles.groupIconBtn}
                           accessibilityRole="button"
                           accessibilityLabel={`Leave group ${group.name}`}
                           onPress={() => handleLeaveGroup(group.id, group.name)}>
                           <Icon name="logout" size={20} color={c.textHint} />
-                        </Pressable>
+                        </PressableScale>
                       )}
-                      <Pressable
-                        hitSlop={8}
+                      <PressableScale
+                        pressedScale={0.9}
+                        hitSlop={4}
+                        style={styles.groupIconBtn}
                         accessibilityRole="button"
                         accessibilityLabel={isExpanded ? `Collapse group ${group.name}` : `Expand group ${group.name}`}
                         onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
@@ -764,7 +813,7 @@ export default function FriendsScreen() {
                           size={22}
                           color={c.textMuted}
                         />
-                      </Pressable>
+                      </PressableScale>
                     </View>
                   </View>
 
@@ -816,7 +865,8 @@ export default function FriendsScreen() {
                         </ScrollView>
                       )}
                       <View style={styles.groupActionsRow}>
-                        <Pressable
+                        <PressableScale
+                          pressedScale={0.97}
                           style={[
                             styles.manageBtn,
                             { backgroundColor: c.accentBg, borderColor: c.accentBorder },
@@ -826,9 +876,10 @@ export default function FriendsScreen() {
                           <Text style={[styles.manageBtnLabel, { color: c.accentText }]}>
                             {isGroupOwner ? 'Manage Members' : 'View Members'}
                           </Text>
-                        </Pressable>
+                        </PressableScale>
 
-                        <Pressable
+                        <PressableScale
+                          pressedScale={0.97}
                           style={[
                             styles.manageBtn,
                             { backgroundColor: c.blueBg, borderColor: c.blueBorder },
@@ -839,11 +890,11 @@ export default function FriendsScreen() {
                           }}>
                           <Icon name="leaderboard" size={16} color={c.blue} />
                           <Text style={[styles.manageBtnLabel, { color: c.blue }]}>Leaderboard</Text>
-                        </Pressable>
+                        </PressableScale>
                       </View>
                     </View>
                   )}
-                </View>
+                </Motion.View>
               );
             })
           )}
@@ -860,7 +911,8 @@ export default function FriendsScreen() {
           <View style={[styles.sectionHeader, showLeaderboardSortDropdown && styles.menuAnchorRaised]}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>
             <View style={styles.sectionHeaderActions}>
-              <Pressable
+              <PressableScale
+                pressedScale={0.92}
                 style={[
                   styles.refreshBtn,
                   { backgroundColor: c.cardAlt, borderColor: c.border },
@@ -872,18 +924,22 @@ export default function FriendsScreen() {
                 <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
                   <Icon name="refresh" size={20} color={c.textMuted} />
                 </Animated.View>
-              </Pressable>
+              </PressableScale>
               <View style={styles.lbSortWrap}>
-              <Pressable
+              <PressableScale
+                pressedScale={0.97}
                 style={[styles.lbSortBtnLabeled, { backgroundColor: c.cardAlt, borderColor: c.border }]}
                 onPress={() => setShowLeaderboardSortDropdown((prev) => !prev)}>
                 <Icon name="sort" size={20} color={c.textMuted} />
                 <Text style={[styles.lbSortBtnText, { color: c.textMuted }]}>
                   {leaderboardSortBy === 'profit' ? 'Profit' : 'Name'} ({leaderboardSortDirection === 'asc' ? 'Asc' : 'Desc'})
                 </Text>
-              </Pressable>
+              </PressableScale>
               {showLeaderboardSortDropdown ? (
-                <View style={[styles.lbSortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
+                <Motion.View
+                  entering={menuEntering}
+                  exiting={fadeOut}
+                  style={[styles.lbSortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Sort by</Text>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortBy === 'profit' && { backgroundColor: c.accentBg }]}
@@ -931,7 +987,7 @@ export default function FriendsScreen() {
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Ascending</Text>
                     {leaderboardSortDirection === 'asc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
-                </View>
+                </Motion.View>
               ) : null}
               </View>
             </View>
@@ -949,9 +1005,15 @@ export default function FriendsScreen() {
           ) : (
             sortedLeaderboard.map((entry, idx) => {
               const isMe = entry.playerId === user?.uid;
+              const isFirstShow = !shownLbIdsRef.current.has(entry.playerId);
+              shownLbIdsRef.current.add(entry.playerId);
               return (
-                <View
+                <Motion.View
                   key={entry.playerId}
+                  entering={isFirstShow ? listItemEntering(idx) : undefined}
+                  exiting={fadeOut}
+                  // Re-sorting slides rows to their new rank.
+                  layout={layoutTransition}
                   style={[
                     styles.lbRow,
                     styles.vRow,
@@ -969,7 +1031,7 @@ export default function FriendsScreen() {
                   <Text style={[styles.lbProfit, { color: entry.totalProfit >= 0 ? c.profit : c.loss }]}>
                     {formatSignedCurrency(entry.totalProfit)}
                   </Text>
-                </View>
+                </Motion.View>
               );
             })
           )}
@@ -1088,8 +1150,9 @@ export default function FriendsScreen() {
                   groupLeaderboard.map((entry, idx) => {
                     const isMe = entry.playerId === user?.uid;
                     return (
-                      <View
+                      <Motion.View
                         key={entry.playerId}
+                        entering={listItemEntering(idx)}
                         style={[
                           styles.lbRow,
                           styles.vRow,
@@ -1107,7 +1170,7 @@ export default function FriendsScreen() {
                         <Text style={[styles.lbProfit, { color: entry.totalProfit >= 0 ? c.profit : c.loss }]}>
                           {formatSignedCurrency(entry.totalProfit)}
                         </Text>
-                      </View>
+                      </Motion.View>
                     );
                   })
                 )}
@@ -1296,6 +1359,7 @@ const styles = StyleSheet.create({
   },
   lbSortDropdown: {
     position: 'absolute',
+    transformOrigin: 'top right',
     top: '100%',
     marginTop: 8,
     right: 0,
@@ -1520,17 +1584,26 @@ const styles = StyleSheet.create({
   groupHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 4,
+    marginRight: -8,
+  },
+  groupIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   groupBody: {
     paddingHorizontal: 16,
+    paddingTop: 4,
     paddingBottom: 16,
-    gap: 8,
+    gap: 12,
   },
   groupEmpty: {
     fontSize: 13,
     textAlign: 'center',
-    paddingVertical: 4,
+    paddingVertical: 12,
   },
   memberRow: {
     flexDirection: 'row',

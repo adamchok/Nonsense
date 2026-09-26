@@ -1,6 +1,7 @@
 import { Icon } from '@/components/icon';
+import { Animated, PressableScale, fadeIn, fadeOut } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 type Props = Omit<TextInputProps, 'style' | 'value' | 'onChangeText'> & {
   value: string;
@@ -27,14 +28,17 @@ export function SearchInput({ value, onChangeText, ...inputProps }: Props) {
         <Icon name="search" size={18} color={c.textMuted} importantForAccessibility="no" />
       </View>
       {value ? (
-        <Pressable
-          onPress={() => onChangeText('')}
-          hitSlop={6}
-          accessibilityRole="button"
-          accessibilityLabel="Clear search"
-          style={styles.clear}>
-          <Icon name="close" size={16} color={c.textMuted} />
-        </Pressable>
+        <Animated.View entering={fadeIn} exiting={fadeOut} style={styles.clear}>
+          <PressableScale
+            onPress={() => onChangeText('')}
+            hitSlop={6}
+            pressedScale={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+            style={styles.clearButton}>
+            <Icon name="close" size={16} color={c.textMuted} />
+          </PressableScale>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -60,6 +64,8 @@ const styles = StyleSheet.create({
   clear: {
     position: 'absolute',
     right: 8,
+  },
+  clearButton: {
     width: 32,
     height: 32,
     borderRadius: 16,

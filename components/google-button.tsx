@@ -1,5 +1,6 @@
+import { PressableScale } from '@/components/motion';
 import { useResolvedColorScheme } from '@/lib/theme-context';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 /** Google's recommended neutral button colours (Sign in with Google branding guidelines). */
@@ -32,7 +33,7 @@ export function GoogleButton({ label, onPress, busy = false, disabled = false, a
   const t = THEMES[useResolvedColorScheme()];
   const isDisabled = disabled || busy;
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
@@ -52,7 +53,7 @@ export function GoogleButton({ label, onPress, busy = false, disabled = false, a
           <Text style={[styles.label, { color: t.text }]}>{label}</Text>
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 

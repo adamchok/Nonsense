@@ -19,9 +19,26 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
+import { Animated as Motion, PressableScale, layoutTransition, fadeOut, listItemEntering, webSafe } from '@/components/motion';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
+
+/** Dropdown menus grow from their top-right anchor: fade + scale up from 0.96. */
+const menuEntering = webSafe(
+  new Keyframe({
+    0: { opacity: 0, transform: [{ scale: 0.96 }] },
+    100: { opacity: 1, transform: [{ scale: 1 }] },
+  })
+    .duration(160)
+    .reduceMotion(ReduceMotion.System),
+  FadeIn.duration(160).reduceMotion(ReduceMotion.System),
+);
+
+/** Width of the red action revealed by swiping a history row left. */
+const SWIPE_ACTION_WIDTH = 96;
 
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
 type SortKey = 'datetime' | 'buyIn' | 'profit' | 'duration';
@@ -137,6 +154,11 @@ export default function HistoryScreen() {
   const filterScrollRef = useRef<ScrollView>(null);
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
+  /**
+   * Rows already shown once. The list remounts on every focus (spinner in between), so rows
+   * only play their entrance the first time their id appears: new or newly loaded ones.
+   */
+  const shownRowIdsRef = useRef(new Set<string>());
   /** Bumped on every fresh load and on blur so a stale response (or its cursor) can't land. */
   const loadGenerationRef = useRef(0);
 
@@ -415,7 +437,8 @@ export default function HistoryScreen() {
       <View style={[styles.titleRow, showSortDropdown && styles.menuAnchorRaised]}>
         <Text style={[styles.title, { color: c.text }]}>My Winnings</Text>
         <View style={styles.headerActions}>
-          <Pressable
+          <PressableScale
+            pressedScale={0.92}
             style={[
               styles.filterButton,
               { backgroundColor: c.cardAlt, borderColor: c.border },
@@ -427,17 +450,21 @@ export default function HistoryScreen() {
             <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
               <Icon name="refresh" size={20} color={c.textMuted} />
             </Animated.View>
-          </Pressable>
+          </PressableScale>
           <View style={styles.sortWrap}>
-            <Pressable
+            <PressableScale
+              pressedScale={0.92}
               style={[styles.filterButton, { backgroundColor: c.cardAlt, borderColor: c.border }]}
               onPress={() => setShowSortDropdown((prev) => !prev)}
               accessibilityRole="button"
               accessibilityLabel="Open sort options">
               <Icon name="sort" size={20} color={c.textMuted} />
-            </Pressable>
+            </PressableScale>
             {showSortDropdown ? (
-              <View style={[styles.sortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Motion.View
+                entering={menuEntering}
+                exiting={fadeOut}
+                style={[styles.sortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
                 <Text style={[styles.sortSectionTitle, { color: c.textHint }]}>Sort by</Text>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'datetime' && { backgroundColor: c.accentBg }]}
@@ -507,10 +534,11 @@ export default function HistoryScreen() {
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Ascending</Text>
                   {sortDirection === 'asc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
-              </View>
+              </Motion.View>
             ) : null}
           </View>
-          <Pressable
+          <PressableScale
+            pressedScale={0.92}
             style={[
               styles.filterButton,
               {
@@ -526,7 +554,7 @@ export default function HistoryScreen() {
               size={20}
               color={hasActiveFilters ? c.accentText : c.textMuted}
             />
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
 
@@ -589,14 +617,15 @@ export default function HistoryScreen() {
           />
         )
       ) : (
-        <FlatList
+        <Motion.FlatList
           data={sortedHistory}
           keyExtractor={(item) => item.id}
+          itemLayoutAnimation={layoutTransition}
           style={styles.list}
           ListFooterComponent={
             hasMoreHistory ? (
               <View style={styles.historyPaginationFooter}>
-                <Pressable
+                <PressableScale
                   style={[
                     styles.loadMoreBtn,
                     { backgroundColor: c.card, borderColor: c.inputBorder },
@@ -613,7 +642,7 @@ export default function HistoryScreen() {
                       Load more ({HISTORY_TAB_PAGE_SIZE} older)
                     </Text>
                   )}
-                </Pressable>
+                </PressableScale>
               </View>
             ) : history.length > 0 ? (
               null
@@ -621,75 +650,18 @@ export default function HistoryScreen() {
           }
           renderItem={({ item, index }) => {
             const isHost = Boolean(playerProfile && item.hostId === playerProfile.id);
-            const removeLabel = isHost ? 'Delete session' : 'Remove from history';
-            const onRemove = () => (isHost ? confirmDeleteSession(item.id) : confirmLeaveSession(item.id));
-            const blindsText = formatSessionBlindsForDisplay(
-              item.smallBlind,
-              item.bigBlind,
-              item.amountUnit,
-              item.dollarsPerChip
-            );
+            const isFirstShow = !shownRowIdsRef.current.has(item.id);
+            shownRowIdsRef.current.add(item.id);
             return (
-              <Pressable
-                style={(state) => [
-                  styles.historyCard,
-                  index === 0 && styles.historyCardFirst,
-                  index === sortedHistory.length - 1 && styles.historyCardLast,
-                  { borderColor: c.border },
-                  pressBg(c, state, c.card),
-                ]}
-                onPress={() => router.push(`../session/summary/${item.id}`)}
-                onLongPress={onRemove}
-                accessibilityRole="button"
-                accessibilityLabel={`${formatDateTimeDMY(item.date)}, ${isHost ? 'host' : 'participant'}, ${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}, ${item.location ? item.location : 'no location'}`}
-                accessibilityHint="Opens the session summary"
-                accessibilityActions={[{ name: 'remove', label: removeLabel }]}
-                onAccessibilityAction={(e) => {
-                  if (e.nativeEvent.actionName === 'remove') onRemove();
-                }}>
-                <View style={styles.historyTop}>
-                  <View style={styles.historyTitleRow}>
-                    <Text style={[styles.historyLabel, { color: c.text }]}>
-                      {formatDateTimeDMY(item.date)}
-                    </Text>
-                    <View
-                      style={[
-                        styles.roleBadge,
-                        { backgroundColor: isHost ? c.badge.host : c.badge.you },
-                      ]}>
-                      <Text style={styles.roleBadgeText}>
-                        {isHost ? 'HOST' : 'PARTICIPANT'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.historyTopRight}>
-                    <Text
-                      style={[
-                        styles.historyProfit,
-                        { color: item.profit >= 0 ? c.profit : c.loss },
-                      ]}>
-                      {formatSignedCurrency(item.profit)}
-                    </Text>
-                    <Pressable
-                      onPress={onRemove}
-                      hitSlop={8}
-                      style={styles.historyMoreBtn}
-                      accessibilityRole="button"
-                      accessibilityLabel={removeLabel}>
-                      <Icon name="more-vert" size={20} color={c.textMuted} />
-                    </Pressable>
-                  </View>
-                </View>
-                <Text style={[styles.historyMeta, { color: c.textMuted }]}>
-                  {item.location ? item.location : 'No location'}
-                  {blindsText ? ` • ${blindsText}` : ''}
-                  {' • '}
-                  {formatDuration(getSessionDurationMs(item))}
-                </Text>
-                <Text style={[styles.historyDetail, { color: c.textHint }]}>
-                  Buy-in: {formatCurrency(item.totalBuyIn)}  Cash-out: {formatCurrency(item.cashOut)}
-                </Text>
-              </Pressable>
+              <HistoryRow
+                item={item}
+                isHost={isHost}
+                isFirst={index === 0}
+                isLast={index === sortedHistory.length - 1}
+                entering={isFirstShow ? listItemEntering(index) : undefined}
+                onOpen={() => router.push(`../session/summary/${item.id}`)}
+                onRemove={() => (isHost ? confirmDeleteSession(item.id) : confirmLeaveSession(item.id))}
+              />
             );
           }}
         />
@@ -1050,7 +1022,133 @@ export default function HistoryScreen() {
   );
 }
 
+type HistoryRowProps = {
+  item: HistoryEntry;
+  isHost: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  entering: ReturnType<typeof listItemEntering> | undefined;
+  onOpen: () => void;
+  onRemove: () => void;
+};
+
+/**
+ * One history session. Tap opens the summary; swipe left (or the more button, long-press, or
+ * the accessibility action) offers the same remove/delete, which still asks to confirm.
+ */
+function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove }: HistoryRowProps) {
+  const c = useAppColors();
+  const swipeRef = useRef<SwipeableMethods>(null);
+  const removeLabel = isHost ? 'Delete session' : 'Remove from history';
+  const blindsText = formatSessionBlindsForDisplay(item.smallBlind, item.bigBlind, item.amountUnit, item.dollarsPerChip);
+
+  const remove = () => {
+    swipeRef.current?.close();
+    onRemove();
+  };
+
+  return (
+    <Motion.View entering={entering} exiting={fadeOut}>
+      <ReanimatedSwipeable
+        ref={swipeRef}
+        friction={2}
+        rightThreshold={SWIPE_ACTION_WIDTH / 2}
+        overshootRight={false}
+        containerStyle={[
+          styles.historySwipeContainer,
+          { backgroundColor: c.loss },
+          isFirst && styles.historyCardFirst,
+          isLast && styles.historySwipeContainerLast,
+        ]}
+        renderRightActions={() => (
+          <Pressable
+            onPress={remove}
+            style={styles.historySwipeAction}
+            accessibilityRole="button"
+            accessibilityLabel={removeLabel}
+            // The row already exposes this action (more button + accessibility action).
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            tabIndex={-1}>
+            <Icon name="delete-outline" size={20} color="#fff" />
+            <Text style={styles.historySwipeLabel}>{isHost ? 'Delete' : 'Remove'}</Text>
+          </Pressable>
+        )}>
+        <PressableScale
+          pressedScale={0.985}
+          style={(state) => [
+            styles.historyCard,
+            isFirst && styles.historyCardFirst,
+            isLast && styles.historyCardLast,
+            { borderColor: c.border },
+            pressBg(c, state, c.card),
+          ]}
+          onPress={onOpen}
+          onLongPress={onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={`${formatDateTimeDMY(item.date)}, ${isHost ? 'host' : 'participant'}, ${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}, ${item.location ? item.location : 'no location'}`}
+          accessibilityHint="Opens the session summary"
+          accessibilityActions={[{ name: 'remove', label: removeLabel }]}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === 'remove') onRemove();
+          }}>
+          <View style={styles.historyTop}>
+            <View style={styles.historyTitleRow}>
+              <Text style={[styles.historyLabel, { color: c.text }]}>{formatDateTimeDMY(item.date)}</Text>
+              <View style={[styles.roleBadge, { backgroundColor: isHost ? c.badge.host : c.badge.you }]}>
+                <Text style={styles.roleBadgeText}>{isHost ? 'HOST' : 'PARTICIPANT'}</Text>
+              </View>
+            </View>
+            <View style={styles.historyTopRight}>
+              <Text style={[styles.historyProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
+                {formatSignedCurrency(item.profit)}
+              </Text>
+              <PressableScale
+                onPress={onRemove}
+                hitSlop={8}
+                pressedScale={0.9}
+                style={styles.historyMoreBtn}
+                accessibilityRole="button"
+                accessibilityLabel={removeLabel}>
+                <Icon name="more-vert" size={20} color={c.textMuted} />
+              </PressableScale>
+            </View>
+          </View>
+          <Text style={[styles.historyMeta, { color: c.textMuted }]}>
+            {item.location ? item.location : 'No location'}
+            {blindsText ? ` • ${blindsText}` : ''}
+            {' • '}
+            {formatDuration(getSessionDurationMs(item))}
+          </Text>
+          <Text style={[styles.historyDetail, { color: c.textHint }]}>
+            Buy-in: {formatCurrency(item.totalBuyIn)}  Cash-out: {formatCurrency(item.cashOut)}
+          </Text>
+        </PressableScale>
+      </ReanimatedSwipeable>
+    </Motion.View>
+  );
+}
+
 const styles = StyleSheet.create({
+  historySwipeContainer: {
+    overflow: 'hidden',
+  },
+  /** Only the last row's corners are rounded at the bottom; clip the red layer to match. */
+  historySwipeContainerLast: {
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+  },
+  historySwipeAction: {
+    width: SWIPE_ACTION_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  historySwipeLabel: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   screen: {
     flex: 1,
     paddingTop: 48,
@@ -1095,6 +1193,7 @@ const styles = StyleSheet.create({
   },
   sortDropdown: {
     position: 'absolute',
+    transformOrigin: 'top right',
     top: '100%',
     marginTop: 8,
     right: 0,

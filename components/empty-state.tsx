@@ -1,6 +1,16 @@
 import { Icon, type IconName } from '@/components/icon';
+import { Animated, PressableScale, fadeIn, webSafe } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+import { ReduceMotion, ZoomIn, FadeIn } from 'react-native-reanimated';
+
+/** Icon circle settles in from slightly smaller, just after the text starts fading. */
+const iconEntering = webSafe(
+  ZoomIn.duration(260).delay(40).reduceMotion(ReduceMotion.System).withInitialValues({
+    transform: [{ scale: 0.85 }],
+  }),
+  FadeIn.duration(260).delay(40).reduceMotion(ReduceMotion.System),
+);
 
 type Props = {
   icon: IconName;
@@ -15,24 +25,24 @@ type Props = {
 export function EmptyState({ icon, title, message, action, compact = false }: Props) {
   const c = useAppColors();
   return (
-    <View style={[styles.wrap, compact && styles.compact]}>
-      <View style={[styles.iconCircle, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
+    <Animated.View entering={fadeIn} style={[styles.wrap, compact && styles.compact]}>
+      <Animated.View entering={iconEntering} style={[styles.iconCircle, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
         <Icon name={icon} size={26} color={c.textMuted} importantForAccessibility="no" />
-      </View>
+      </Animated.View>
       <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
         {title}
       </Text>
       {message ? <Text style={[styles.message, { color: c.textMuted }]}>{message}</Text> : null}
       {action ? (
-        <Pressable
+        <PressableScale
           onPress={action.onPress}
           accessibilityRole="button"
           style={[styles.action, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
           {action.icon ? <Icon name={action.icon} size={18} color={c.accentText} /> : null}
           <Text style={[styles.actionLabel, { color: c.accentText }]}>{action.label}</Text>
-        </Pressable>
+        </PressableScale>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 

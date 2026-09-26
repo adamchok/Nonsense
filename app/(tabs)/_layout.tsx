@@ -8,12 +8,14 @@ import { BottomTabBar, type BottomTabNavigationOptions } from '@react-navigation
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
 const isWeb = Platform.OS === 'web';
 
 export default function TabLayout() {
   const c = useAppColors();
   const { isMd } = useBreakpoint();
+  const reduceMotion = useReducedMotion();
 
   // Theme tokens (not the device scheme), so the bar follows the in-app light/dark choice.
   const tabBarColors = {
@@ -26,6 +28,8 @@ export default function TabLayout() {
     tabBarStyle: tabBarColors,
     headerShown: false,
     tabBarButton: HapticTab,
+    // Quick 150ms cross-fade between tabs (React Navigation 7), off under reduce motion.
+    animation: reduceMotion ? 'none' : 'fade',
   };
 
   if (!isWeb) {
