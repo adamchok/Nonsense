@@ -26,8 +26,10 @@ import {
   AccountLinkError,
   isGoogleLinked,
   linkAnonymousWithCredential,
+  linkAnonymousWithPopup,
   linkedEmail as getLinkedEmail,
   signInWithAccountCredential,
+  signInWithPopupProvider,
   toAccountLinkError,
 } from '@/lib/account-link';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
@@ -108,10 +110,20 @@ function mapGoogleError(err: unknown): AccountLinkError {
   return toAccountLinkError(err);
 }
 
+const IS_WEB = Platform.OS === 'web';
+
+/** Web: Firebase's own Google popup. Always show the account chooser, like the native picker. */
+function newGoogleProvider(): GoogleAuthProvider {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  return provider;
+}
+
 /** Show the native Google account picker and turn the result into a Firebase credential. */
 async function getGoogleCredential(): Promise<AuthCredential> {
-  if (Platform.OS === 'web') {
-    throw new AccountLinkError('unknown', 'Google sign-in is not supported on web. Use the Android app.');
+  if (IS_WEB) {
+    // Web goes through the popup helpers instead; reaching this is a programming error.
+    throw new AccountLinkError('unknown', 'Native Google sign-in is not available on web.');
   }
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   if (!webClientId) {
@@ -223,15 +235,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth.currentUser) throw new AccountLinkError('no-user');
     if (isGoogleLinked(auth.currentUser)) throw new AccountLinkError('already-linked');
 
-    const credential = await getGoogleCredential();
+    // Web: no await before the popup opens, so the browser still treats it as user-initiated.
+    const linked = IS_WEB
+      ? await linkAnonymousWithPopup(auth, newGoogleProvider())
+      : await linkAnonymousWithCredential(auth, await getGoogleCredential());
     // Same uid, so onAuthStateChanged does not fire: refresh link state explicitly.
-    const linked = await linkAnonymousWithCredential(auth, credential);
     setLinkInfo(linkInfoOf(linked));
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    const credential = await getGoogleCredential();
-    const signedIn = await signInWithAccountCredential(getFirebaseAuth(), credential);
+    const auth = getFirebaseAuth();
+    const signedIn = IS_WEB
+      ? await signInWithPopupProvider(auth, newGoogleProvider())
+      : await signInWithAccountCredential(auth, await getGoogleCredential());
     // onAuthStateChanged also fires for the new uid, but load here too so that when this
     // resolves playerProfile already reflects the signed-in account.
     let profile: PlayerProfile | null = null;
