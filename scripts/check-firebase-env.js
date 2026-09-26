@@ -16,6 +16,8 @@ const REQUIRED = [
   'EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET',
   'EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
   'EXPO_PUBLIC_FIREBASE_APP_ID',
+  // Google account backup (lib/auth-context.tsx); missing = sign-in fails on device.
+  'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
 ];
 
 const missing = REQUIRED.filter((name) => !process.env[name]);
