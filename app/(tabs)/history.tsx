@@ -21,6 +21,7 @@ import { ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, Styl
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
 import { PLChart } from '@/components/pl-chart';
+import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { HistoryFilterSheet } from '@/components/history-filter-sheet';
 import { DEFAULT_FILTERS, countActiveFilters, filterEntries, type FilterState } from '@/lib/history-filters';
 import { Animated as Motion, PressableScale, layoutTransition, fadeOut, listItemEntering, webSafe } from '@/components/motion';
@@ -451,18 +452,24 @@ export default function HistoryScreen() {
             { backgroundColor: c.card, borderColor: c.borderAccent },
           ]}>
           <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Lifetime Profit/Loss</Text>
-          <Text
-            style={[
-              styles.summaryValue,
-              { color: totalProfit >= 0 ? c.profit : c.loss },
-            ]}>
-            {formatTightCompactNumber(totalProfit, { signed: true, currency: true })}
-          </Text>
-          <Text style={[styles.summaryMeta, { color: c.textHint }]}>
-            {filteredHistory.length} session{filteredHistory.length !== 1 ? 's' : ''}
-            {hasActiveFilters ? ' (filtered)' : ''}
-            {hasMoreHistory ? ` · ${history.length} loaded` : ''}
-          </Text>
+          {loading ? (
+            <SummaryValueSkeleton valueWidth={96} metaWidth={70} />
+          ) : (
+            <>
+              <Text
+                style={[
+                  styles.summaryValue,
+                  { color: totalProfit >= 0 ? c.profit : c.loss },
+                ]}>
+                {formatTightCompactNumber(totalProfit, { signed: true, currency: true })}
+              </Text>
+              <Text style={[styles.summaryMeta, { color: c.textHint }]}>
+                {filteredHistory.length} session{filteredHistory.length !== 1 ? 's' : ''}
+                {hasActiveFilters ? ' (filtered)' : ''}
+                {hasMoreHistory ? ` · ${history.length} loaded` : ''}
+              </Text>
+            </>
+          )}
         </View>
         <View
           style={[
@@ -471,21 +478,25 @@ export default function HistoryScreen() {
             { backgroundColor: c.card, borderColor: c.border },
           ]}>
           <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Total Played</Text>
-          <Text style={[styles.summaryValue, { color: c.text }]}>
-            {totalHoursPlayed.toFixed(1)}h
-          </Text>
-          <Text style={[styles.summaryMeta, { color: c.textHint }]}>
-            {hasMoreHistory ? 'Among loaded sessions' : 'Across all sessions'}
-          </Text>
+          {loading ? (
+            <SummaryValueSkeleton valueWidth={64} metaWidth={110} />
+          ) : (
+            <>
+              <Text style={[styles.summaryValue, { color: c.text }]}>
+                {totalHoursPlayed.toFixed(1)}h
+              </Text>
+              <Text style={[styles.summaryMeta, { color: c.textHint }]}>
+                {hasMoreHistory ? 'Among loaded sessions' : 'Across all sessions'}
+              </Text>
+            </>
+          )}
         </View>
       </View>
 
       {error ? <Text style={[styles.historyMeta, { color: c.loss }]}>{error}</Text> : null}
 
       {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={c.textMuted} />
-        </View>
+        <HistorySkeleton />
       ) : filteredHistory.length === 0 ? (
         history.length === 0 ? (
           <EmptyState
@@ -791,7 +802,103 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
   );
 }
 
+/** Bones for a summary card's value (24/30 type) and meta line (12/16), same heights as the text. */
+function SummaryValueSkeleton({ valueWidth, metaWidth }: { valueWidth: number; metaWidth: number }) {
+  return (
+    <>
+      <Skeleton width={valueWidth} height={24} style={styles.skeletonValue} />
+      <Skeleton width={metaWidth} height={11} style={styles.skeletonLine} />
+    </>
+  );
+}
+
+const SKELETON_ROWS = [
+  { date: 120, badge: 44, profit: 64, meta: '62%', detail: '54%' },
+  { date: 112, badge: 80, profit: 56, meta: '48%', detail: '58%' },
+  { date: 124, badge: 80, profit: 70, meta: '56%', detail: '52%' },
+  { date: 116, badge: 44, profit: 60, meta: '66%', detail: '56%' },
+  { date: 120, badge: 80, profit: 52, meta: '50%', detail: '54%' },
+] as const;
+
+/**
+ * Loading state for the list area: the chart card and a grouped card of session rows, built
+ * from the real card styles so data lands in the same spots.
+ */
+function HistorySkeleton() {
+  const c = useAppColors();
+  const layout = usePageLayout();
+  return (
+    <SkeletonGroup label="Loading history" style={styles.list}>
+      <View
+        style={[
+          styles.chartCard,
+          { backgroundColor: c.card, borderColor: c.border, marginBottom: layout.sectionGap },
+        ]}>
+        <View style={styles.skeletonChartTitleRow}>
+          <Skeleton width={120} height={12} />
+          <Skeleton width={104} height={34} radius={17} />
+        </View>
+        <Skeleton height={SKELETON_PLOT_HEIGHT} radius={8} style={styles.skeletonPlot} />
+        <Skeleton width={110} height={10} style={styles.skeletonCaption} />
+      </View>
+      {SKELETON_ROWS.map((row, index) => (
+        <View
+          key={index}
+          style={[
+            styles.historyCard,
+            index === 0 && styles.historyCardFirst,
+            index === SKELETON_ROWS.length - 1 && styles.historyCardLast,
+            { borderColor: c.border, backgroundColor: c.card },
+          ]}>
+          <View style={styles.historyTop}>
+            <View style={styles.historyTitleRow}>
+              <Skeleton width={row.date} height={15} />
+              <Skeleton width={row.badge} height={17} radius={4} />
+            </View>
+            <View style={styles.historyTopRight}>
+              <Skeleton width={row.profit} height={15} />
+              <View style={styles.historyMoreBtn}>
+                <Icon name="more-vert" size={20} color={c.textMuted} />
+              </View>
+            </View>
+          </View>
+          <Skeleton width={row.meta} height={11} style={styles.skeletonLine} />
+          <Skeleton width={row.detail} height={11} style={styles.skeletonLine} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
+/** PLChart's plot area as rendered: 160px chart plus its x-axis strip (measured on web). */
+const SKELETON_PLOT_HEIGHT = 186;
+
 const styles = StyleSheet.create({
+  /** Centres a 24px bone in the value's 30px line. */
+  skeletonValue: {
+    marginVertical: 3,
+  },
+  /** Centres an 11px bone in a 16px meta line. */
+  skeletonLine: {
+    marginVertical: 2.5,
+  },
+  /** Mirrors PLChart's title row (min 40 tall, 8 below) and plot/caption spacing. */
+  skeletonChartTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 40,
+    marginBottom: 8,
+  },
+  skeletonPlot: {
+    marginTop: 12,
+  },
+  skeletonCaption: {
+    alignSelf: 'center',
+    marginTop: 6.5,
+    marginBottom: 2.5,
+  },
   historySwipeContainer: {
     overflow: 'hidden',
   },
@@ -960,11 +1067,6 @@ const styles = StyleSheet.create({
   loadMoreBtnLabel: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  loadingWrap: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: '20%',
   },
   /** Rows of one card: side + top borders on every row; radius and bottom border on the ends. */
   historyCard: {

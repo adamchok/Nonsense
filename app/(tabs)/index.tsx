@@ -7,6 +7,8 @@ import { getBuyIns, getRecentSessionsForPlayer } from '@/lib/firestore';
 import { useResolvedColorScheme } from '@/lib/theme-context';
 import type { SessionRecord } from '@/types';
 import { Icon } from '@/components/icon';
+import { Skeleton, SkeletonGroup } from '@/components/skeleton';
+import { radius } from '@/lib/spacing';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, type AppStateStatus, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -24,6 +26,8 @@ export default function HomeScreen() {
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [sessionMetaById, setSessionMetaById] = useState<Record<string, { playerCount: number; totalBuyIns: number }>>({});
   const [error, setError] = useState<string | null>(null);
+  /** False until the first load settles, so the card shows bones instead of a false "No active sessions". */
+  const [isLoaded, setIsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
 
@@ -53,11 +57,13 @@ export default function HomeScreen() {
           return;
         }
         setSessionMetaById(Object.fromEntries(metaEntries));
+        setIsLoaded(true);
       } catch (e) {
         if (opts?.signal?.aborted) {
           return;
         }
         setError(userMessage(e, 'Failed to load sessions.'));
+        setIsLoaded(true);
       }
     },
     [playerProfile]
@@ -182,7 +188,9 @@ export default function HomeScreen() {
           </PressableScale>
         </View>
         <View style={[ui.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          {activeSessions.length === 0 ? (
+          {!isLoaded && playerProfile ? (
+            <ActiveSessionsSkeleton />
+          ) : activeSessions.length === 0 ? (
             <EmptyState
               compact
               icon="style"
@@ -259,7 +267,32 @@ export default function HomeScreen() {
   );
 }
 
+/** Bones in the exact spots of an active-session row: tile, date, meta line, LIVE badge, chevron. */
+function ActiveSessionsSkeleton() {
+  const c = useAppColors();
+  return (
+    <SkeletonGroup label="Loading active sessions">
+      {[0, 1].map((index) => (
+        <View key={index} style={[ui.row, index > 0 && ui.rowDivider, { borderColor: c.border }]}>
+          <Skeleton width={32} height={32} radius={radius.tight} />
+          <View style={[ui.rowBody, styles.skeletonBody]}>
+            <Skeleton width="55%" height={15} />
+            <Skeleton width="70%" height={12} />
+          </View>
+          <Skeleton width={36} height={17} radius={4} />
+          <Icon name="chevron-right" size={20} color={c.textMuted} importantForAccessibility="no" />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
+  /** Text lines are 20 + 16 tall with a 2px gap; bones are shorter, so pad the gap to match. */
+  skeletonBody: {
+    gap: 7,
+    paddingVertical: 2,
+  },
   screen: {
     flex: 1,
   },
