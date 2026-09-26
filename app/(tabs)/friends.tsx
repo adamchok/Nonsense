@@ -15,6 +15,7 @@ import {
   fetchOutgoingFriendRequests,
   getFriendLeaderboard,
   getGroupLeaderboard,
+  leaveGroup,
   lookupPlayerByRefCode,
   removeFriend,
   renameGroup,
@@ -63,6 +64,8 @@ export default function FriendsScreen() {
   const [adding, setAdding] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
+  // A leaderboard that fails to load looks identical to one with no results — say which it is.
+  const [lbFailed, setLbFailed] = useState(false);
 
   const [groups, setGroups] = useState<PokerGroup[]>([]);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
@@ -150,10 +153,14 @@ export default function FriendsScreen() {
       } else {
         setLbLoading(true);
         try {
-          const lb = await getFriendLeaderboard(user.uid);
+          // Pull-to-refresh must bypass the cached session scan, or it appears to do nothing.
+          const lb = await getFriendLeaderboard(user.uid, true);
           setLeaderboard(lb);
-        } catch {
-          // keep existing list on failure
+          setLbFailed(false);
+        } catch (e) {
+          // Keep the existing list, but do not let the failure pass unseen.
+          console.error('Friend leaderboard refresh failed:', e);
+          setLbFailed(true);
         } finally {
           setLbLoading(false);
         }
@@ -196,9 +203,14 @@ export default function FriendsScreen() {
     setLbLoading(true);
     getFriendLeaderboard(user.uid)
       .then((lb) => {
-        if (!cancelled) setLeaderboard(lb);
+        if (cancelled) return;
+        setLeaderboard(lb);
+        setLbFailed(false);
       })
-      .catch(() => {})
+      .catch((e) => {
+        console.error('Friend leaderboard load failed:', e);
+        if (!cancelled) setLbFailed(true);
+      })
       .finally(() => {
         if (!cancelled) setLbLoading(false);
       });
@@ -239,7 +251,8 @@ export default function FriendsScreen() {
       try {
         const lb = await getGroupLeaderboard(user.uid, expandedGroupId);
         if (!cancelled) setGroupLeaderboard(lb);
-      } catch {
+      } catch (e) {
+        console.error('Group leaderboard load failed:', e);
         if (!cancelled) setGroupLeaderboard([]);
       } finally {
         if (!cancelled) setGroupLbLoading(false);
@@ -288,6 +301,26 @@ export default function FriendsScreen() {
             await deleteGroup(user.uid, groupId);
           } catch (e) {
             appAlert('Error', e instanceof Error ? e.message : 'Failed to delete group.');
+          }
+        },
+      },
+    ]);
+  }
+
+  /** A group owner can add anyone without asking, so members need an exit of their own. */
+  function handleLeaveGroup(groupId: string, groupName: string) {
+    if (!user) return;
+    appAlert(`Leave "${groupName}"?`, 'It disappears from your Groups tab. The owner can add you back.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            if (expandedGroupId === groupId) setExpandedGroupId(null);
+            await leaveGroup(user.uid, groupId);
+          } catch (e) {
+            appAlert('Error', e instanceof Error ? e.message : 'Failed to leave group.');
           }
         },
       },
@@ -688,7 +721,15 @@ export default function FriendsScreen() {
                             <MaterialIcons name="delete-outline" size={20} color={c.textHint} />
                           </Pressable>
                         </>
-                      ) : null}
+                      ) : (
+                        <Pressable
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Leave group ${group.name}`}
+                          onPress={() => handleLeaveGroup(group.id, group.name)}>
+                          <MaterialIcons name="logout" size={20} color={c.textHint} />
+                        </Pressable>
+                      )}
                       <Pressable
                         hitSlop={8}
                         accessibilityRole="button"
@@ -864,7 +905,9 @@ export default function FriendsScreen() {
               <ActivityIndicator size="large" color={c.textMuted} />
             </View>
           ) : leaderboard.length === 0 ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>No session results yet.</Text>
+            <Text style={[styles.emptyText, { color: c.textMuted }]}>
+              {lbFailed ? 'Could not load the leaderboard. Pull to refresh.' : 'No session results yet.'}
+            </Text>
           ) : (
             sortedLeaderboard.map((entry, idx) => {
               const isMe = entry.playerId === user?.uid;

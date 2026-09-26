@@ -14,6 +14,7 @@ import type {
 } from '@/types';
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
@@ -127,18 +128,16 @@ export async function upsertPlayerProfile(uid: string, name: string): Promise<Pl
     refCode = snapshot.data().refCode ? String(snapshot.data().refCode) : undefined;
     await setDoc(ref, { name, anonymousUid: uid }, { merge: true });
     if (prevName !== name) {
-      scheduleProfileDenormalization(
-        'displayName',
+      const propagateName = () =>
         Promise.all([
           propagateMyDisplayToFriends(uid, { name }),
           propagateDisplayNameToGroupMembers(uid, name),
-        ])
-      );
+        ]);
+      scheduleProfileDenormalization('displayName', propagateName(), propagateName);
     }
   } else {
-    refCode = generateRefCode();
     // Reserve the code first; rules only accept a profile refCode that `refCodes/{code}` maps back to us.
-    await setDoc(doc(db, 'refCodes', refCode), { playerId: uid });
+    refCode = await reserveRefCode(uid);
     await setDoc(ref, {
       name,
       anonymousUid: uid,
@@ -165,6 +164,38 @@ function generateRefCode(): string {
   return code;
 }
 
+const REF_CODE_RESERVE_ATTEMPTS = 5;
+
+function isPermissionDenied(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: unknown }).code === 'permission-denied'
+  );
+}
+
+/**
+ * Reserves a fresh ref code for this player.
+ *
+ * `refCodes/{code}` is create-only, so a random collision arrives as permission-denied and
+ * used to be fatal: profile creation failed with an opaque rules error and no retry. Trying
+ * a new code turns a collision into a non-event, while a genuine rules failure still
+ * surfaces once the attempts are spent.
+ */
+async function reserveRefCode(uid: string): Promise<string> {
+  const db = getFirestoreDb();
+  for (let attempt = 0; attempt < REF_CODE_RESERVE_ATTEMPTS; attempt++) {
+    const code = generateRefCode();
+    try {
+      await setDoc(doc(db, 'refCodes', code), { playerId: uid });
+      return code;
+    } catch (err) {
+      if (!isPermissionDenied(err)) throw err;
+    }
+  }
+  throw new Error('Could not reserve a referral code. Please try again.');
+}
+
 /** Ensure existing players get a refCode (back-fill). */
 export async function ensureRefCode(uid: string): Promise<string> {
   const db = getFirestoreDb();
@@ -174,9 +205,8 @@ export async function ensureRefCode(uid: string): Promise<string> {
   const data = snap.data();
   if (data.refCode) return String(data.refCode);
 
-  const code = generateRefCode();
   // Reserve the code first; rules only accept a profile refCode that `refCodes/{code}` maps back to us.
-  await setDoc(doc(db, 'refCodes', code), { playerId: uid });
+  const code = await reserveRefCode(uid);
   await updateDoc(ref, { refCode: code });
   return code;
 }
@@ -365,13 +395,33 @@ async function commitFriendAccept(myUid: string, friendUid: string): Promise<voi
 /** Max operations per Firestore batch (stay under 500). */
 const FRIEND_PROPAGATE_BATCH_SIZE = 400;
 
+const DENORM_RETRY_DELAY_MS = 3000;
+
 /**
  * Runs denormalized writes without blocking the caller so the canonical `players/{uid}` update
- * can finish and the UI can unblock; failures are logged (friends/groups may be briefly stale).
+ * can finish and the UI can unblock.
+ *
+ * These writes are the only thing keeping friends' and groups' cached copies of a name or
+ * avatar in step with the profile, and nothing reconciles them later — so a dropped write
+ * is permanent drift, not brief staleness. One delayed retry covers the common cause (a
+ * transient connection blip mid-update); anything past that is logged and left.
  */
-function scheduleProfileDenormalization(label: string, work: Promise<unknown>): void {
+function scheduleProfileDenormalization(
+  label: string,
+  work: Promise<unknown>,
+  retry?: () => Promise<unknown>
+): void {
   void work.catch((err) => {
-    console.error(`[Firestore profile denorm: ${label}]`, err);
+    if (!retry) {
+      console.error(`[Firestore profile denorm: ${label}]`, err);
+      return;
+    }
+    console.warn(`[Firestore profile denorm: ${label}] failed, retrying once`, err);
+    setTimeout(() => {
+      void retry().catch((retryErr) => {
+        console.error(`[Firestore profile denorm: ${label}] retry failed`, retryErr);
+      });
+    }, DENORM_RETRY_DELAY_MS);
   });
 }
 
@@ -492,6 +542,40 @@ async function getAccessibleSessionDocs(uid: string): Promise<QueryDocumentSnaps
   return [...byId.values()];
 }
 
+/**
+ * Leaderboards and lifetime statistics both fan out across every session the viewer can
+ * read, and that cost grows with play history and was paid again on every tab visit.
+ * These scans are cached for the life of the app process instead.
+ *
+ * A per-player aggregate document in Firestore would be the textbook fix, but it does not
+ * fit this data model: the totals would have to be written when a session settles, by the
+ * host — and a host writing into other players' documents is exactly the cross-player
+ * write path the participant rules deny. A self-written aggregate would instead let any
+ * player set their own leaderboard number directly. Deriving from `results` keeps the
+ * numbers as trustworthy as the ledger they come from; caching just stops re-deriving them.
+ */
+const SCAN_CACHE_TTL_MS = 5 * 60 * 1000;
+const scanCache = new Map<string, { expiresAt: number; value: Promise<unknown> }>();
+
+function cachedScan<T>(key: string, forceRefresh: boolean, run: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const hit = scanCache.get(key);
+  if (!forceRefresh && hit && hit.expiresAt > now) return hit.value as Promise<T>;
+
+  // A rejected scan must not be cached, or one offline moment poisons the tab for 5 minutes.
+  const value = run().catch((err) => {
+    scanCache.delete(key);
+    throw err;
+  });
+  scanCache.set(key, { expiresAt: now + SCAN_CACHE_TTL_MS, value });
+  return value;
+}
+
+/** Called after any write that changes what a scan would return. */
+export function invalidateSessionScanCache(): void {
+  scanCache.clear();
+}
+
 /** Sums each player's `results` profit across the viewer's sessions, one parallel read per session. */
 async function sumProfitsAcrossSessions(uid: string): Promise<Map<string, number>> {
   const db = getFirestoreDb();
@@ -511,13 +595,14 @@ async function sumProfitsAcrossSessions(uid: string): Promise<Map<string, number
 
 /** Leaderboard over sessions the viewer participates in (rules deny reading other sessions). */
 export async function getFriendLeaderboard(
-  uid: string
+  uid: string,
+  forceRefresh = false
 ): Promise<{ playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[]> {
   const db = getFirestoreDb();
   const [friendsSnap, myProfile, profitById] = await Promise.all([
     getDocs(collection(db, 'players', uid, 'friends')),
     getPlayerProfile(uid),
-    sumProfitsAcrossSessions(uid),
+    cachedScan(`profits:${uid}`, forceRefresh, () => sumProfitsAcrossSessions(uid)),
   ]);
 
   const leaderboard = friendsSnap.docs.map((d) => ({
@@ -541,11 +626,12 @@ export async function getFriendLeaderboard(
 /** Leaderboard over sessions the viewer participates in (rules deny reading other sessions). */
 export async function getGroupLeaderboard(
   uid: string,
-  groupId: string
+  groupId: string,
+  forceRefresh = false
 ): Promise<{ playerId: string; name: string; avatarEmoji?: string; totalProfit: number }[]> {
   const [members, profitById] = await Promise.all([
     getGroupMembers(uid, groupId),
-    sumProfitsAcrossSessions(uid),
+    cachedScan(`profits:${uid}`, forceRefresh, () => sumProfitsAcrossSessions(uid)),
   ]);
   if (members.length === 0) return [];
 
@@ -690,16 +776,29 @@ function mapSessionDocToRecord(sessionId: string, data: Record<string, unknown>)
  * mirror so the query itself is participant-scoped — security rules deny scanning sessions
  * the player isn't part of.
  */
+const RECENT_SESSIONS_DISPLAY_LIMIT = 20;
+/** Both queries are date-ordered, so a small over-fetch is enough to merge and dedupe them. */
+const RECENT_SESSIONS_FETCH_LIMIT = 40;
+
 export async function getRecentSessionsForPlayer(playerId: string): Promise<SessionRecord[]> {
   const db = getFirestoreDb();
   const [hostedSnap, participantSnap] = await Promise.all([
-    getDocs(query(collection(db, 'sessions'), where('hostId', '==', playerId), limit(200))),
+    // Ordered explicitly: without it Firestore returns the first 200 by document id, so a
+    // heavy host's genuinely recent sessions can be missing from "recent".
+    getDocs(
+      query(
+        collection(db, 'sessions'),
+        where('hostId', '==', playerId),
+        orderBy('date', 'desc'),
+        limit(RECENT_SESSIONS_FETCH_LIMIT)
+      )
+    ),
     getDocs(
       query(
         collection(db, 'sessions'),
         where('participantIds', 'array-contains', playerId),
         orderBy('date', 'desc'),
-        limit(200)
+        limit(RECENT_SESSIONS_FETCH_LIMIT)
       )
     ),
   ]);
@@ -715,17 +814,14 @@ export async function getRecentSessionsForPlayer(playerId: string): Promise<Sess
   const records = [...sessionsById.entries()].map(([sessionId, data]) =>
     mapSessionDocToRecord(sessionId, data)
   );
-  return records.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 20);
+  return records
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, RECENT_SESSIONS_DISPLAY_LIMIT);
 }
 
 // ---------------------------------------------------------------------------
 // Session lifecycle
 // ---------------------------------------------------------------------------
-
-export async function finishSession(sessionId: string): Promise<void> {
-  const ref = doc(getFirestoreDb(), 'sessions', sessionId);
-  await updateDoc(ref, { status: 'finished', finishedAt: serverTimestamp() });
-}
 
 export async function updateSessionLocation(
   sessionId: string,
@@ -771,13 +867,12 @@ export async function updatePlayerAvatar(uid: string, avatarEmoji: string): Prom
   const trimmed = avatarEmoji.trim();
   const value = trimmed || null;
   await updateDoc(ref, { avatarEmoji: value });
-  scheduleProfileDenormalization(
-    'avatar',
+  const propagateAvatar = () =>
     Promise.all([
       propagateMyDisplayToFriends(uid, { avatarEmoji: value }),
       propagateAvatarToGroupMembers(uid, value),
-    ])
-  );
+    ]);
+  scheduleProfileDenormalization('avatar', propagateAvatar(), propagateAvatar);
 }
 
 export async function getSavedLocations(uid: string): Promise<SavedLocation[]> {
@@ -898,7 +993,9 @@ export async function updatePlayerBuyInTotal(
 /** Deletes the session document and all its subcollections. */
 export async function deleteSession(sessionId: string): Promise<void> {
   const db = getFirestoreDb();
-  const subcollections = ['buy_ins', 'early_cashouts', SESSION_PARTICIPANTS_SUBCOLLECTION];
+  // `results` must be swept here: once the parent doc is gone, canReadSession's get()
+  // fails, so any left-behind result docs are unreadable and undeletable by everyone.
+  const subcollections = ['buy_ins', 'early_cashouts', 'results', SESSION_PARTICIPANTS_SUBCOLLECTION];
   const refs = [];
   for (const sub of subcollections) {
     const snap = await getDocs(collection(db, 'sessions', sessionId, sub));
@@ -912,6 +1009,27 @@ export async function deleteSession(sessionId: string): Promise<void> {
     refs.slice(i, i + 500).forEach((r) => batch.delete(r));
     await batch.commit();
   }
+  invalidateSessionScanCache();
+}
+
+/**
+ * Removes this player from a session and deletes the result written about them.
+ *
+ * Nothing stops a stranger from creating a session, listing your uid in participantIds,
+ * and writing a fabricated result in your name — it lands in your history, statistics and
+ * leaderboards. This is the way out, and the order matters: the rules only permit the
+ * result delete once the participant removal has landed.
+ */
+export async function leaveSession(sessionId: string, playerId: string): Promise<void> {
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, 'sessions', sessionId), {
+    participantIds: arrayRemove(playerId),
+  });
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'sessions', sessionId, 'results', playerId));
+  batch.delete(doc(db, 'sessions', sessionId, SESSION_PARTICIPANTS_SUBCOLLECTION, playerId));
+  await batch.commit();
+  invalidateSessionScanCache();
 }
 
 /** Deletes all buy-in entries for this player (removes them from the session ledger). */
@@ -1052,24 +1170,46 @@ export async function removeEarlyCashOutIfExists(
 // Results  (subcollection: sessions/{id}/results)
 // ---------------------------------------------------------------------------
 
-export async function saveResults(
+/**
+ * Snaps a money amount to whole cents before it is stored.
+ *
+ * Chip mode multiplies chips by a fractional rate (`14 * 0.15`), so raw results carry
+ * binary-float noise like 2.0999999999999996. Rounding at this one write boundary keeps
+ * that noise out of every lifetime total summed from these documents.
+ */
+function toCents(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+/**
+ * Writes every player's result and finishes the session in one atomic batch. Splitting
+ * the two lets a crash land the results while the session stays active, which leaves the
+ * ledger settled but still rewritable — the one state the immutability rule exists to prevent.
+ *
+ * The results rule requires the session to still be 'active'; rules get() evaluates
+ * pre-batch state, so flipping the status in this same batch does not block the writes.
+ */
+export async function settleSession(
   sessionId: string,
   results: SessionResult[]
 ): Promise<void> {
   const db = getFirestoreDb();
-  // Single atomic batch: either every player's result lands or none do, so a transient
-  // failure can never leave a partially-settled session behind.
   const batch = writeBatch(db);
   for (const r of results) {
     batch.set(doc(db, 'sessions', sessionId, 'results', r.playerId), {
       playerName: r.playerName,
-      totalBuyIn: r.totalBuyIn,
-      cashOut: r.cashOut,
-      profit: r.profit,
+      totalBuyIn: toCents(r.totalBuyIn),
+      cashOut: toCents(r.cashOut),
+      profit: toCents(r.profit),
       settledAt: serverTimestamp(),
     });
   }
+  batch.update(doc(db, 'sessions', sessionId), {
+    status: 'finished',
+    finishedAt: serverTimestamp(),
+  });
   await batch.commit();
+  invalidateSessionScanCache();
 }
 
 export async function getResults(sessionId: string): Promise<SessionResult[]> {
@@ -1351,6 +1491,31 @@ export async function removeGroupMember(
   await syncGroupMembershipDocs(groupId);
 }
 
+/**
+ * Removes the caller from a group they do not own. A group owner can add anyone without
+ * asking, so every member needs a way out that does not depend on the owner acting.
+ */
+export async function leaveGroup(uid: string, groupId: string): Promise<void> {
+  const db = getFirestoreDb();
+  const groupRef = doc(db, GROUPS_COLLECTION, groupId);
+  const memberRef = doc(db, GROUPS_COLLECTION, groupId, 'members', uid);
+
+  await runTransaction(db, async (tx) => {
+    const gSnap = await tx.get(groupRef);
+    if (!gSnap.exists()) throw new Error('Group not found');
+    if (String(gSnap.data().ownerId) === uid) {
+      throw new Error('The group owner cannot leave. Delete the group instead.');
+    }
+    const existing = await tx.get(memberRef);
+    if (existing.exists()) {
+      tx.delete(memberRef);
+      tx.update(groupRef, { memberCount: increment(-1) });
+    }
+  });
+
+  await deleteDoc(doc(db, 'players', uid, GROUP_MEMBERSHIPS_SUB, groupId));
+}
+
 export async function getGroupMembers(viewerUid: string, groupId: string): Promise<GroupMember[]> {
   const db = getFirestoreDb();
   const access = await getDoc(doc(db, 'players', viewerUid, GROUP_MEMBERSHIPS_SUB, groupId));
@@ -1568,10 +1733,13 @@ export type PlayerAppStatistics = {
   profitPerHour: number | null;
 };
 
-export async function getPlayerAppStatistics(uid: string): Promise<PlayerAppStatistics> {
+export async function getPlayerAppStatistics(
+  uid: string,
+  forceRefresh = false
+): Promise<PlayerAppStatistics> {
   const db = getFirestoreDb();
   const [history, friendsSnap, groupsSnap, savedLocs] = await Promise.all([
-    getFullSessionHistoryForPlayer(uid),
+    cachedScan(`history:${uid}`, forceRefresh, () => getFullSessionHistoryForPlayer(uid)),
     getDocs(collection(db, 'players', uid, 'friends')),
     getDocs(collection(db, 'players', uid, GROUP_MEMBERSHIPS_SUB)),
     getSavedLocations(uid),

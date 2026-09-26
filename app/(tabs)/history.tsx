@@ -7,7 +7,8 @@ import {
   formatTightCompactNumber,
 } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
-import { getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE } from '@/lib/firestore';
+import { appAlert } from '@/lib/app-alert';
+import { getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -325,6 +326,39 @@ export default function HistoryScreen() {
     }
   }, [refreshing, loadHistory, refreshSpin]);
 
+  /**
+   * A session you did not host can be created by anyone, listing you as a participant with
+   * a result in your name. Leaving removes you from it and deletes that record.
+   */
+  const confirmLeaveSession = useCallback(
+    (sessionId: string) => {
+      const playerId = playerProfile?.id;
+      if (!playerId) return;
+      appAlert(
+        'Remove this session?',
+        'It leaves your history, statistics and leaderboards, and your result for it is deleted. Other players keep their own records. This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                try {
+                  await leaveSession(sessionId, playerId);
+                  await loadHistory();
+                } catch (e) {
+                  appAlert('Error', e instanceof Error ? e.message : 'Failed to remove session.');
+                }
+              })();
+            },
+          },
+        ]
+      );
+    },
+    [playerProfile?.id, loadHistory]
+  );
+
   return (
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <View style={styles.titleRow}>
@@ -527,7 +561,8 @@ export default function HistoryScreen() {
                   styles.historyCard,
                   { backgroundColor: c.card, borderColor: c.border },
                 ]}
-                onPress={() => router.push(`../session/summary/${item.id}`)}>
+                onPress={() => router.push(`../session/summary/${item.id}`)}
+                onLongPress={isHost ? undefined : () => confirmLeaveSession(item.id)}>
                 <View style={styles.historyTop}>
                   <View style={styles.historyTitleRow}>
                     <Text style={[styles.historyLabel, { color: c.text }]}>

@@ -1,10 +1,19 @@
 export interface Settlement {
+  fromId: string;
   from: string;
+  toId: string;
   to: string;
   amount: number;
 }
 
 const EPSILON = 0.01;
+
+/**
+ * Above this many non-zero balances the exact solve is replaced by plain greedy
+ * matching. 3^15 subsets is ~14M steps (fine); 3^20 is ~3.5B and would freeze the
+ * summary screen while everyone waits to get paid.
+ */
+const MAX_EXACT_PLAYERS = 15;
 
 /**
  * Minimum-transaction settlement via bitmask DP.
@@ -16,18 +25,29 @@ const EPSILON = 0.01;
  * 3. Within each subset, greedy debtor/creditor matching resolves the
  *    actual payment instructions.
  *
- * Complexity: O(3^n) subset enumeration — fast for n ≤ 15, which
- * comfortably covers any poker table.
+ * Complexity: O(3^n) subset enumeration — fast for n ≤ MAX_EXACT_PLAYERS, past
+ * which step 2 is skipped and the whole table is settled greedily instead.
+ *
+ * Balances are keyed by playerId, never by name: a registered player and a typed
+ * guest can share a display name, and only the id distinguishes them.
  */
 export function computeSettlements(
-  results: { playerName: string; profit: number }[]
+  results: { playerId: string; playerName: string; profit: number }[]
 ): Settlement[] {
   const balances = results
-    .map((r) => ({ name: r.playerName, amount: r.profit }))
+    .map((r) => ({ id: r.playerId, name: r.playerName, amount: r.profit }))
     .filter((b) => Math.abs(b.amount) >= EPSILON);
 
   const n = balances.length;
   if (n <= 1) return [];
+
+  // Greedy over the whole table costs at most n-1 transfers instead of the minimum —
+  // the right trade when the alternative is an unresponsive summary screen.
+  if (n > MAX_EXACT_PLAYERS) {
+    const greedy: Settlement[] = [];
+    settleGroup(balances, greedy);
+    return greedy;
+  }
 
   const full = (1 << n) - 1;
 
@@ -73,10 +93,10 @@ export function computeSettlements(
   // Settle each independent group with greedy debtor/creditor matching.
   const settlements: Settlement[] = [];
   for (const mask of groups) {
-    const members: { name: string; amount: number }[] = [];
+    const members: Balance[] = [];
     for (let i = 0; i < n; i++) {
       if (mask & (1 << i)) {
-        members.push({ name: balances[i].name, amount: balances[i].amount });
+        members.push(balances[i]);
       }
     }
     settleGroup(members, settlements);
@@ -85,18 +105,21 @@ export function computeSettlements(
   return settlements;
 }
 
-function settleGroup(
-  members: { name: string; amount: number }[],
-  out: Settlement[]
-): void {
+interface Balance {
+  id: string;
+  name: string;
+  amount: number;
+}
+
+function settleGroup(members: Balance[], out: Settlement[]): void {
   const debtors = members
     .filter((m) => m.amount < -EPSILON)
-    .map((m) => ({ name: m.name, owed: Math.abs(m.amount) }))
+    .map((m) => ({ id: m.id, name: m.name, owed: Math.abs(m.amount) }))
     .sort((a, b) => b.owed - a.owed);
 
   const creditors = members
     .filter((m) => m.amount > EPSILON)
-    .map((m) => ({ name: m.name, owed: m.amount }))
+    .map((m) => ({ id: m.id, name: m.name, owed: m.amount }))
     .sort((a, b) => b.owed - a.owed);
 
   let i = 0;
@@ -105,7 +128,9 @@ function settleGroup(
     const transfer = Math.min(debtors[i].owed, creditors[j].owed);
     if (transfer > EPSILON) {
       out.push({
+        fromId: debtors[i].id,
         from: debtors[i].name,
+        toId: creditors[j].id,
         to: creditors[j].name,
         amount: Math.round(transfer * 100) / 100,
       });

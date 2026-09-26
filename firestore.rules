@@ -37,6 +37,24 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.hostId == request.auth.uid;
     }
 
+    // Ledger writes are only legal while the session is open. Uses post-batch state so a
+    // session and its first buy-ins can still be written together, and so a buy-in cannot
+    // ride along in the batch that settles the session.
+    function sessionActiveAfter(sessionId) {
+      return getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.status == 'active';
+    }
+
+    // Anyone may create a session naming anyone else as a participant, so every player
+    // needs a unilateral way out of a session they never agreed to be in. This is the
+    // only session write a non-host may make: strip their own uid, touch nothing else.
+    function removesOnlySelfFromParticipants() {
+      return signedIn()
+        && request.auth.uid != resource.data.hostId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds'])
+        && resource.data.participantIds.removeAll([request.auth.uid])
+          == request.resource.data.participantIds;
+    }
+
     // Ledger read access: host, participantIds mirror, or (legacy sessions written before
     // the mirror existed) a session_participants row for this user.
     function canReadSession(sessionId) {
@@ -90,18 +108,32 @@ service cloud.firestore {
       // Display-only profile (name / avatar / ref code) used across friends lists, ref-code
       // lookups, and group member rendering. Financial data lives under /sessions and is
       // participant-scoped there.
-      allow read: if signedIn();
+      //
+      // `get` only, never `list`: sign-in is anonymous and automatic, so a listable
+      // collection means anyone holding the public app config can enumerate every player.
+      // Every read path in the app is a point get, so denying list costs nothing.
+      allow get: if signedIn();
+      allow list: if false;
 
       allow create: if isPlayerOwner(playerId)
         && request.resource.data.keys().hasAll(['name', 'anonymousUid'])
         && request.resource.data.anonymousUid == playerId
         && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 64
         && refCodeReserved(playerId);
 
       // Keep profile anchored to this auth user; refCode is immutable once set, and adding
       // one (creation or backfill) requires the refCodes reservation to exist first.
+      // The name is validated on create but was unchecked on update, while
+      // friendDocMatchesProfile() forces every cached copy to equal it — so an unbounded
+      // value here propagates into every friend list and group roster that renders it. The
+      // cap is deliberately looser than the client's own limit so existing names still save.
       allow update: if isPlayerOwner(playerId)
         && request.resource.data.anonymousUid == playerId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 64
         && (
           (resource.data.keys().hasAny(['refCode'])
             && request.resource.data.refCode == resource.data.refCode)
@@ -193,8 +225,21 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.memberCount is int;
 
-      allow update, delete: if signedIn()
-        && resource.data.ownerId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      // A member leaving decrements memberCount and touches nothing else. Without this the
+      // owner is the only one who can adjust the count, so members could never leave on
+      // their own — and being added to a group needs no consent, so leaving must be possible.
+      allow update: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
+            && request.resource.data.memberCount == resource.data.memberCount - 1
+            && request.resource.data.memberCount >= 0
+            && exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId))
+          )
+        );
 
       match /members/{memberId} {
         allow read: if signedIn()
@@ -203,8 +248,19 @@ service cloud.firestore {
             || exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId))
           );
 
-        allow create, delete: if signedIn()
+        allow create: if signedIn()
           && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid;
+
+        // Owner removes anyone; a member removes only themselves (the owner cannot, since
+        // deleting the owner's row would leave a group nobody administers).
+        allow delete: if signedIn()
+          && (
+            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+            || (
+              memberId == request.auth.uid
+              && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId != request.auth.uid
+            )
+          );
 
         // Owner can manage any member. A member may update their own row only when `name` matches
         // canonical `players/{uid}` (profile sync) and `isRegistered` is unchanged.
@@ -222,7 +278,9 @@ service cloud.firestore {
     }
 
     match /refCodes/{code} {
-      allow read: if signedIn();
+      // Point lookups only — listing these maps back to every player id (see /players).
+      allow get: if signedIn();
+      allow list: if false;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['playerId'])
         && request.resource.data.playerId == request.auth.uid;
@@ -246,15 +304,22 @@ service cloud.firestore {
         && request.resource.data.status == 'active'
         && validSessionShape(request.resource.data);
 
-      allow update: if isSessionHost(sessionId)
-        && request.resource.data.hostId == resource.data.hostId
-        && validSessionShape(request.resource.data);
+      // 'finished' is terminal: reopening would re-arm the results rule below and let the
+      // host rewrite money records other players already settled against.
+      allow update: if (
+          isSessionHost(sessionId)
+          && request.resource.data.hostId == resource.data.hostId
+          && validSessionShape(request.resource.data)
+          && !(resource.data.status == 'finished' && request.resource.data.status == 'active')
+        )
+        || removesOnlySelfFromParticipants();
 
       allow delete: if isSessionHost(sessionId);
 
       match /buy_ins/{buyInId} {
         allow read: if canReadSession(sessionId);
         allow create: if isSessionHostAfter(sessionId)
+          && sessionActiveAfter(sessionId)
           && validAmount(request.resource.data.amount)
           && request.resource.data.playerId is string
           && request.resource.data.playerName is string;
@@ -265,6 +330,7 @@ service cloud.firestore {
       match /early_cashouts/{cashOutPlayerId} {
         allow read: if canReadSession(sessionId);
         allow create, update: if isSessionHost(sessionId)
+          && sessionActiveAfter(sessionId)
           && validNonNegativeAmount(request.resource.data.amount);
         allow delete: if isSessionHost(sessionId);
       }
@@ -279,14 +345,24 @@ service cloud.firestore {
           && validNonNegativeAmount(request.resource.data.totalBuyIn)
           && validNonNegativeAmount(request.resource.data.cashOut)
           && validSignedAmount(request.resource.data.profit);
-        allow delete: if false;
+        // Host deletes are what let deleteSession cascade — results left behind outlive
+        // the parent doc that canReadSession needs, so nobody could read or remove them.
+        // A player who has already removed themselves from participantIds may delete the
+        // record written about them; a player still in the session may not.
+        allow delete: if isSessionHost(sessionId)
+          || (signedIn()
+            && resultPlayerId == request.auth.uid
+            && !(request.auth.uid in sessionData(sessionId).get('participantIds', [])));
       }
 
       match /session_participants/{participantId} {
         allow read: if signedIn()
           && (participantId == request.auth.uid || canReadSession(sessionId));
         allow create, update: if isSessionHostAfter(sessionId);
-        allow delete: if isSessionHost(sessionId);
+        // Self-delete is the companion to removesOnlySelfFromParticipants(): leaving a
+        // session must also clear the row that keeps the ledger readable to you.
+        allow delete: if isSessionHost(sessionId)
+          || (signedIn() && participantId == request.auth.uid);
       }
     }
   }

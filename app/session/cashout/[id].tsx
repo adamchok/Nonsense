@@ -4,7 +4,7 @@ import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatChipsLedger, formatSessionAmountValue } from '@/lib/currency-format';
-import { finishSession, getBuyIns, getEarlyCashOuts, getSessionMeta, saveResults } from '@/lib/firestore';
+import { getBuyIns, getEarlyCashOuts, getSessionMeta, settleSession } from '@/lib/firestore';
 import type { SessionAmountUnit, SessionResult } from '@/types';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -298,8 +298,7 @@ export default function CashOutScreen() {
           profit: cashOutRaw - p.totalBuyIn,
         };
       });
-      await saveResults(id, results);
-      await finishSession(id);
+      await settleSession(id, results);
       router.replace(`../../session/summary/${id}`);
     } catch (e) {
       appAlert('Error', e instanceof Error ? e.message : 'Failed to save results.');

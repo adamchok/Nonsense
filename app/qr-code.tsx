@@ -50,17 +50,23 @@ export default function QrCodeScreen() {
 
   useEffect(() => {
     if (!user) return;
-    return subscribeFriends(user.uid, setFriends, () => {});
+    return subscribeFriends(user.uid, setFriends, (e) =>
+      console.error('Friends subscription error:', e)
+    );
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    return subscribeIncomingFriendRequests(user.uid, setIncomingRequests, () => {});
+    return subscribeIncomingFriendRequests(user.uid, setIncomingRequests, (e) =>
+      console.error('Incoming friend requests error:', e)
+    );
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    return subscribeOutgoingFriendRequests(user.uid, setOutgoingRequests, () => {});
+    return subscribeOutgoingFriendRequests(user.uid, setOutgoingRequests, (e) =>
+      console.error('Outgoing friend requests error:', e)
+    );
   }, [user]);
 
   friendsRef.current = friends;
