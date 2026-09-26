@@ -12,7 +12,9 @@ import { StatsBody } from '@/components/stats-body';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SHEET_BREAKPOINT } from '@/lib/spacing';
 import { userMessage } from '@/lib/user-message';
 import { GoogleButton } from '@/components/google-button';
 import { EditNameModal } from '@/components/edit-name-modal';
@@ -35,6 +37,10 @@ export default function SettingsScreen() {
   const { user, playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, linkWithGoogle } = useAuth();
   const c = useAppColors();
   const layout = usePageLayout(40);
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // Phones: statistics open as a bottom sheet, like the other modals.
+  const isSheet = width < SHEET_BREAKPOINT;
   const { preference, setPreference } = useThemePreference();
   const t = settingsTheme(c);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -284,8 +290,14 @@ export default function SettingsScreen() {
             style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
             onPress={() => setShowStatsModal(false)}
           />
-          <View pointerEvents="box-none" style={styles.statsModalCenter}>
-            <View style={[styles.statsCard, { backgroundColor: t.card, borderColor: t.border }]}>
+          <View pointerEvents="box-none" style={[styles.statsModalCenter, isSheet && styles.statsModalSheet]}>
+            <View
+              style={[
+                styles.statsCard,
+                { backgroundColor: t.card, borderColor: t.border },
+                isSheet && [styles.statsSheet, { paddingBottom: Math.max(20, insets.bottom + 12) }],
+              ]}>
+              {isSheet ? <View style={[styles.statsGrabber, { backgroundColor: t.border }]} /> : null}
               <View style={styles.statsHeaderRow}>
                 <Text style={[styles.statsTitle, { color: t.text }]}>Your statistics</Text>
                 <Pressable
@@ -691,6 +703,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
   },
+  statsModalSheet: {
+    justifyContent: 'flex-end',
+    paddingHorizontal: 0,
+  },
+  statsSheet: {
+    maxWidth: '100%',
+    maxHeight: '92%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+    paddingTop: 8,
+  },
+  statsGrabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, marginBottom: 4 },
   statsCard: {
     width: '100%',
     maxWidth: 480,
