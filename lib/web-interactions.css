@@ -239,6 +239,9 @@
   [role='link']:not([href]):not([aria-disabled='true']):hover {
     filter: none;
     box-shadow: none;
+  }
+
+  [role='link']:not([href]):not([aria-disabled='true']):hover [dir] {
     text-decoration: underline;
     text-underline-offset: 3px;
   }
