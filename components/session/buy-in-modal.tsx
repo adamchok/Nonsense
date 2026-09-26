@@ -56,7 +56,8 @@ export function BuyInModal({
   const canSubmit = Boolean(draft.playerName.trim() && draft.amount.trim());
 
   const lastAmount = draft.pickedPlayerId ? lastAmountByPlayer.get(draft.pickedPlayerId) : undefined;
-  const quickAmounts = [lastAmount, commonAmount ?? undefined].filter(
+  // Player's last + session's most common first, then fixed presets; duplicates dropped.
+  const quickAmounts = [lastAmount, commonAmount ?? undefined, ...PRESET_AMOUNTS].filter(
     (v, i, all): v is number => v != null && all.indexOf(v) === i
   );
 
@@ -179,6 +180,8 @@ export function BuyInModal({
     </ModalShell>
   );
 }
+
+const PRESET_AMOUNTS = [100, 200, 300, 500, 1000];
 
 const styles = StyleSheet.create({
   card: {
