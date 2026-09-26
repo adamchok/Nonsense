@@ -58,7 +58,6 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
       <ScrollView
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
         style={formStyles.fieldsScroll}
         contentContainerStyle={formStyles.fieldsScrollContent}>
         <View style={styles.field}>

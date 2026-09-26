@@ -115,8 +115,7 @@ export function BuyInModal({
         style={styles.scroll}
         contentContainerStyle={formStyles.fieldsScrollContent}
         keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled
-        showsVerticalScrollIndicator={false}>
+        nestedScrollEnabled>
         <View style={[styles.addSection, { borderColor: c.border, backgroundColor: c.cardAlt }]}>
           {playerProfile && !selfInSession && !draft.isBuyBack && (
             <PressableScale

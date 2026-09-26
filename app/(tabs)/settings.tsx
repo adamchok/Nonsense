@@ -129,8 +129,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: t.bg }]}
-      contentContainerStyle={[layout.content, styles.content]}
-      showsVerticalScrollIndicator={false}>
+      contentContainerStyle={[layout.content, styles.content]}>
       <Text style={[styles.title, { color: t.text }]}>Settings</Text>
 
       <View style={styles.section}>
@@ -320,7 +319,6 @@ export default function SettingsScreen() {
                 <Text style={[styles.statsError, { color: '#b91c1c' }]}>{statsError}</Text>
               ) : stats ? (
                 <ScrollView
-                  showsVerticalScrollIndicator={false}
                   contentContainerStyle={styles.statsScrollContent}>
                   <StatsBody stats={stats} />
                 </ScrollView>

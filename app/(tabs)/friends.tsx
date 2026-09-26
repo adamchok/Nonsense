@@ -840,7 +840,6 @@ export default function FriendsScreen() {
                       ) : (
                         <ScrollView
                           style={styles.groupMembersScroll}
-                          showsVerticalScrollIndicator={false}
                           nestedScrollEnabled
                           keyboardShouldPersistTaps="handled">
                           {groupMembers.map((member) => (
@@ -1074,7 +1073,6 @@ export default function FriendsScreen() {
                 <ScrollView
                   ref={addFriendScrollRef}
                   keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
                   style={styles.addFriendModalFieldsScroll}
                   contentContainerStyle={styles.addFriendModalFieldsScrollContent}>
                   <TextInput
@@ -1157,7 +1155,6 @@ export default function FriendsScreen() {
               </View>
 
               <ScrollView
-                showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.leaderboardBody}>
                 {groupLbLoading ? (
                   <View style={styles.lbLoadingWrap}>

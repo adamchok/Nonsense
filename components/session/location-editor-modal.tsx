@@ -36,7 +36,6 @@ export function LocationEditorModal({ visible, initialLocation, onClose, onSubmi
       <ScrollView
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
         style={formStyles.fieldsScroll}
         contentContainerStyle={formStyles.fieldsScrollContent}>
         <TextInput

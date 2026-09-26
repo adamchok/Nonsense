@@ -145,7 +145,6 @@ export default function NameScreen() {
       <ScrollView
         ref={nameScrollRef}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: Math.max(insets.bottom, 20) + 16 },

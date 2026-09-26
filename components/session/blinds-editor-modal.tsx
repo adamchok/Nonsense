@@ -71,7 +71,6 @@ export function BlindsEditorModal({
       <ScrollView
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
         style={formStyles.fieldsScrollCapped}
         contentContainerStyle={formStyles.fieldsScrollContent}>
         <View style={styles.inputs}>

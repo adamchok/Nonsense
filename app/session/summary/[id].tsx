@@ -384,8 +384,7 @@ export default function SessionSummaryScreen() {
       <ScrollView
         style={styles.screen}
         contentContainerStyle={[layout.content, styles.scrollContent]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
+        keyboardShouldPersistTaps="handled">
         <Animated.View entering={fadeIn} style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <View style={styles.metaGrid}>
             <View style={styles.metaGridRow}>
