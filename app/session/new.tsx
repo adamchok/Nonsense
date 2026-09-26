@@ -102,12 +102,14 @@ export default function NewSessionScreen() {
     };
   }, [playerProfile]);
 
-  useEffect(() => {
+  const [prevHasSavedLocations, setPrevHasSavedLocations] = useState(hasSavedLocations);
+  if (prevHasSavedLocations !== hasSavedLocations) {
+    setPrevHasSavedLocations(hasSavedLocations);
     if (!hasSavedLocations) {
       setLocationMode('saved');
       setSelectedSavedLocationId(null);
     }
-  }, [hasSavedLocations]);
+  }
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';

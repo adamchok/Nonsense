@@ -119,6 +119,9 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
     if (pendingAlerts.length > 0) {
       const latest = pendingAlerts[pendingAlerts.length - 1];
       pendingAlerts = [];
+      // Draining a module-level queue filled by appAlert() calls made before this provider
+      // mounted: a sync with an external store, so setState here is intended.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       show(latest);
     }
     return () => {

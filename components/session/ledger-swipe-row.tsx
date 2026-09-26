@@ -70,9 +70,21 @@ export function LedgerSwipeRow({ isRemoving, onCashOut, onRemove, children }: Pr
           </PressableScale>
         </View>
       )}>
-      {children(canPress)}
+      <SwipeRowContent render={children} canPress={canPress} />
     </ReanimatedSwipeable>
   );
+}
+
+// Calls the render prop from its own component so the ref-reading canPress is
+// only passed down as a prop, never invoked while LedgerSwipeRow renders.
+function SwipeRowContent({
+  render,
+  canPress,
+}: {
+  render: Props['children'];
+  canPress: () => boolean;
+}) {
+  return render(canPress);
 }
 
 const styles = StyleSheet.create({

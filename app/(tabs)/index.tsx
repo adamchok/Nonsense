@@ -11,7 +11,7 @@ import { Icon } from '@/components/icon';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { radius } from '@/lib/spacing';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ReduceMotion,
   useAnimatedStyle,
@@ -38,7 +38,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const refreshSpin = useRef(new Animated.Value(0)).current;
+  const [refreshSpin] = useState(() => new Animated.Value(0));
 
   const loadSessions = useCallback(
     async (opts?: { signal?: AbortSignal }) => {

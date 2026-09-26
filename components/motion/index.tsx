@@ -72,12 +72,12 @@ export function PressableScale({
       {...rest}
       {...webFocus}
       onPressIn={(e) => {
-        scale.value = withSpring(pressedScale, SPRING);
+        scale.set(withSpring(pressedScale, SPRING));
         patch({ pressed: true });
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        scale.value = withSpring(1, SPRING);
+        scale.set(withSpring(1, SPRING));
         patch({ pressed: false });
         onPressOut?.(e);
       }}
@@ -105,12 +105,10 @@ export function PressableScale({
 export function useCountUp(value: number, durationMs = 450): number {
   const reduceMotion = useReducedMotion();
   const [shown, setShown] = useState(value);
+  // With reduced motion, jump straight to the target instead of animating.
+  if (reduceMotion && shown !== value) setShown(value);
   useEffect(() => {
-    if (shown === value) return;
-    if (reduceMotion) {
-      setShown(value);
-      return;
-    }
+    if (shown === value || reduceMotion) return;
     const from = shown;
     const start = Date.now();
     let frame = 0;

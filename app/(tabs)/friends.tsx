@@ -126,8 +126,7 @@ export default function FriendsScreen() {
   const [leaderboardSortBy, setLeaderboardSortBy] = useState<LeaderboardSortKey>('profit');
   const [leaderboardSortDirection, setLeaderboardSortDirection] = useState<SortDirection>('desc');
   const [refreshing, setRefreshing] = useState(false);
-  const refreshSpin = useRef(new Animated.Value(0)).current;
-  const shownLbIdsRef = useRef(new Set<string>());
+  const [refreshSpin] = useState(() => new Animated.Value(0));
 
   const sortedLeaderboard = useMemo(() => {
     const next = [...leaderboard];
@@ -140,6 +139,24 @@ export default function FriendsScreen() {
     });
     return next;
   }, [leaderboard, leaderboardSortBy, leaderboardSortDirection]);
+  // Leaderboard rows animate in only the first time each player is shown per
+  // tab visit (not again when rows remount after a refresh).
+  const lbRowsVisible = activeTab === 'leaderboard' && !lbLoading;
+  const [lbEntering, setLbEntering] = useState(() => ({
+    seen: new Set<string>() as ReadonlySet<string>,
+    fresh: new Set<string>() as ReadonlySet<string>,
+    visible: lbRowsVisible,
+    list: sortedLeaderboard,
+  }));
+  if (lbEntering.visible !== lbRowsVisible || lbEntering.list !== sortedLeaderboard) {
+    const ids = lbRowsVisible ? sortedLeaderboard.map((e) => e.playerId) : [];
+    setLbEntering({
+      seen: new Set([...lbEntering.seen, ...ids]),
+      fresh: new Set(ids.filter((id) => !lbEntering.seen.has(id))),
+      visible: lbRowsVisible,
+      list: sortedLeaderboard,
+    });
+  }
   const filteredFriends = useMemo(() => {
     const query = friendSearchQuery.trim().toLowerCase();
     if (!query) return friends;
@@ -249,14 +266,31 @@ export default function FriendsScreen() {
     );
   }, [user]);
 
-  useEffect(() => {
+  // Reset/flag leaderboard loading as soon as its inputs change (during render
+  // rather than in the effect below, to avoid a cascading render).
+  const [lbInputs, setLbInputs] = useState<{
+    user: typeof user;
+    friends: typeof friends;
+    friendsLoaded: boolean;
+  } | null>(null);
+  if (
+    lbInputs === null
+    || lbInputs.user !== user
+    || lbInputs.friends !== friends
+    || lbInputs.friendsLoaded !== friendsLoaded
+  ) {
+    setLbInputs({ user, friends, friendsLoaded });
     if (!user || friends.length === 0) {
       setLeaderboard([]);
       if (!user || friendsLoaded) setLbLoading(false);
-      return;
+    } else {
+      setLbLoading(true);
     }
+  }
+
+  useEffect(() => {
+    if (!user || friends.length === 0) return;
     let cancelled = false;
-    setLbLoading(true);
     getFriendLeaderboard(user.uid)
       .then((lb) => {
         if (cancelled) return;
@@ -290,11 +324,14 @@ export default function FriendsScreen() {
     );
   }, [user]);
 
+  // Members only arrive via the subscription below, so clear them during render
+  // once there is no expanded group to subscribe to.
+  if ((!user || !expandedGroupId) && groupMembers.length > 0) {
+    setGroupMembers([]);
+  }
+
   useEffect(() => {
-    if (!user || !expandedGroupId) {
-      setGroupMembers([]);
-      return;
-    }
+    if (!user || !expandedGroupId) return;
     return subscribeGroupMembers(
       user.uid,
       expandedGroupId,
@@ -536,7 +573,7 @@ export default function FriendsScreen() {
         tabs={FRIENDS_TABS}
         value={activeTab}
         onChange={(tab) => {
-          if (tab === 'leaderboard') shownLbIdsRef.current.clear();
+          if (tab === 'leaderboard') setLbEntering((prev) => ({ ...prev, seen: new Set<string>() }));
           setActiveTab(tab);
           setShowLeaderboardSortDropdown(false);
         }}
@@ -1174,8 +1211,7 @@ export default function FriendsScreen() {
           ) : (
             sortedLeaderboard.map((entry, idx) => {
               const isMe = entry.playerId === user?.uid;
-              const isFirstShow = !shownLbIdsRef.current.has(entry.playerId);
-              shownLbIdsRef.current.add(entry.playerId);
+              const isFirstShow = lbEntering.fresh.has(entry.playerId);
               return (
                 <Motion.View
                   key={entry.playerId}

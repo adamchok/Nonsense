@@ -86,7 +86,7 @@ export default function HistoryScreen() {
   const [sortBy, setSortBy] = useState<SortKey>('datetime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [refreshing, setRefreshing] = useState(false);
-  const refreshSpin = useRef(new Animated.Value(0)).current;
+  const [refreshSpin] = useState(() => new Animated.Value(0));
   const shownRowIdsRef = useRef(new Set<string>());
   const loadGenerationRef = useRef(0);
 

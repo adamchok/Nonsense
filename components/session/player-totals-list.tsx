@@ -4,7 +4,7 @@ import type { LedgerPlayer } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
 import { text as type, ui } from '@/lib/ui';
 import { Animated, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 type Props = LedgerRowHandlers & {
@@ -30,9 +30,9 @@ export function PlayerTotalsList({
   ...handlers
 }: Props) {
   const c = useAppColors();
-  const initialIds = useRef<Set<string> | null>(null);
-  if (initialIds.current === null && players.length > 0) {
-    initialIds.current = new Set(players.map((p) => p.playerId));
+  const [initialIds, setInitialIds] = useState<Set<string> | null>(null);
+  if (initialIds === null && players.length > 0) {
+    setInitialIds(new Set(players.map((p) => p.playerId)));
   }
   if (players.length === 0) {
     return (
@@ -46,7 +46,7 @@ export function PlayerTotalsList({
       {players.map((p, i) => (
         <Animated.View
           key={p.playerId}
-          entering={listItemEntering(initialIds.current?.has(p.playerId) ? i : 0)}
+          entering={listItemEntering(initialIds?.has(p.playerId) ? i : 0)}
           exiting={fadeOut}
           layout={layoutTransition}>
           <PlayerLedgerRow

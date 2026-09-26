@@ -1,14 +1,13 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useSyncExternalStore } from 'react';
 import { useColorScheme as useRNColorScheme } from 'react-native';
 
 import { ThemePreferenceContext } from '@/lib/theme-context';
 
-export function useColorScheme(): 'light' | 'dark' | null {
-  const [hasHydrated, setHasHydrated] = useState(false);
+const subscribeNoop = () => () => {};
 
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
+export function useColorScheme(): 'light' | 'dark' | null {
+  // false during static rendering / hydration, true once running on the client.
+  const hasHydrated = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   const ctx = useContext(ThemePreferenceContext);
   const system = useRNColorScheme();

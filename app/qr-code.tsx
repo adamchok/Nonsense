@@ -58,15 +58,24 @@ export default function QrCodeScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
 
   const [backfilledCode, setBackfilledCode] = useState<string | null>(null);
-  const [codeStatus, setCodeStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [codeAttempt, setCodeAttempt] = useState(0);
   const refCode = playerProfile?.refCode ?? backfilledCode ?? '';
+  const needsCodeBackfill = !!playerProfile?.id && !playerProfile?.refCode;
+  const [codeStatus, setCodeStatus] = useState<'idle' | 'loading' | 'error'>(() =>
+    needsCodeBackfill ? 'loading' : 'idle'
+  );
+  // Mark a new backfill attempt as loading whenever its inputs change (mirrors the effect below).
+  const codeRequestKey = `${playerProfile?.id}|${playerProfile?.refCode}|${codeAttempt}`;
+  const [prevCodeRequestKey, setPrevCodeRequestKey] = useState(codeRequestKey);
+  if (prevCodeRequestKey !== codeRequestKey) {
+    setPrevCodeRequestKey(codeRequestKey);
+    if (needsCodeBackfill) setCodeStatus('loading');
+  }
 
   useEffect(() => {
     const uid = playerProfile?.id;
     if (!uid || playerProfile?.refCode) return;
     let cancelled = false;
-    setCodeStatus('loading');
     ensureRefCode(uid)
       .then((code) => {
         if (cancelled) return;
@@ -157,6 +166,13 @@ export default function QrCodeScreen() {
     return result.granted;
   }, [permission?.granted, requestPermission]);
 
+  // Follow the ?tab= param to "my" as soon as it changes to it.
+  const [prevTabParam, setPrevTabParam] = useState(tab);
+  if (prevTabParam !== tab) {
+    setPrevTabParam(tab);
+    if (tab === 'my') setActiveTab('my');
+  }
+
   useEffect(() => {
     if (tab === 'scan') {
       (async () => {
@@ -168,10 +184,7 @@ export default function QrCodeScreen() {
         }
         setActiveTab('scan');
       })();
-      return;
     }
-
-    if (tab === 'my') setActiveTab('my');
   }, [tab, ensureCamera]);
 
   async function handlePickQrFromGallery() {

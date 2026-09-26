@@ -4,7 +4,7 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import { Redirect, router, useNavigation } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -29,18 +29,20 @@ export default function NameScreen() {
   const nameScrollRef = useRef<ScrollView>(null);
   const navigation = useNavigation();
   const { isReady, user, playerProfile, saveDisplayName } = useAuth();
-  const [name, setName] = useState('');
+  const MAX_NAME_LEN = 15;
+  const profileName = playerProfile?.name;
+  const [name, setName] = useState(() => profileName?.slice(0, MAX_NAME_LEN) ?? '');
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [syncedProfileName, setSyncedProfileName] = useState(profileName);
 
-  const isEditing = !!playerProfile?.name;
-  const MAX_NAME_LEN = 15;
+  const isEditing = !!profileName;
 
-  useEffect(() => {
-    if (playerProfile?.name) {
-      setName(playerProfile.name.slice(0, MAX_NAME_LEN));
-    }
-  }, [playerProfile?.name]);
+  // Adopt the saved profile name whenever it changes (e.g. profile finishes loading).
+  if (syncedProfileName !== profileName) {
+    setSyncedProfileName(profileName);
+    if (profileName) setName(profileName.slice(0, MAX_NAME_LEN));
+  }
 
   const trimmed = name.trim();
   const isBusy = isSaving;
