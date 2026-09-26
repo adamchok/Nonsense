@@ -3,6 +3,7 @@ import { Icon } from '@/components/icon';
 import { WebContentColumn } from '@/components/web/web-app-frame';
 import { WebSidebar } from '@/components/web/web-sidebar';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useGuestLinkMigrations } from '@/hooks/use-guest-link-migrations';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { BottomTabBar, type BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
@@ -18,6 +19,7 @@ export default function TabLayout() {
   const { isMd } = useBreakpoint();
   const reduceMotion = useReducedMotion();
   const { isReady, user, isAnonymous } = useAuth();
+  useGuestLinkMigrations();
 
   const tabBarColors = {
     backgroundColor: c.card,

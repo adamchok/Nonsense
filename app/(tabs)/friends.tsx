@@ -30,6 +30,12 @@ import {
   subscribeIncomingFriendRequests,
   subscribeOutgoingFriendRequests,
 } from '@/lib/firestore';
+import {
+  acceptGuestLink,
+  declineGuestLink,
+  subscribeIncomingGuestLinks,
+  type GuestLink,
+} from '@/lib/guest-links';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { FriendRecord, FriendRequestRecord, GroupMember, PokerGroup } from '@/types';
 import { Icon } from '@/components/icon';
@@ -89,6 +95,8 @@ export default function FriendsScreen() {
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestRecord[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestRecord[]>([]);
+  const [incomingGuestLinks, setIncomingGuestLinks] = useState<GuestLink[]>([]);
+  const [busyGuestLinkId, setBusyGuestLinkId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [refCodeInput, setRefCodeInput] = useState('');
@@ -230,6 +238,13 @@ export default function FriendsScreen() {
     if (!user) return;
     return subscribeOutgoingFriendRequests(user.uid, setOutgoingRequests, (e) =>
       console.error('Outgoing friend requests error:', e)
+    );
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeIncomingGuestLinks(user.uid, setIncomingGuestLinks, (e) =>
+      console.error('Incoming guest links error:', e)
     );
   }, [user]);
 
@@ -459,6 +474,39 @@ export default function FriendsScreen() {
     }
   }
 
+  async function handleAcceptGuestLink(link: GuestLink) {
+    if (busyGuestLinkId) return;
+    setBusyGuestLinkId(link.id);
+    try {
+      await acceptGuestLink(link);
+    } catch (e) {
+      appAlert('Error', userMessage(e, 'Failed to accept.'));
+    } finally {
+      setBusyGuestLinkId(null);
+    }
+  }
+
+  function handleDeclineGuestLink(link: GuestLink) {
+    appAlert(
+      'Decline request?',
+      `${link.ownerName}’s sessions with ${link.guestName} stay on their side and won’t be added to your history.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await declineGuestLink(link);
+            } catch (e) {
+              appAlert('Error', userMessage(e, 'Failed to decline.'));
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function handleRemoveFriend(friendId: string, friendName: string) {
     if (!user) return;
     appAlert(`Remove ${friendName}?`, 'They will also be removed from your friends list.', [
@@ -597,6 +645,75 @@ export default function FriendsScreen() {
                   </View>
                 </Motion.View>
               ))}
+            </View>
+          ) : null}
+
+          {incomingGuestLinks.length > 0 ? (
+            <View style={styles.requestBlock}>
+              <Text style={[styles.requestBlockTitle, { color: c.textMuted }]}>History requests</Text>
+              {incomingGuestLinks.map((link, i) => {
+                const isBusy = busyGuestLinkId === link.id;
+                const sessionsLabel = `${link.sessionCount} past ${link.sessionCount === 1 ? 'session' : 'sessions'}`;
+                return (
+                  <Motion.View
+                    key={link.id}
+                    entering={listItemEntering(i)}
+                    exiting={fadeOut}
+                    layout={layoutTransition}
+                    style={[
+                      styles.requestRow,
+                      styles.vRow,
+                      i === 0 && styles.vFirst,
+                      i === incomingGuestLinks.length - 1 && styles.vLast,
+                      { backgroundColor: c.card, borderColor: c.borderAccent },
+                    ]}>
+                    <View style={styles.friendInfo}>
+                      <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
+                        <Icon name="link" size={18} color={c.textMuted} />
+                      </View>
+                      <View style={styles.guestLinkText}>
+                        <Text style={[styles.guestLinkBody, { color: c.textSecondary }]}>
+                          <Text style={styles.guestLinkStrong}>{link.ownerName}</Text> wants to add {sessionsLabel}{' '}
+                          played as <Text style={styles.guestLinkStrong}>{link.guestName}</Text> to your history
+                        </Text>
+                        <Text style={[styles.friendMeta, { color: link.net >= 0 ? c.profit : c.loss }]}>
+                          Net {formatSignedCurrency(link.net)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.requestActions}>
+                      <PressableScale
+                        pressedScale={0.97}
+                        style={[
+                          styles.requestAcceptBtn,
+                          styles.guestLinkAcceptBtn,
+                          { backgroundColor: c.accent },
+                          isBusy && styles.disabled,
+                        ]}
+                        disabled={isBusy}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Accept ${sessionsLabel} from ${link.ownerName}`}
+                        accessibilityState={{ disabled: isBusy, busy: isBusy }}
+                        onPress={() => void handleAcceptGuestLink(link)}>
+                        {isBusy ? (
+                          <ActivityIndicator size="small" color={c.onAccent} />
+                        ) : (
+                          <Text style={[styles.requestAcceptLabel, { color: c.onAccent }]}>Accept</Text>
+                        )}
+                      </PressableScale>
+                      <PressableScale
+                        pressedScale={0.9}
+                        hitSlop={8}
+                        disabled={isBusy}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Decline sessions from ${link.ownerName}`}
+                        onPress={() => handleDeclineGuestLink(link)}>
+                        <Icon name="close" size={22} color={c.textHint} />
+                      </PressableScale>
+                    </View>
+                  </Motion.View>
+                );
+              })}
             </View>
           ) : null}
 
@@ -1577,6 +1694,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
+  },
+  guestLinkAcceptBtn: {
+    minWidth: 76,
+    alignItems: 'center',
+  },
+  guestLinkText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  guestLinkBody: {
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  guestLinkStrong: {
+    fontWeight: '600',
   },
   cancelRequestLabel: {
     fontSize: 13,

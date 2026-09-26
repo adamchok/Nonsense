@@ -1,6 +1,7 @@
 import { EmptyState } from '@/components/empty-state';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
+import { LinkGuestModal } from '@/components/link-guest-modal';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -11,6 +12,7 @@ import {
   subscribeGroupMembers,
   subscribeGroups,
 } from '@/lib/firestore';
+import { cancelGuestLink, subscribeOutgoingGuestLinks, type GuestLink } from '@/lib/guest-links';
 import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
 import { Icon } from '@/components/icon';
 import { Animated, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
@@ -39,6 +41,8 @@ export default function GroupMembersScreen() {
   const [guestError, setGuestError] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string | null>(null);
   const [groupMeta, setGroupMeta] = useState<PokerGroup | null>(null);
+  const [guestLinks, setGuestLinks] = useState<GuestLink[]>([]);
+  const [linkTarget, setLinkTarget] = useState<GroupMember | null>(null);
 
   const isOwner = Boolean(
     user && groupMeta && (groupMeta.ownerId === user.uid || groupMeta.myRole === 'owner')
@@ -68,6 +72,11 @@ export default function GroupMembersScreen() {
     if (!user) return;
     return subscribeFriends(user.uid, setFriends, () => {});
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !isOwner) return;
+    return subscribeOutgoingGuestLinks(user.uid, setGuestLinks, (e) => console.error('Guest links error:', e));
+  }, [user, isOwner]);
 
   const hasMembers = members.length > 0;
   const [initialStagger, setInitialStagger] = useState(true);
@@ -142,6 +151,27 @@ export default function GroupMembersScreen() {
               await removeGroupMember(uid, id, memberId);
             } catch (e) {
               appAlert('Error', userMessage(e, 'Failed to remove member.'));
+            }
+          })();
+        },
+      },
+    ]);
+  }
+
+  function handleCancelLink(link: GuestLink) {
+    if (!user || !isOwner) return;
+    const uid = user.uid;
+    appAlert('Cancel link request?', `Stop waiting for ${link.targetName} to accept?`, [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Cancel request',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await cancelGuestLink(uid, link.guestId);
+            } catch (e) {
+              appAlert('Error', userMessage(e, 'Failed to cancel.'));
             }
           })();
         },
@@ -262,37 +292,74 @@ export default function GroupMembersScreen() {
               message={isOwner ? 'Add friends or guests above.' : 'The owner hasn’t added anyone yet.'}
             />
           ) : (
-            members.map((member, i) => (
-              <Animated.View
-                key={member.id}
-                entering={listItemEntering(initialStagger ? i : 0)}
-                exiting={fadeOut}
-                layout={layoutTransition}
-                style={[styles.memberRow, { borderTopColor: c.border }]}>
-                <View style={styles.memberInfo}>
-                  <GroupMemberAvatar member={member} viewerProfile={playerProfile} />
-                  <Text style={[styles.memberName, { color: c.text }]} numberOfLines={1}>
-                    {member.id === playerProfile?.id ? (playerProfile?.name ?? member.name) : member.name}
-                    {member.id === playerProfile?.id ? ' (You)' : ''}
-                  </Text>
-                  {!member.isRegistered && (
-                    <View style={[styles.guestBadge, { backgroundColor: c.chipBg }]}>
-                      <Text style={[styles.guestBadgeText, { color: c.chipText }]}>GUEST</Text>
+            members.map((member, i) => {
+              const link = member.isRegistered ? undefined : guestLinks.find((l) => l.guestId === member.id);
+              const canLink = isOwner && !member.isRegistered && !link && Boolean(playerProfile);
+              return (
+                <Animated.View
+                  key={member.id}
+                  entering={listItemEntering(initialStagger ? i : 0)}
+                  exiting={fadeOut}
+                  layout={layoutTransition}
+                  style={[styles.memberRow, { borderTopColor: c.border }]}>
+                  <View style={styles.memberInfo}>
+                    <GroupMemberAvatar member={member} viewerProfile={playerProfile} />
+                    <View style={styles.memberText}>
+                      <View style={styles.memberNameRow}>
+                        <Text style={[styles.memberName, { color: c.text }]} numberOfLines={1}>
+                          {member.id === playerProfile?.id ? (playerProfile?.name ?? member.name) : member.name}
+                          {member.id === playerProfile?.id ? ' (You)' : ''}
+                        </Text>
+                        {!member.isRegistered && (
+                          <View style={[styles.guestBadge, { backgroundColor: c.chipBg }]}>
+                            <Text style={[styles.guestBadgeText, { color: c.chipText }]}>GUEST</Text>
+                          </View>
+                        )}
+                      </View>
+                      {isOwner && link ? (
+                        <View style={styles.linkCaptionRow}>
+                          <Text style={[styles.linkCaption, { color: c.textHint }]} numberOfLines={1}>
+                            {link.status === 'accepted'
+                              ? `Moving history to ${link.targetName}`
+                              : `Waiting for ${link.targetName}`}
+                          </Text>
+                          {link.status === 'pending' ? (
+                            <PressableScale
+                              pressedScale={0.95}
+                              hitSlop={8}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Cancel link request for ${member.name}`}
+                              onPress={() => handleCancelLink(link)}>
+                              <Text style={[styles.linkCancel, { color: c.lossLight }]}>Cancel</Text>
+                            </PressableScale>
+                          ) : null}
+                        </View>
+                      ) : null}
                     </View>
-                  )}
-                </View>
-                {isOwner ? (
-                  <PressableScale
-                    pressedScale={0.9}
-                    style={styles.removeBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${member.name} from group`}
-                    onPress={() => handleRemove(member.id, member.name)}>
-                    <Icon name="close" size={18} color={c.textHint} />
-                  </PressableScale>
-                ) : null}
-              </Animated.View>
-            ))
+                  </View>
+                  {canLink ? (
+                    <PressableScale
+                      pressedScale={0.9}
+                      style={styles.removeBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Link ${member.name} to a friend`}
+                      onPress={() => setLinkTarget(member)}>
+                      <Icon name="link" size={18} color={c.textMuted} />
+                    </PressableScale>
+                  ) : null}
+                  {isOwner ? (
+                    <PressableScale
+                      pressedScale={0.9}
+                      style={styles.removeBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${member.name} from group`}
+                      onPress={() => handleRemove(member.id, member.name)}>
+                      <Icon name="close" size={18} color={c.textHint} />
+                    </PressableScale>
+                  ) : null}
+                </Animated.View>
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -305,6 +372,14 @@ export default function GroupMembersScreen() {
           <Text style={[styles.doneLabel, { color: c.onAccent }]}>Done</Text>
         </PressableScale>
       </View>
+      {linkTarget && playerProfile ? (
+        <LinkGuestModal
+          guest={linkTarget}
+          owner={playerProfile}
+          friends={friends}
+          onClose={() => setLinkTarget(null)}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -430,6 +505,31 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
     minWidth: 0,
+  },
+  memberText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  memberNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  linkCaptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  linkCaption: {
+    fontSize: 12,
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  linkCancel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
   },
   memberName: {
     fontWeight: '600',

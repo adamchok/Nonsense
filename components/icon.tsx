@@ -26,6 +26,7 @@ import { FunnelIcon } from 'phosphor-react-native/src/icons/Funnel';
 import { GearIcon } from 'phosphor-react-native/src/icons/Gear';
 import { HouseIcon } from 'phosphor-react-native/src/icons/House';
 import { ImagesIcon } from 'phosphor-react-native/src/icons/Images';
+import { LinkIcon } from 'phosphor-react-native/src/icons/Link';
 import { MapPinIcon } from 'phosphor-react-native/src/icons/MapPin';
 import { MapPinLineIcon } from 'phosphor-react-native/src/icons/MapPinLine';
 import { MicrophoneIcon } from 'phosphor-react-native/src/icons/Microphone';
@@ -68,6 +69,7 @@ const ICONS = {
   replay: ArrowCounterClockwiseIcon,
   share: ShareNetworkIcon,
   'content-copy': CopyIcon,
+  link: LinkIcon,
   'more-vert': DotsThreeVerticalIcon,
   sort: SortDescendingIcon,
   'filter-alt': FunnelIcon,
