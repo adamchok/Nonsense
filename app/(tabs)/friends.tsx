@@ -145,7 +145,6 @@ export default function FriendsScreen() {
     () => groups.filter((g) => g.ownerId === user?.uid).length,
     [groups, user?.uid]
   );
-  const canCreateGroup = ownedGroupCount < 10;
 
   const refreshRotate = refreshSpin.interpolate({
     inputRange: [0, 1],
@@ -734,22 +733,17 @@ export default function FriendsScreen() {
                 style={[
                   styles.addBtn,
                   { backgroundColor: c.accentBg, borderColor: c.accentBorder },
-                  !canCreateGroup && styles.disabled,
                 ]}
                 onPress={() => setShowNewGroup(true)}
-                disabled={!canCreateGroup}
                 hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel="New group"
-                accessibilityState={{ disabled: !canCreateGroup }}>
+>
                 <Icon name="group-add" size={20} color={c.accentText} />
                 <Text style={[styles.addBtnLabel, { color: c.accentText }]}>New</Text>
               </PressableScale>
             </View>
           </View>
-          <Text style={[styles.groupTabSub, { color: c.textHint }]}>
-            {`Every group you're in is listed here—whether you created it or a friend added you. You can own at most 10 groups (${ownedGroupCount}/10).`}
-          </Text>
           <SearchInput
             accessibilityLabel="Search groups by name"
             placeholder="Search group name"
@@ -1284,7 +1278,7 @@ export default function FriendsScreen() {
           </View>
         </View>
       </Modal>
-      {showNewGroup ? <NewGroupModal onClose={() => setShowNewGroup(false)} /> : null}
+      {showNewGroup ? <NewGroupModal ownedCount={ownedGroupCount} onClose={() => setShowNewGroup(false)} /> : null}
     </ScrollView>
   );
 }
@@ -1378,6 +1372,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingTop: 48,
+    gap: 16,
   },
   title: {
     fontSize: 28,
@@ -1690,12 +1685,6 @@ const styles = StyleSheet.create({
   },
   groupCount: {
     fontSize: 12,
-  },
-  groupTabSub: {
-    fontSize: 12,
-    lineHeight: 17,
-    paddingHorizontal: 4,
-    marginBottom: 6,
   },
   groupHeaderRight: {
     flexDirection: 'row',

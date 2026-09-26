@@ -8,20 +8,22 @@ import { createGroup } from '@/lib/firestore';
 import { userMessage } from '@/lib/user-message';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 
 const MIN_NAME_LEN = 2;
+const MAX_OWNED_GROUPS = 10;
 
-type Props = { onClose: () => void };
+type Props = { onClose: () => void; ownedCount: number };
 
-export function NewGroupModal({ onClose }: Props) {
+export function NewGroupModal({ onClose, ownedCount }: Props) {
   const c = useAppColors();
   const { playerProfile } = useAuth();
   const [name, setName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const trimmed = name.trim();
-  const canCreate = !isSaving;
+  const isAtLimit = ownedCount >= MAX_OWNED_GROUPS;
+  const canCreate = !isSaving && !isAtLimit;
 
   async function create() {
     if (!playerProfile || !canCreate) return;
@@ -68,7 +70,15 @@ export function NewGroupModal({ onClose }: Props) {
           ]}
           {...invalidProps(nameError)}
         />
-        <FieldError message={nameError} />
+        {nameError ? (
+          <FieldError message={nameError} />
+        ) : (
+          <Text style={{ marginTop: 10, fontSize: 12, lineHeight: 16, color: isAtLimit ? c.loss : c.textMuted }}>
+            {isAtLimit
+              ? `You own ${MAX_OWNED_GROUPS} of ${MAX_OWNED_GROUPS} groups. Delete one to create another.`
+              : `You own ${ownedCount} of ${MAX_OWNED_GROUPS} groups`}
+          </Text>
+        )}
       </View>
     </ModalShell>
   );
