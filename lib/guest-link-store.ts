@@ -165,8 +165,7 @@ export function subscribeGuestLinksIn(
     query(collection(db, GUEST_LINKS), where(field, '==', uid)),
     (snap) => {
       const links = snap.docs.map(mapGuestLink);
-      const visible = field === 'targetId' ? links.filter((l) => l.status === 'pending') : links;
-      onChange(visible.sort((a, b) => a.guestName.localeCompare(b.guestName)));
+      onChange(links.sort((a, b) => a.guestName.localeCompare(b.guestName)));
     },
     (err) => onError?.(err)
   );

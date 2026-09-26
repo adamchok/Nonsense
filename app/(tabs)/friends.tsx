@@ -655,6 +655,7 @@ export default function FriendsScreen() {
               {incomingGuestLinks.map((link, i) => {
                 const isBusy = busyGuestLinkId === link.id;
                 const sessionsLabel = `${link.sessionCount} past ${link.sessionCount === 1 ? 'session' : 'sessions'}`;
+                const isAccepted = link.status === 'accepted';
                 return (
                   <Motion.View
                     key={link.id}
@@ -670,49 +671,59 @@ export default function FriendsScreen() {
                     ]}>
                     <View style={styles.friendInfo}>
                       <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
-                        <Icon name="link" size={18} color={c.textMuted} />
+                        <Icon name={isAccepted ? 'clock-outline' : 'link'} size={18} color={c.textMuted} />
                       </View>
                       <View style={styles.guestLinkText}>
-                        <Text style={[styles.guestLinkBody, { color: c.textSecondary }]}>
-                          <Text style={styles.guestLinkStrong}>{link.ownerName}</Text> wants to add {sessionsLabel}{' '}
-                          played as <Text style={styles.guestLinkStrong}>{link.guestName}</Text> to your history
-                        </Text>
+                        {isAccepted ? (
+                          <Text style={[styles.guestLinkBody, { color: c.textSecondary }]}>
+                            Accepted. {sessionsLabel} played as{' '}
+                            <Text style={styles.guestLinkStrong}>{link.guestName}</Text> will appear in your history
+                            the next time <Text style={styles.guestLinkStrong}>{link.ownerName}</Text> opens Nonsense.
+                          </Text>
+                        ) : (
+                          <Text style={[styles.guestLinkBody, { color: c.textSecondary }]}>
+                            <Text style={styles.guestLinkStrong}>{link.ownerName}</Text> wants to add {sessionsLabel}{' '}
+                            played as <Text style={styles.guestLinkStrong}>{link.guestName}</Text> to your history
+                          </Text>
+                        )}
                         <Text style={[styles.friendMeta, { color: link.net >= 0 ? c.profit : c.loss }]}>
                           Net {formatSignedCurrency(link.net)}
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.requestActions}>
-                      <PressableScale
-                        pressedScale={0.97}
-                        style={[
-                          styles.requestAcceptBtn,
-                          styles.guestLinkAcceptBtn,
-                          { backgroundColor: c.accent },
-                          isBusy && styles.disabled,
-                        ]}
-                        disabled={isBusy}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Accept ${sessionsLabel} from ${link.ownerName}`}
-                        accessibilityState={{ disabled: isBusy, busy: isBusy }}
-                        onPress={() => void handleAcceptGuestLink(link)}>
-                        {isBusy ? (
-                          <ActivityIndicator size="small" color={c.onAccent} />
-                        ) : (
-                          <Text style={[styles.requestAcceptLabel, { color: c.onAccent }]}>Accept</Text>
-                        )}
-                      </PressableScale>
-                      <PressableScale
-                        pressedScale={0.9}
-                        hitSlop={8}
-                        disabled={isBusy}
-                        accessibilityRole="button"
-                        style={styles.requestCloseBtn}
-                        accessibilityLabel={`Decline sessions from ${link.ownerName}`}
-                        onPress={() => handleDeclineGuestLink(link)}>
-                        <Icon name="close" size={20} color={c.textHint} />
-                      </PressableScale>
-                    </View>
+                    {isAccepted ? null : (
+                      <View style={styles.requestActions}>
+                        <PressableScale
+                          pressedScale={0.97}
+                          style={[
+                            styles.requestAcceptBtn,
+                            styles.guestLinkAcceptBtn,
+                            { backgroundColor: c.accent },
+                            isBusy && styles.disabled,
+                          ]}
+                          disabled={isBusy}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Accept ${sessionsLabel} from ${link.ownerName}`}
+                          accessibilityState={{ disabled: isBusy, busy: isBusy }}
+                          onPress={() => void handleAcceptGuestLink(link)}>
+                          {isBusy ? (
+                            <ActivityIndicator size="small" color={c.onAccent} />
+                          ) : (
+                            <Text style={[styles.requestAcceptLabel, { color: c.onAccent }]}>Accept</Text>
+                          )}
+                        </PressableScale>
+                        <PressableScale
+                          pressedScale={0.9}
+                          hitSlop={8}
+                          disabled={isBusy}
+                          accessibilityRole="button"
+                          style={styles.requestCloseBtn}
+                          accessibilityLabel={`Decline sessions from ${link.ownerName}`}
+                          onPress={() => handleDeclineGuestLink(link)}>
+                          <Icon name="close" size={20} color={c.textHint} />
+                        </PressableScale>
+                      </View>
+                    )}
                   </Motion.View>
                 );
               })}
