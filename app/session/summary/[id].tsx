@@ -342,7 +342,7 @@ export default function SessionSummaryScreen() {
         <Pressable
           onPress={goToHistory}
           hitSlop={8}
-          style={styles.headerBackBtn}
+          style={[styles.headerBackBtn, Platform.OS === 'web' && { marginLeft: layout.gutter }]}
           accessibilityRole="button"
           accessibilityLabel="Back to history">
           <Icon name="arrow-left" size={20} color={c.text} />
