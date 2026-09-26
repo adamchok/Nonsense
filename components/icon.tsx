@@ -56,7 +56,7 @@ import { WalletIcon } from 'phosphor-react-native/src/icons/Wallet';
 import { WhatsappLogoIcon } from 'phosphor-react-native/src/icons/WhatsappLogo';
 import { XIcon } from 'phosphor-react-native/src/icons/X';
 import type { Icon as PhosphorIcon } from 'phosphor-react-native';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 
 /**
  * App icon names: the Material / MaterialCommunity names the app used before moving to Phosphor,
@@ -155,7 +155,26 @@ export type IconProps = {
 };
 
 /** Crisp SVG icon (Phosphor) used everywhere instead of icon fonts. */
-export function Icon({ name, size = 24, color, weight, ...rest }: IconProps) {
+export function Icon({
+  name,
+  size = 24,
+  color,
+  weight,
+  importantForAccessibility,
+  accessibilityElementsHidden,
+  ...rest
+}: IconProps) {
   const Glyph = ICONS[name];
-  return <Glyph size={size} color={color} weight={weight ?? DEFAULT_WEIGHT[name] ?? 'regular'} {...rest} />;
+  const hidden =
+    accessibilityElementsHidden === true ||
+    importantForAccessibility === 'no' ||
+    importantForAccessibility === 'no-hide-descendants';
+  // On web these native-only a11y props would leak into the DOM as unknown attributes.
+  const a11y =
+    Platform.OS === 'web'
+      ? hidden
+        ? { 'aria-hidden': true }
+        : {}
+      : { importantForAccessibility, accessibilityElementsHidden };
+  return <Glyph size={size} color={color} weight={weight ?? DEFAULT_WEIGHT[name] ?? 'regular'} {...a11y} {...rest} />;
 }
