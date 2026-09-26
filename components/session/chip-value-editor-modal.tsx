@@ -2,7 +2,7 @@ import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { useAppColors } from '@/lib/app-theme';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
-import { parseAmount } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -61,7 +61,7 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
             <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
             <TextInput
               value={draft}
-              onChangeText={setDraft}
+              onChangeText={(t) => setDraft(sanitizeAmountInput(t))}
               placeholder="0.50"
               accessibilityLabel="Dollars per chip"
               placeholderTextColor={c.placeholder}

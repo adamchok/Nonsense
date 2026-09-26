@@ -6,7 +6,7 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatChipsLedger, formatSessionAmountValue, formatSignedCurrency } from '@/lib/currency-format';
 import { getBuyIns, getEarlyCashOuts, getSessionMeta, settleSession } from '@/lib/firestore';
-import { parseAmount } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import type { SessionAmountUnit, SessionResult } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -380,7 +380,7 @@ export default function CashOutScreen() {
             <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
             <TextInput
               value={item.cashOutInput}
-              onChangeText={(v) => updateCashOut(item.playerId, v)}
+              onChangeText={(v) => updateCashOut(item.playerId, sanitizeAmountInput(v))}
               onFocus={() => focusPlayerRow(index)}
               placeholder={isChipsMode ? 'Chips' : '0.00'}
               placeholderTextColor={c.placeholder}

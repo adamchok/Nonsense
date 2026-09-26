@@ -5,6 +5,7 @@ import { useAppColors } from '@/lib/app-theme';
 import type { SessionAmountUnit } from '@/types';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
+import { sanitizeAmountInput } from '@/lib/parse-amount';
 
 export type EditBuyInTarget = {
   playerId: string;
@@ -76,7 +77,7 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
               ]}>
               <TextInput
                 value={amount}
-                onChangeText={setAmount}
+                onChangeText={(t) => setAmount(sanitizeAmountInput(t))}
                 placeholder={unit === 'chips' ? 'Chips' : '0.00'}
                 placeholderTextColor={c.placeholder}
                 keyboardType="numeric"

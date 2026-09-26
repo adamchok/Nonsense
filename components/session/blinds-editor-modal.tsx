@@ -3,7 +3,7 @@ import { formStyles } from '@/components/session/session-form-styles';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { useAppColors } from '@/lib/app-theme';
 import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
-import { parseAmount } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import { isValidBlinds } from '@/lib/session-view';
 import type { SessionAmountUnit } from '@/types';
 import { useRef, useState } from 'react';
@@ -113,7 +113,7 @@ function BlindField({
         style={[formStyles.compactAmountWrap, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}>
         <TextInput
           value={value}
-          onChangeText={onChange}
+          onChangeText={(t) => onChange(sanitizeAmountInput(t))}
           placeholder="0"
           accessibilityLabel={unit === 'chips' ? `${label} in chips` : label}
           placeholderTextColor={c.placeholder}

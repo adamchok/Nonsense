@@ -10,6 +10,7 @@ import type { LedgerPlayer } from '@/lib/session-view';
 import type { FriendRecord, PlayerProfile, SessionAmountUnit } from '@/types';
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { sanitizeAmountInput } from '@/lib/parse-amount';
 
 type Props = {
   visible: boolean;
@@ -132,7 +133,7 @@ export function BuyInModal({
               <TextInput
                 ref={amountInputRef}
                 value={draft.amount}
-                onChangeText={(text) => setDraft((d) => ({ ...d, amount: text }))}
+                onChangeText={(text) => setDraft((d) => ({ ...d, amount: sanitizeAmountInput(text) }))}
                 autoFocus={Boolean(draft.pickedPlayerId) && !draft.amount}
                 returnKeyType="done"
                 onSubmitEditing={() => void submit()}

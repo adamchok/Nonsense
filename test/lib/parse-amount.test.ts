@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseAmount } from '../../lib/parse-amount.ts';
+import { parseAmount, sanitizeAmountInput } from '../../lib/parse-amount.ts';
 
 test('parses plain integers and decimals', () => {
   assert.equal(parseAmount('50'), 50);
@@ -43,4 +43,14 @@ test('rejects "1,500": thousands separator or decimal comma is ambiguous', () =>
 test('leaves sign checks to the caller', () => {
   assert.equal(parseAmount('0'), 0);
   assert.equal(parseAmount('-5'), -5);
+});
+
+test('sanitizeAmountInput keeps digits and one decimal separator', () => {
+  assert.equal(sanitizeAmountInput('12abc'), '12');
+  assert.equal(sanitizeAmountInput('1.2.3'), '1.23');
+  assert.equal(sanitizeAmountInput('12,5x'), '12,5');
+  assert.equal(sanitizeAmountInput('$ 50'), '50');
+  assert.equal(sanitizeAmountInput('-20'), '20');
+  assert.equal(sanitizeAmountInput('-20', { allowNegative: true }), '-20');
+  assert.equal(sanitizeAmountInput('2-0', { allowNegative: true }), '20');
 });

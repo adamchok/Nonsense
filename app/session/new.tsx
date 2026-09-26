@@ -5,7 +5,7 @@ import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
-import { parseAmount } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import type { GroupMember, PokerGroup, SavedLocation, SessionAmountUnit } from '@/types';
 import { Icon } from '@/components/icon';
 import { router } from 'expo-router';
@@ -307,7 +307,7 @@ export default function NewSessionScreen() {
                     <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
                     <TextInput
                       value={dollarsPerChipStr}
-                      onChangeText={setDollarsPerChipStr}
+                      onChangeText={(t) => setDollarsPerChipStr(sanitizeAmountInput(t))}
                       accessibilityLabel="Dollars per chip"
                       placeholder="0.50"
                       placeholderTextColor={c.placeholder}
@@ -338,7 +338,7 @@ export default function NewSessionScreen() {
                 <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={smallBlindStr}
-                    onChangeText={setSmallBlindStr}
+                    onChangeText={(t) => setSmallBlindStr(sanitizeAmountInput(t))}
                     accessibilityLabel="Small blind"
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
@@ -355,7 +355,7 @@ export default function NewSessionScreen() {
                 <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={bigBlindStr}
-                    onChangeText={setBigBlindStr}
+                    onChangeText={(t) => setBigBlindStr(sanitizeAmountInput(t))}
                     accessibilityLabel="Big blind"
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
@@ -424,7 +424,7 @@ export default function NewSessionScreen() {
                     <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                       <TextInput
                         value={groupBuyIn}
-                        onChangeText={setGroupBuyIn}
+                        onChangeText={(t) => setGroupBuyIn(sanitizeAmountInput(t))}
                         accessibilityLabel={isChipsMode ? 'Chip buy-in per group player' : 'Buy-in per group player'}
                         placeholder={isChipsMode ? 'Chips per player' : 'Buy-in per player'}
                         placeholderTextColor={c.placeholder}
@@ -450,9 +450,6 @@ export default function NewSessionScreen() {
                         <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                       ) : null}
                     </View>
-                    <Text style={[styles.joinHint, { color: c.textMuted }]}>
-                      {isChipsMode ? 'Add yourself with chips bought in' : 'Add yourself with an initial buy-in'}
-                    </Text>
                   </View>
                   <AppSwitch
                     accessibilityLabel="Join as player"
@@ -464,7 +461,7 @@ export default function NewSessionScreen() {
                   <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                     <TextInput
                       value={buyInAmount}
-                      onChangeText={setBuyInAmount}
+                      onChangeText={(t) => setBuyInAmount(sanitizeAmountInput(t))}
                       accessibilityLabel={isChipsMode ? 'Your chip buy-in' : 'Your buy-in amount'}
                       placeholder={isChipsMode ? 'Chips' : '0.00'}
                       placeholderTextColor={c.placeholder}
@@ -704,9 +701,6 @@ const styles = StyleSheet.create({
   joinTitle: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  joinHint: {
-    fontSize: 12,
   },
   blindsRow: {
     flexDirection: 'row',

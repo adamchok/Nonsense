@@ -9,7 +9,7 @@ import {
   formatSignedCurrency,
   formatTightCompactNumber,
 } from '@/lib/currency-format';
-import { parseAmount } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { appAlert } from '@/lib/app-alert';
 import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
@@ -878,7 +878,7 @@ export default function HistoryScreen() {
                       placeholder="Min"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.buyInMin}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMin: value }))}
+                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMin: sanitizeAmountInput(value) }))}
                       keyboardType="decimal-pad"
                       onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
@@ -892,7 +892,7 @@ export default function HistoryScreen() {
                       placeholder="Max"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.buyInMax}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMax: value }))}
+                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, buyInMax: sanitizeAmountInput(value) }))}
                       keyboardType="decimal-pad"
                       onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
@@ -911,7 +911,7 @@ export default function HistoryScreen() {
                       placeholder="Min"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.profitMin}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMin: value }))}
+                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMin: sanitizeAmountInput(value, { allowNegative: true }) }))}
                       keyboardType="decimal-pad"
                       onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
@@ -925,7 +925,7 @@ export default function HistoryScreen() {
                       placeholder="Max"
                       placeholderTextColor={c.placeholder}
                       value={draftFilters.profitMax}
-                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMax: value }))}
+                      onChangeText={(value) => setDraftFilters((prev) => ({ ...prev, profitMax: sanitizeAmountInput(value, { allowNegative: true }) }))}
                       keyboardType="decimal-pad"
                       onFocus={() => setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 150)}
                     />
