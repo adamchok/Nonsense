@@ -870,12 +870,8 @@ export default function FriendsScreen() {
             {activeTab === 'leaderboard' && (
         <>
           {showLeaderboardSortDropdown ? (
-            <Pressable
-              style={styles.menuBackdrop}
-              onPress={() => setShowLeaderboardSortDropdown(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Close sort options"
-            />
+            // Not a control (no role, no focus), so it gets no hover tint or tab stop.
+            <Pressable style={styles.menuBackdrop} onPress={() => setShowLeaderboardSortDropdown(false)} accessible={false} focusable={false} tabIndex={-1} aria-hidden />
           ) : null}
           <View style={[styles.sectionHeader, showLeaderboardSortDropdown && styles.menuAnchorRaised]}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>

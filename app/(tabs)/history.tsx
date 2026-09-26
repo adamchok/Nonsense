@@ -408,12 +408,8 @@ export default function HistoryScreen() {
         { backgroundColor: c.bg, paddingHorizontal: layout.gutter, gap: layout.sectionGap },
       ]}>
       {showSortDropdown ? (
-        <Pressable
-          style={styles.menuBackdrop}
-          onPress={() => setShowSortDropdown(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Close sort options"
-        />
+        // Not a control (no role, no focus), so it gets no hover tint or tab stop.
+        <Pressable style={styles.menuBackdrop} onPress={() => setShowSortDropdown(false)} accessible={false} focusable={false} tabIndex={-1} aria-hidden />
       ) : null}
       <View style={[styles.titleRow, showSortDropdown && styles.menuAnchorRaised]}>
         <Text style={[styles.title, { color: c.text }]}>My Winnings</Text>
