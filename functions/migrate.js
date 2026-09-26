@@ -132,6 +132,21 @@ async function migrateGroup(db, groupRef, link, avatarEmoji) {
   });
 }
 
+const MAX_VOICE_ALIASES = 10;
+
+async function migrateVoiceAliases(db, link) {
+  const aliases = db.collection('players').doc(link.ownerId).collection('voice_aliases');
+  return db.runTransaction(async (tx) => {
+    const [guest, target] = await Promise.all([tx.get(aliases.doc(link.guestId)), tx.get(aliases.doc(link.targetId))]);
+    if (!guest.exists) return false;
+    const list = (snap) => (snap.exists && Array.isArray(snap.get('aliases')) ? snap.get('aliases') : []);
+    const merged = [...new Set([...list(target), ...list(guest)])].slice(0, MAX_VOICE_ALIASES);
+    tx.set(aliases.doc(link.targetId), { aliases: merged });
+    tx.delete(guest.ref);
+    return true;
+  });
+}
+
 async function targetAvatar(db, targetId) {
   const profile = await db.collection('players').doc(targetId).get();
   const raw = profile.exists ? profile.get('avatarEmoji') : null;
@@ -159,6 +174,8 @@ export async function migrateGuestLink(db, linkId) {
   for (const g of groupsSnap.docs) {
     if (await migrateGroup(db, g.ref, link, avatarEmoji)) groups += 1;
   }
+
+  await migrateVoiceAliases(db, link);
 
   await linkRef.delete();
   return { found: true, sessions, skipped, groups };

@@ -171,6 +171,15 @@ service cloud.firestore {
         allow read, write: if isPlayerOwner(playerId);
       }
 
+      // Heard-name corrections for voice buy-ins, keyed by the player they meant.
+      match /voice_aliases/{aliasPlayerId} {
+        allow read, delete: if isPlayerOwner(playerId);
+        allow create, update: if isPlayerOwner(playerId)
+          && request.resource.data.keys().hasOnly(['aliases'])
+          && request.resource.data.aliases is list
+          && request.resource.data.aliases.size() <= 10;
+      }
+
       match /group_memberships/{groupId} {
         allow read: if isPlayerOwner(playerId);
         allow create: if signedIn()
