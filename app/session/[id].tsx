@@ -14,7 +14,6 @@ import { SessionMetaCards } from '@/components/session/session-meta-cards';
 import { LiveSessionSkeleton } from '@/components/session/session-skeletons';
 import { hapticTap } from '@/components/session/feedback';
 import { UndoSnackbar } from '@/components/session/undo-snackbar';
-import { VoiceBanner, VoiceMicButton } from '@/components/session/voice-panel';
 import {
   deleteBuyInEntry,
   useAddBuyIn,
@@ -24,7 +23,6 @@ import {
 import { useLiveSession } from '@/hooks/use-live-session';
 import { useSessionActions } from '@/hooks/use-session-actions';
 import { usePageLayout } from '@/hooks/use-page-layout';
-import { useVoiceSession } from '@/hooks/use-voice-session';
 import { useAppColors } from '@/lib/app-theme';
 import { text as type, ui } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -33,12 +31,10 @@ import { getAvatarEmoji } from '@/lib/avatar';
 import { formatSessionAmountValue } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import type { LedgerPlayer } from '@/lib/session-view';
-import type { VoiceRosterEntry } from '@/lib/voice-command';
-import { addVoiceAlias, loadVoiceAliases, type VoiceAliases } from '@/lib/voice-aliases';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/motion';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
@@ -71,38 +67,13 @@ export default function ActiveSessionScreen() {
   const [modalSeq, setModalSeq] = useState(0);
   const [ledgerShowDollars, setLedgerShowDollars] = useState(false);
 
-  const [voiceAliases, setVoiceAliases] = useState<VoiceAliases>({});
-  const voiceHeardRef = useRef<string | null>(null);
-
-  const aliasOwnerId = playerProfile?.id ?? null;
-  useEffect(() => {
-    if (!aliasOwnerId) return;
-    let alive = true;
-    void loadVoiceAliases(aliasOwnerId).then((loaded) => {
-      if (alive) setVoiceAliases(loaded);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [aliasOwnerId]);
-
-  function openModal(next: ActiveModal, voiceHeardName: string | null = null) {
-    voiceHeardRef.current = voiceHeardName;
+  function openModal(next: ActiveModal) {
     setModalSeq((n) => n + 1);
     setModal(next);
   }
   function closeModal() {
     Keyboard.dismiss();
-    voiceHeardRef.current = null;
     setModal(null);
-  }
-
-  function learnVoiceAlias(heardName: string | null, playerId: string | null, playerName: string) {
-    if (!heardName || !playerId || !aliasOwnerId) return;
-    if (heardName.trim().toLowerCase() === playerName.trim().toLowerCase()) return;
-    void addVoiceAlias(aliasOwnerId, voiceAliases, playerId, heardName).then((next) => {
-      if (next) setVoiceAliases(next);
-    });
   }
 
   const [undoable, setUndoable] = useState<(QueuedBuyIn & { key: number }) | null>(null);
@@ -121,19 +92,9 @@ export default function ActiveSessionScreen() {
   });
 
   async function submitBuyIn(draft: BuyInDraft): Promise<boolean> {
-    const heardName = voiceHeardRef.current;
     const queued = await handleAddBuyIn(draft);
-    if (queued) {
-      learnVoiceAlias(heardName, draft.pickedPlayerId, draft.playerName);
-      closeModal();
-    }
+    if (queued) closeModal();
     return queued;
-  }
-
-  async function submitCashOut(target: CashOutTarget, amount: string) {
-    const heardName = voiceHeardRef.current;
-    await actions.saveCashOut(target, amount);
-    learnVoiceAlias(heardName, target.playerId, target.playerName);
   }
 
   function undoBuyIn() {
@@ -176,16 +137,13 @@ export default function ActiveSessionScreen() {
     openModal({ kind: 'buyIn', draft: { playerName, amount: '', pickedPlayerId: playerId, isBuyBack: true } });
   }
 
-  function startEarlyCashOut(player: LedgerPlayer, amount = '', voiceHeardName: string | null = null) {
+  function startEarlyCashOut(player: LedgerPlayer) {
     if (!actions.requireHost('cash out players')) return;
-    openModal(
-      {
-        kind: 'cashOut',
-        target: { playerId: player.playerId, playerName: player.name, totalBuyIn: player.total },
-        amount,
-      },
-      voiceHeardName
-    );
+    openModal({
+      kind: 'cashOut',
+      target: { playerId: player.playerId, playerName: player.name, totalBuyIn: player.total },
+      amount: '',
+    });
   }
 
   const cashedOutDetail = useMemo(() => {
@@ -195,55 +153,6 @@ export default function ActiveSessionScreen() {
     if (!co || !p) return null;
     return { playerId: p.playerId, name: p.name, totalBuyIn: p.total, cashOut: co };
   }, [modal, earlyCashOutMap, players]);
-
-  const voiceRoster = useMemo<VoiceRosterEntry[]>(() => {
-    const entries: VoiceRosterEntry[] = players.map((p) => ({
-      playerId: p.playerId,
-      name: p.name,
-      inSession: true,
-    }));
-    const seen = new Set(entries.map((e) => e.playerId));
-    if (playerProfile && !seen.has(playerProfile.id)) {
-      seen.add(playerProfile.id);
-      entries.push({ playerId: playerProfile.id, name: playerProfile.name, inSession: false });
-    }
-    for (const friend of live.friends) {
-      if (seen.has(friend.playerId)) continue;
-      seen.add(friend.playerId);
-      entries.push({ playerId: friend.playerId, name: friend.name, inSession: false });
-    }
-    return entries.map((e) => (voiceAliases[e.playerId] ? { ...e, aliases: voiceAliases[e.playerId] } : e));
-  }, [players, live.friends, playerProfile, voiceAliases]);
-
-  const voice = useVoiceSession({
-    isHost: viewerIsHost,
-    sessionActive: live.isActive,
-    amountUnit: unit,
-    roster: voiceRoster,
-    findSeatedPlayer: (playerId) => {
-      const player = players.find((p) => p.playerId === playerId);
-      if (!player) return null;
-      return {
-        playerId: player.playerId,
-        name: player.name,
-        totalBuyIn: player.total,
-        cashedOut: earlyCashOutMap.has(player.playerId),
-      };
-    },
-    prefillBuyIn: ({ playerId, playerName, amount, heardName }) =>
-      openModal(
-        { kind: 'buyIn', draft: { playerName, amount: String(amount), pickedPlayerId: playerId } },
-        heardName ?? null
-      ),
-    prefillCashOut: (player, amount, heardName) =>
-      startEarlyCashOut(
-        { playerId: player.playerId, name: player.name, total: player.totalBuyIn },
-        String(amount),
-        heardName ?? null
-      ),
-    prefillManualEntry: ({ playerName, amount }) =>
-      openModal({ kind: 'buyIn', draft: { playerName, amount, pickedPlayerId: null } }),
-  });
 
   const showLedgerDollars = live.ledgerCanToggleDollars && ledgerShowDollars;
 
@@ -283,7 +192,6 @@ export default function ActiveSessionScreen() {
             hostActions={
               canAct
                 ? {
-                    micSlot: <VoiceMicButton voice={voice} />,
                     onBuyIn: () => openModal({ kind: 'buyIn', draft: EMPTY_BUY_IN }),
                   }
                 : null
@@ -357,7 +265,6 @@ export default function ActiveSessionScreen() {
         />
       </ScrollView>
 
-      <VoiceBanner voice={voice} />
       {undoable ? (
         <UndoSnackbar
           key={undoable.key}
@@ -376,7 +283,7 @@ export default function ActiveSessionScreen() {
         initialAmount={modal?.kind === 'cashOut' ? modal.amount : ''}
         unit={unit}
         onClose={closeModal}
-        onSubmit={submitCashOut}
+        onSubmit={actions.saveCashOut}
       />
       <BuyInModal
         key={`buyIn-${modalSeq}`}

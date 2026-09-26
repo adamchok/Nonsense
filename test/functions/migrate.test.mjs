@@ -264,17 +264,3 @@ test('runGuestLinkMigration reports success and marking a missing link failed is
   await markGuestLinkFailed(db, linkId);
   assert.equal((await db.doc(`guest_links/${linkId}`).get()).exists, false);
 });
-
-test('voice aliases for the guest move to the real account and merge', async () => {
-  const guestId = nextId('aliasguest');
-  const sessionId = await seedGuestSession(guestId);
-  const aliases = db.collection('players').doc(OWNER).collection('voice_aliases');
-  await aliases.doc(guestId).set({ aliases: ['brian', 'ryan'] });
-  await aliases.doc(TARGET).set({ aliases: ['bryan real', 'brian'] });
-  const linkId = await seedLink(guestId, { [sessionId]: 150.5 });
-
-  await migrateGuestLink(db, linkId);
-
-  assert.equal((await aliases.doc(guestId).get()).exists, false);
-  assert.deepEqual((await aliases.doc(TARGET).get()).get('aliases'), ['bryan real', 'brian', 'ryan']);
-});

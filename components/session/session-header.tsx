@@ -1,12 +1,11 @@
 import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { Icon } from '@/components/icon';
-import type { ReactNode } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 type Props = {
   title: string;
-  hostActions?: { micSlot: ReactNode; onBuyIn: () => void } | null;
+  hostActions?: { onBuyIn: () => void } | null;
 };
 
 export function SessionHeader({ title, hostActions }: Props) {
@@ -21,7 +20,6 @@ export function SessionHeader({ title, hostActions }: Props) {
       </View>
       {hostActions ? (
         <View style={styles.actions}>
-          {hostActions.micSlot}
           <PressableScale
             onPress={hostActions.onBuyIn}
             accessibilityRole="button"

@@ -26,7 +26,7 @@ It handles the full session lifecycle: creating games, tracking buy-ins, cashing
 
 - Create new poker sessions with optional saved locations.
 - Preset buy-in amounts (100/200/300/500/1000) and a Cash/Chips toggle on New Session.
-- Track live participants and buy-ins during active games, including voice commands for buy-ins and cash-outs.
+- Track live participants and buy-ins during active games.
 - Run a dedicated cash-out flow and store final results.
 - Settle-up suggestions (who pays whom) and read-only session summaries with sharing, for easy recap and auditability.
 
@@ -64,7 +64,7 @@ It handles the full session lifecycle: creating games, tracking buy-ins, cashing
 | Mobile app | [Expo](https://expo.dev/) SDK 54, [Expo Router](https://docs.expo.dev/router/introduction/) |
 | UI | React Native 0.81, React 19, TypeScript, Reanimated, Phosphor icons, react-native-gifted-charts, expo-blur |
 | Backend | Firebase Authentication (Google, email/password), Firestore |
-| Native integrations | Camera, sharing, clipboard, haptics, QR generation/scanning, speech recognition, Google Sign-In |
+| Native integrations | Camera, sharing, clipboard, haptics, QR generation/scanning, Google Sign-In |
 | Hosting | EAS Build/Update (Android), Cloudflare Pages (web) |
 | Tooling | ESLint, TypeScript, `node:test`, Firebase emulators |
 

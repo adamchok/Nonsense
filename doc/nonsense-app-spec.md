@@ -25,7 +25,7 @@ Primary audience: casual-to-serious home poker groups that need clean records th
   - Settings shows the signed-in method and email, with Sign out.
 - Session lifecycle:
   - create session with optional location and optional blinds; preset buy-in amounts; Cash/Chips toggle
-  - real-time buy-in ledger, with voice commands for buy-ins and cash-outs
+  - real-time buy-in ledger
   - optional early cash-out tracking per player
   - cash-out + finalize results, with settle-up suggestions (who pays whom)
   - read-only summary view with sharing
