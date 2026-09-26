@@ -1367,15 +1367,16 @@ const styles = StyleSheet.create({
   historyTopRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 6,
   },
+  // Small visual circle; hitSlop keeps the tap target at 44px.
   historyMoreBtn: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -6,
+    marginRight: -4,
   },
   historyTitleRow: {
     flex: 1,
