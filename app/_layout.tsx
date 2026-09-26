@@ -1,3 +1,4 @@
+import { WebAppFrame } from '@/components/web/web-app-frame';
 import { AppAlertProvider } from '@/lib/app-alert';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemePreferenceProvider, useThemePreference } from '@/lib/theme-context';
@@ -6,7 +7,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import 'react-native-reanimated';
+import '@/lib/reanimated-setup';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -82,7 +83,9 @@ export default function RootLayout() {
   return (
     <ThemePreferenceProvider>
       <AppAlertProvider>
-        <ThemedNavigation />
+        <WebAppFrame>
+          <ThemedNavigation />
+        </WebAppFrame>
       </AppAlertProvider>
     </ThemePreferenceProvider>
   );

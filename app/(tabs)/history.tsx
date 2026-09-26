@@ -1,3 +1,4 @@
+import { WebDateInput } from '@/components/web/web-date-input';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -278,6 +279,16 @@ export default function HistoryScreen() {
   function clearDraftFilters() {
     setDraftFilters(DEFAULT_FILTERS);
     setShowLocationModal(false);
+  }
+
+  /**
+   * Web fallback: the browser date field hands back YYYY-MM-DD ('' when cleared). It stays
+   * open after a change, since typing a date fires several changes before it is finished.
+   */
+  function onWebDatePicked(value: string) {
+    if (!datePickerTarget) return;
+    const key = datePickerTarget === 'start' ? 'startDate' : 'endDate';
+    setDraftFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   function onDatePicked(event: DateTimePickerEvent, selectedDate?: Date) {
@@ -754,7 +765,18 @@ export default function HistoryScreen() {
                       </View>
                     </Pressable>
                   </View>
-                  {datePickerTarget ? (
+                  {datePickerTarget && Platform.OS === 'web' ? (
+                    // datetimepicker renders nothing on web.
+                    <WebDateInput
+                      key={datePickerTarget}
+                      value={datePickerTarget === 'start' ? draftFilters.startDate : draftFilters.endDate}
+                      min={datePickerTarget === 'end' ? draftFilters.startDate : undefined}
+                      max={datePickerTarget === 'start' ? draftFilters.endDate : undefined}
+                      onChange={onWebDatePicked}
+                      accessibilityLabel={datePickerTarget === 'start' ? 'Start date' : 'End date'}
+                      colors={{ text: c.text, background: c.inputBg, border: c.accentBorder }}
+                    />
+                  ) : datePickerTarget ? (
                     <View style={[styles.pickerInlineWrap, { borderColor: c.border, backgroundColor: c.inputBg }]}>
                       <DateTimePicker
                         mode="date"

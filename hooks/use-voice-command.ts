@@ -14,9 +14,12 @@ type SpeechPackage = typeof import('expo-speech-recognition');
  * static import would take this whole route down with it (the screen would fail
  * to export a default and the route would vanish), so the failure is contained
  * here instead and simply reports the feature as unavailable.
+ *
+ * On web the package wraps the browser's Web Speech API; `isRecognitionAvailable()`
+ * reports whether the browser has one (Chrome/Edge yes, Firefox no), so the mic
+ * only appears where it can actually work.
  */
 const speech: SpeechPackage | null = (() => {
-  if (Platform.OS === 'web') return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('expo-speech-recognition') as SpeechPackage;
@@ -191,10 +194,12 @@ export function useVoiceCommand(options: {
 
     void (async () => {
       try {
-        const current = await recogniser.getPermissionsAsync();
-        const granted = current.granted
-          ? true
-          : (await recogniser.requestPermissionsAsync()).granted;
+        // The web shim has no permission API (it warns and reports "granted"); the
+        // browser prompts on start() instead and a refusal arrives as 'not-allowed'.
+        const granted =
+          Platform.OS === 'web' ||
+          (await recogniser.getPermissionsAsync()).granted ||
+          (await recogniser.requestPermissionsAsync()).granted;
         if (!granted) {
           releaseOwnership(ownerRef.current);
           applyStatus('idle');

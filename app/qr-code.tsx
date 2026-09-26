@@ -24,6 +24,9 @@ import { userMessage } from '@/lib/user-message';
 
 type Tab = 'my' | 'scan';
 
+/** Image export relies on react-native-view-shot + expo-sharing, which have no web implementation. */
+const CAN_SHARE_QR_IMAGE = Platform.OS !== 'web';
+
 export default function QrCodeScreen() {
   const c = useAppColors();
   const { playerProfile, user } = useAuth();
@@ -82,17 +85,19 @@ export default function QrCodeScreen() {
       '',
       'Open the app, go to Friends, and enter this code to send me a friend request.',
     ].join('\n');
-    await Clipboard.setStringAsync(inviteMessage);
+    try {
+      await Clipboard.setStringAsync(inviteMessage);
+    } catch (e) {
+      // Web browsers can refuse clipboard access (permissions, insecure context).
+      appAlert('Copy failed', userMessage(e, `Could not copy. Your code is ${refCode}.`));
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleShareQrImage() {
-    if (Platform.OS === 'web') {
-      appAlert('Not available', 'Sharing QR images is not supported on web.');
-      return;
-    }
-    if (!refCode || sharingQr) return;
+    if (!CAN_SHARE_QR_IMAGE || !refCode || sharingQr) return;
     setSharingQr(true);
     try {
       await new Promise<void>((resolve) => {
@@ -384,21 +389,23 @@ export default function QrCodeScreen() {
                 color={copied ? c.profit : c.textMuted}
               />
             </Pressable>
-            <Pressable
-              style={[
-                styles.toolbarBtnPrimary,
-                { backgroundColor: c.accent, borderColor: c.accentBorder },
-                (!refCode || sharingQr) && styles.disabled,
-              ]}
-              onPress={handleShareQrImage}
-              disabled={!refCode || sharingQr}
-              accessibilityRole="button"
-              accessibilityLabel="Share QR code as image">
-              <MaterialIcons name="share" size={20} color="#fff" />
-              <Text style={styles.toolbarBtnPrimaryLabel}>
-                {sharingQr ? 'Sharing…' : 'Share'}
-              </Text>
-            </Pressable>
+            {CAN_SHARE_QR_IMAGE && (
+              <Pressable
+                style={[
+                  styles.toolbarBtnPrimary,
+                  { backgroundColor: c.accent, borderColor: c.accentBorder },
+                  (!refCode || sharingQr) && styles.disabled,
+                ]}
+                onPress={handleShareQrImage}
+                disabled={!refCode || sharingQr}
+                accessibilityRole="button"
+                accessibilityLabel="Share QR code as image">
+                <MaterialIcons name="share" size={20} color="#fff" />
+                <Text style={styles.toolbarBtnPrimaryLabel}>
+                  {sharingQr ? 'Sharing…' : 'Share'}
+                </Text>
+              </Pressable>
+            )}
           </View>
 
           <Text style={[styles.note, { color: c.textHint }]}>
@@ -413,6 +420,11 @@ export default function QrCodeScreen() {
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleBarCodeScanned}
+              onMountError={() => {
+                // Web: no camera attached, or the page isn't served over HTTPS.
+                appAlert('Camera unavailable', 'Could not start the camera on this device.');
+                setActiveTab('my');
+              }}
             />
             <View style={styles.scanOverlay}>
               <View style={[styles.scanFrame, { borderColor: c.blue }]} />

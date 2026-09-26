@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   BackHandler,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -153,6 +154,11 @@ export default function SessionSummaryScreen() {
   const handleShareWhatsApp = useCallback(async () => {
     const message = buildSettlementMessage();
     try {
+      if (Platform.OS === 'web') {
+        // whatsapp:// means nothing to a desktop browser; wa.me opens WhatsApp Web or the app.
+        await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`);
+        return;
+      }
       const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
