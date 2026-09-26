@@ -47,6 +47,15 @@ import {
   View,
 } from 'react-native';
 import { userMessage } from '@/lib/user-message';
+import { SearchInput } from '@/components/search-input';
+import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
+import { EmptyState } from '@/components/empty-state';
+
+const FRIENDS_TABS: readonly SegmentedTab<'friends' | 'groups' | 'leaderboard'>[] = [
+  { key: 'friends', label: 'Friends', icon: 'people' },
+  { key: 'groups', label: 'Groups', icon: 'groups' },
+  { key: 'leaderboard', label: 'Leaderboard', icon: 'leaderboard' },
+];
 
 type LeaderboardEntry = { playerId: string; name: string; avatarEmoji?: string; totalProfit: number };
 type FriendsSectionTab = 'friends' | 'leaderboard' | 'groups';
@@ -434,32 +443,14 @@ export default function FriendsScreen() {
       contentContainerStyle={[layout.content, styles.content]}>
       <Text style={[styles.title, { color: c.text }]}>Friends</Text>
 
-      <View
-        style={[styles.tabsRow, { backgroundColor: c.inputBg, borderColor: c.border }]}
-        accessibilityRole="tablist">
-        {(['friends', 'groups', 'leaderboard'] as const).map((tab) => (
-          <Pressable
-            key={tab}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: activeTab === tab }}
-            style={[
-              styles.tabBtn,
-              activeTab === tab && { backgroundColor: c.card, borderColor: c.border },
-            ]}
-            onPress={() => {
-              setActiveTab(tab);
-              setShowLeaderboardSortDropdown(false);
-            }}>
-            <Text
-              style={[
-                styles.tabBtnText,
-                { color: activeTab === tab ? c.text : c.textMuted },
-              ]}>
-              {tab === 'friends' ? 'Friends' : tab === 'leaderboard' ? 'Leaderboard' : 'Groups'}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedTabs
+        tabs={FRIENDS_TABS}
+        value={activeTab}
+        onChange={(tab) => {
+          setActiveTab(tab);
+          setShowLeaderboardSortDropdown(false);
+        }}
+      />
 
       {/* ---- Friends tab ---- */}
       {activeTab === 'friends' && (
@@ -500,14 +491,9 @@ export default function FriendsScreen() {
               </Pressable>
             </View>
           </View>
-          <TextInput
-            style={[
-              styles.friendSearchInput,
-              { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-            ]}
+          <SearchInput
             accessibilityLabel="Search friends by name"
             placeholder="Search friend name"
-            placeholderTextColor={c.placeholder}
             value={friendSearchQuery}
             onChangeText={setFriendSearchQuery}
             autoCapitalize="words"
@@ -617,13 +603,14 @@ export default function FriendsScreen() {
           ) : null}
 
           {friends.length === 0 ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>
-              No friends yet. Share your code or add someone with theirs!
-            </Text>
+            <EmptyState
+              icon="people"
+              title="No friends yet"
+              message="Add someone with their code, or share yours from the QR screen."
+              action={{ label: 'Add friend', icon: 'person-add', onPress: () => setShowAddModal(true) }}
+            />
           ) : filteredFriends.length === 0 ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>
-              No friend matches: {friendSearchQuery.trim()}.
-            </Text>
+            <EmptyState compact icon="search" title="No matches" message={`No friend named “${friendSearchQuery.trim()}”.`} />
           ) : (
             <View style={styles.friendList}>
               {filteredFriends.map((item, i) => (
@@ -703,13 +690,9 @@ export default function FriendsScreen() {
           <Text style={[styles.groupTabSub, { color: c.textHint }]}>
             {`Every group you're in is listed here—whether you created it or a friend added you. You can own at most 10 groups (${ownedGroupCount}/10).`}
           </Text>
-          <TextInput
-            style={[
-              styles.friendSearchInput,
-              { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-            ]}
+          <SearchInput
+            accessibilityLabel="Search groups by name"
             placeholder="Search group name"
-            placeholderTextColor={c.placeholder}
             value={groupSearchQuery}
             onChangeText={setGroupSearchQuery}
             autoCapitalize="words"
@@ -717,13 +700,14 @@ export default function FriendsScreen() {
           />
 
           {groups.length === 0 ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>
-              Create a group to quickly start sessions with your regular players.
-            </Text>
+            <EmptyState
+              icon="groups"
+              title="No groups yet"
+              message="Create a group to start sessions with your regulars in one tap."
+              action={{ label: 'Create group', icon: 'add', onPress: () => router.push('../group/new') }}
+            />
           ) : filteredGroups.length === 0 ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>
-              No group matches: {groupSearchQuery.trim()}.
-            </Text>
+            <EmptyState compact icon="search" title="No matches" message={`No group named “${groupSearchQuery.trim()}”.`} />
           ) : (
             filteredGroups.map((group) => {
               const isExpanded = expandedGroupId === group.id;
@@ -957,9 +941,11 @@ export default function FriendsScreen() {
               <ActivityIndicator size="large" color={c.textMuted} />
             </View>
           ) : leaderboard.length === 0 ? (
-            <Text style={[styles.emptyText, { color: c.textMuted }]}>
-              {lbFailed ? 'Could not load the leaderboard. Pull to refresh.' : 'No session results yet.'}
-            </Text>
+            <EmptyState
+              icon="leaderboard"
+              title={lbFailed ? "Couldn't load the leaderboard" : 'No results yet'}
+              message={lbFailed ? 'Tap refresh to try again.' : 'Finish a session with friends to see the rankings.'}
+            />
           ) : (
             sortedLeaderboard.map((entry, idx) => {
               const isMe = entry.playerId === user?.uid;
@@ -1223,26 +1209,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   /** Segmented control: track padding 3, gap 2, radius 9; items 38 tall, radius 8. */
-  tabsRow: {
-    flexDirection: 'row',
-    padding: 3,
-    gap: 2,
-    borderRadius: 9,
-    borderWidth: 1,
-  },
-  tabBtn: {
-    flex: 1,
-    minHeight: 38,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   /** Rows of one card: side + top borders on every row; radius and bottom border on the ends. */
   vRow: {
     minHeight: 52,
@@ -1381,14 +1347,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  friendSearchInput: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 9,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-  },
   scanBtn: {
     width: 40,
     height: 40,
@@ -1411,10 +1369,6 @@ const styles = StyleSheet.create({
   addBtnLabel: {
     fontWeight: '600',
     fontSize: 15,
-  },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 16,
   },
   requestBlock: {
     gap: 0,

@@ -3,6 +3,7 @@
  * does not tree-shake, so importing from the package root would ship every icon in every weight.
  */
 import { ArrowCounterClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowCounterClockwise';
+import { MagnifyingGlassIcon } from 'phosphor-react-native/src/icons/MagnifyingGlass';
 import { ArrowLeftIcon } from 'phosphor-react-native/src/icons/ArrowLeft';
 import { ArrowRightIcon } from 'phosphor-react-native/src/icons/ArrowRight';
 import { ArrowsClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowsClockwise';
@@ -95,6 +96,8 @@ const ICONS = {
   people: UsersIcon,
   group: UsersIcon,
   'group-add': UsersThreeIcon,
+  groups: UsersThreeIcon,
+  search: MagnifyingGlassIcon,
   // Selection
   'check-box': CheckSquareIcon,
   'check-box-outline-blank': SquareIcon,
