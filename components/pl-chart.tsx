@@ -3,7 +3,7 @@ import { PressableScale } from '@/components/motion';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatSignedCurrency, formatTightCompactNumber } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
 import { LinearGradient, Stop } from 'react-native-svg';
@@ -60,7 +60,13 @@ function formatAxisLabel(label: string): string {
 
 const signColor = (c: AppColors, n: number) => (n > 0 ? c.profit : n < 0 ? c.loss : c.textMuted);
 
-export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen: (id: string) => void }) {
+export const PLChart = memo(function PLChart({
+  entries,
+  onOpen,
+}: {
+  entries: readonly Entry[];
+  onOpen: (id: string) => void;
+}) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
@@ -92,45 +98,56 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
   const hi = Math.max(0, ...values);
   const lo = Math.min(0, ...values);
   const zeroAt = hi - lo > 0 ? hi / (hi - lo) : 1;
-  const lineData = data.map((p) => ({
-    ...p,
-    dataPointColor: p.value < 0 ? c.loss : c.profit,
-  }));
+  const lineData = useMemo(
+    () =>
+      data.map((p) => ({
+        ...p,
+        dataPointColor: p.value < 0 ? c.loss : c.profit,
+      })),
+    [data, c]
+  );
   const markerColor = selected && selected.value < 0 ? c.loss : c.profit;
   const plotWidth = Math.max(0, width - Y_LABEL_WIDTH - 8);
 
-  const axisProps = {
-    height: (CHART_HEIGHT * axis.above) / (axis.above + axis.below),
-    width: plotWidth,
-    disableScroll: true,
-    isAnimated: !reduceMotion,
-    stepValue: axis.step,
-    noOfSections: axis.above,
-    maxValue: axis.step * axis.above,
-    noOfSectionsBelowXAxis: axis.below,
-    mostNegativeValue: -axis.step * axis.below,
-    yAxisLabelWidth: Y_LABEL_WIDTH,
-    formatYLabel: formatAxisLabel,
-    yAxisTextStyle: [styles.axisText, { color: c.textMuted }],
-    yAxisThickness: 0,
-    xAxisThickness: 1,
-    xAxisColor: c.border,
-    rulesType: 'dashed' as const,
-    rulesColor: c.border,
-    dashWidth: 4,
-    dashGap: 4,
-  };
+  const axisProps = useMemo(
+    () => ({
+      height: (CHART_HEIGHT * axis.above) / (axis.above + axis.below),
+      width: plotWidth,
+      disableScroll: true,
+      isAnimated: !reduceMotion,
+      stepValue: axis.step,
+      noOfSections: axis.above,
+      maxValue: axis.step * axis.above,
+      noOfSectionsBelowXAxis: axis.below,
+      mostNegativeValue: -axis.step * axis.below,
+      yAxisLabelWidth: Y_LABEL_WIDTH,
+      formatYLabel: formatAxisLabel,
+      yAxisTextStyle: [styles.axisText, { color: c.textMuted }],
+      yAxisThickness: 0,
+      xAxisThickness: 1,
+      xAxisColor: c.border,
+      rulesType: 'dashed' as const,
+      rulesColor: c.border,
+      dashWidth: 4,
+      dashGap: 4,
+    }),
+    [axis, plotWidth, reduceMotion, c]
+  );
 
   const slot = data.length > 0 ? plotWidth / data.length : 0;
   const barWidth = Math.min(MAX_BAR_WIDTH, Math.max(3, slot * 0.6));
   const barSpacing = Math.max(1, slot - barWidth);
-  const barData = data.map((p, i) => {
-    const color = signColor(c, p.delta);
-    return {
-      value: p.delta,
-      frontColor: active >= 0 && i !== active ? `${color}55` : color,
-    };
-  });
+  const barData = useMemo(
+    () =>
+      data.map((p, i) => {
+        const color = signColor(c, p.delta);
+        return {
+          value: p.delta,
+          frontColor: active >= 0 && i !== active ? `${color}55` : color,
+        };
+      }),
+    [data, active, c]
+  );
 
   function changeMode(next: Mode) {
     setMode(next);
@@ -289,7 +306,7 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
       <Text style={[styles.caption, { color: c.textHint }]}>{current.hint}</Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrap: { width: '100%' },

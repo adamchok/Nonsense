@@ -241,6 +241,25 @@ export default function HistoryScreen() {
     }
   }, [refreshing, loadHistory, refreshSpin]);
 
+  const openSessionSummary = useCallback(
+    (sessionId: string) => router.push(`../session/summary/${sessionId}`),
+    [router]
+  );
+
+  const chartHeader = useMemo(
+    () =>
+      filteredHistory.length >= 2 ? (
+        <View
+          style={[
+            styles.chartCard,
+            { backgroundColor: c.card, borderColor: c.border, marginBottom: layout.sectionGap },
+          ]}>
+          <PLChart entries={filteredHistory} onOpen={openSessionSummary} />
+        </View>
+      ) : null,
+    [filteredHistory, c.card, c.border, layout.sectionGap, openSessionSummary]
+  );
+
   const confirmLeaveSession = useCallback(
     (sessionId: string) => {
       const playerId = playerProfile?.id;
@@ -505,17 +524,7 @@ export default function HistoryScreen() {
           keyExtractor={(item) => item.id}
           itemLayoutAnimation={layoutTransition}
           style={styles.list}
-          ListHeaderComponent={
-            filteredHistory.length >= 2 ? (
-              <View
-                style={[
-                  styles.chartCard,
-                  { backgroundColor: c.card, borderColor: c.border, marginBottom: layout.sectionGap },
-                ]}>
-                <PLChart entries={filteredHistory} onOpen={(id) => router.push(`../session/summary/${id}`)} />
-              </View>
-            ) : null
-          }
+          ListHeaderComponent={chartHeader}
           ListFooterComponent={
             hasMoreHistory ? (
               <View style={styles.historyPaginationFooter}>
