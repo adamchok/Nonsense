@@ -210,37 +210,39 @@ export default function GroupMembersScreen() {
 
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: c.textMuted }]}>Guest</Text>
-              <View style={styles.guestRow}>
-                <TextInput
-                  value={guestName}
-                  onChangeText={(t) => {
-                    setGuestName(t);
-                    setGuestError(null);
-                  }}
-                  placeholder="Name"
-                  accessibilityLabel="Guest name"
-                  placeholderTextColor={c.placeholder}
-                  style={[
-                    styles.guestInput,
-                    { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
-                    errorBorder(c, guestError),
-                  ]}
-                  {...invalidProps(guestError)}
-                  returnKeyType="done"
-                  onSubmitEditing={handleAddGuest}
-                />
-                <PressableScale
-                  style={[styles.guestAddBtn, { backgroundColor: c.accent }, !canAddGuest && styles.disabled]}
-                  onPress={handleAddGuest}
-                  disabled={!canAddGuest}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add guest"
-                  accessibilityState={{ disabled: !canAddGuest }}>
-                  <Icon name="add" size={18} color={c.onAccent} />
-                  <Text style={[styles.guestAddLabel, { color: c.onAccent }]}>Add</Text>
-                </PressableScale>
+              <View>
+                <View style={styles.guestRow}>
+                  <TextInput
+                    value={guestName}
+                    onChangeText={(t) => {
+                      setGuestName(t);
+                      setGuestError(null);
+                    }}
+                    placeholder="Name"
+                    accessibilityLabel="Guest name"
+                    placeholderTextColor={c.placeholder}
+                    style={[
+                      styles.guestInput,
+                      { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                      errorBorder(c, guestError),
+                    ]}
+                    {...invalidProps(guestError)}
+                    returnKeyType="done"
+                    onSubmitEditing={handleAddGuest}
+                  />
+                  <PressableScale
+                    style={[styles.guestAddBtn, { backgroundColor: c.accent }, !canAddGuest && styles.disabled]}
+                    onPress={handleAddGuest}
+                    disabled={!canAddGuest}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add guest"
+                    accessibilityState={{ disabled: !canAddGuest }}>
+                    <Icon name="add" size={18} color={c.onAccent} />
+                    <Text style={[styles.guestAddLabel, { color: c.onAccent }]}>Add</Text>
+                  </PressableScale>
+                </View>
+                <FieldError message={guestError} />
               </View>
-              <FieldError message={guestError} />
             </View>
           </View>
         )}

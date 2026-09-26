@@ -52,28 +52,30 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
       primary={{ label: 'Save', onPress: () => void save(), disabled: !canSave, busy: isSaving }}>
       <View style={styles.body}>
         <Text style={[styles.hint, { color: c.textMuted }]}>Shown to everyone in your poker sessions.</Text>
-        <TextInput
-          value={name}
-          onChangeText={(t) => {
-            setName(t);
-            setNameError(null);
-          }}
-          maxLength={MAX_NAME_LEN}
-          placeholder="Enter display name"
-          accessibilityLabel="Display name"
-          autoFocus
-          autoCapitalize="words"
-          returnKeyType="done"
-          onSubmitEditing={() => void save()}
-          placeholderTextColor={c.placeholder}
-          style={[
-            formStyles.input,
-            { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
-            errorBorder(c, nameError),
-          ]}
-          {...invalidProps(nameError)}
-        />
-        <FieldError message={nameError} />
+        <View>
+          <TextInput
+            value={name}
+            onChangeText={(t) => {
+              setName(t);
+              setNameError(null);
+            }}
+            maxLength={MAX_NAME_LEN}
+            placeholder="Enter display name"
+            accessibilityLabel="Display name"
+            autoFocus
+            autoCapitalize="words"
+            returnKeyType="done"
+            onSubmitEditing={() => void save()}
+            placeholderTextColor={c.placeholder}
+            style={[
+              formStyles.input,
+              { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+              errorBorder(c, nameError),
+            ]}
+            {...invalidProps(nameError)}
+          />
+          <FieldError message={nameError} />
+        </View>
         <Text style={[styles.counter, { color: c.textMuted }]}>
           {name.length} / {MAX_NAME_LEN}
         </Text>

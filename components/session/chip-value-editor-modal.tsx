@@ -66,29 +66,31 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
             <Text style={[formStyles.fieldLabel, { color: c.textMuted }]}>Dollar per chip</Text>
             <Text style={[formStyles.requiredMark, { color: c.loss }]}>*</Text>
           </View>
-          <View
-            style={[
-              formStyles.compactAmountWrap,
-              { borderColor: c.inputBorder, backgroundColor: c.inputBg },
-              errorBorder(c, error),
-            ]}>
-            <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
-            <TextInput
-              value={draft}
-              onChangeText={(t) => {
-                setDraft(sanitizeAmountInput(t));
-                setError(null);
-              }}
-              placeholder="0.50"
-              accessibilityLabel="Dollars per chip"
-              placeholderTextColor={c.placeholder}
-              keyboardType="decimal-pad"
-              onFocus={() => scrollModalFieldToTop(scrollRef)}
-              style={[formStyles.compactTextInput, { color: c.text }]}
-              {...invalidProps(error)}
-            />
+          <View>
+            <View
+              style={[
+                formStyles.compactAmountWrap,
+                { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+                errorBorder(c, error),
+              ]}>
+              <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
+              <TextInput
+                value={draft}
+                onChangeText={(t) => {
+                  setDraft(sanitizeAmountInput(t));
+                  setError(null);
+                }}
+                placeholder="0.50"
+                accessibilityLabel="Dollars per chip"
+                placeholderTextColor={c.placeholder}
+                keyboardType="decimal-pad"
+                onFocus={() => scrollModalFieldToTop(scrollRef)}
+                style={[formStyles.compactTextInput, { color: c.text }]}
+                {...invalidProps(error)}
+              />
+            </View>
+            <FieldError message={error} />
           </View>
-          <FieldError message={error} />
           <Text style={[styles.example, { color: c.textHint }]}>
             Example: 100 chips for a $50 buy-in → $0.50 per chip.
           </Text>

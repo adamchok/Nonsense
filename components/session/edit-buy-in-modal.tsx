@@ -77,35 +77,37 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
               textStyle={[formStyles.sub, { color: c.textMuted }]}
             />
           </View>
-          <View style={formStyles.inputRow}>
-            <SessionAmountInputRow
-              unit={unit}
-              color={c.textMuted}
-              iconSize={16}
-              style={[
-                formStyles.amountInputWrap,
-                formStyles.amountInputWrapFull,
-                { borderColor: c.inputBorder, backgroundColor: c.inputBg },
-                errorBorder(c, amountError),
-              ]}>
-              <TextInput
-                value={amount}
-                onChangeText={(t) => {
-                  setAmount(sanitizeAmountInput(t));
-                  setAmountError(null);
-                }}
-                placeholder={unit === 'chips' ? 'Chips' : '0.00'}
-                placeholderTextColor={c.placeholder}
-                keyboardType="numeric"
-                style={[formStyles.amountInput, { color: c.text }]}
-                autoFocus
-                selectTextOnFocus
-                accessibilityLabel={`New buy-in total for ${target.playerName}`}
-                {...invalidProps(amountError)}
-              />
-            </SessionAmountInputRow>
+          <View>
+            <View style={formStyles.inputRow}>
+              <SessionAmountInputRow
+                unit={unit}
+                color={c.textMuted}
+                iconSize={16}
+                style={[
+                  formStyles.amountInputWrap,
+                  formStyles.amountInputWrapFull,
+                  { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+                  errorBorder(c, amountError),
+                ]}>
+                <TextInput
+                  value={amount}
+                  onChangeText={(t) => {
+                    setAmount(sanitizeAmountInput(t));
+                    setAmountError(null);
+                  }}
+                  placeholder={unit === 'chips' ? 'Chips' : '0.00'}
+                  placeholderTextColor={c.placeholder}
+                  keyboardType="numeric"
+                  style={[formStyles.amountInput, { color: c.text }]}
+                  autoFocus
+                  selectTextOnFocus
+                  accessibilityLabel={`New buy-in total for ${target.playerName}`}
+                  {...invalidProps(amountError)}
+                />
+              </SessionAmountInputRow>
+            </View>
+            <FieldError message={amountError} />
           </View>
-          <FieldError message={amountError} />
         </>
       ) : null}
     </ModalShell>

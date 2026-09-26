@@ -8,7 +8,7 @@ import { createGroup } from '@/lib/firestore';
 import { userMessage } from '@/lib/user-message';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { TextInput } from 'react-native';
+import { TextInput, View } from 'react-native';
 
 const MIN_NAME_LEN = 2;
 
@@ -48,28 +48,30 @@ export function NewGroupModal({ onClose }: Props) {
       onClose={onClose}
       title="New group"
       primary={{ label: 'Create', onPress: () => void create(), disabled: !canCreate, busy: isSaving }}>
-      <TextInput
-        value={name}
-        onChangeText={(t) => {
-          setName(t);
-          setNameError(null);
-        }}
-        placeholder="Friday Boys"
-        accessibilityLabel="Group name"
-        autoFocus
-        autoCapitalize="words"
-        maxLength={40}
-        returnKeyType="done"
-        onSubmitEditing={() => void create()}
-        placeholderTextColor={c.placeholder}
-        style={[
-          formStyles.input,
-          { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
-          errorBorder(c, nameError),
-        ]}
-        {...invalidProps(nameError)}
-      />
-      <FieldError message={nameError} />
+      <View>
+        <TextInput
+          value={name}
+          onChangeText={(t) => {
+            setName(t);
+            setNameError(null);
+          }}
+          placeholder="Friday Boys"
+          accessibilityLabel="Group name"
+          autoFocus
+          autoCapitalize="words"
+          maxLength={40}
+          returnKeyType="done"
+          onSubmitEditing={() => void create()}
+          placeholderTextColor={c.placeholder}
+          style={[
+            formStyles.input,
+            { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+            errorBorder(c, nameError),
+          ]}
+          {...invalidProps(nameError)}
+        />
+        <FieldError message={nameError} />
+      </View>
     </ModalShell>
   );
 }

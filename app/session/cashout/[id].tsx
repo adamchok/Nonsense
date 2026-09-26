@@ -432,35 +432,37 @@ export default function CashOutScreen() {
             />
           </View>
 
-          <View
-            style={[
-              styles.cashOutRow,
-              item.locked
-                ? { backgroundColor: c.card, borderColor: c.borderDanger }
-                : { backgroundColor: c.inputBg, borderColor: c.inputBorder },
-              errorBorder(c, fieldError),
-            ]}>
-            <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
-            <TextInput
-              value={item.cashOutInput}
-              onChangeText={(v) => updateCashOut(item.playerId, sanitizeAmountInput(v))}
-              onFocus={() => focusPlayerRow(index)}
-              placeholder={isChipsMode ? 'Chips' : '0.00'}
-              placeholderTextColor={c.placeholder}
-              keyboardType="numeric"
-              accessibilityLabel={`Cash-out amount for ${item.playerName}`}
-              accessibilityHint={`Bought in ${isChipsMode ? `${formatChipsLedger(item.totalBuyIn)} chips` : `$${item.totalBuyIn.toFixed(2)}`}, currently ${profit >= 0 ? 'up' : 'down'} ${isChipsMode ? `${formatChipsLedger(Math.abs(profit))} chips` : `$${Math.abs(profit).toFixed(2)}`}`}
+          <View>
+            <View
               style={[
-                styles.cashOutInput,
-                { color: c.text },
-                item.locked && { color: c.textMuted },
-              ]}
-              selectTextOnFocus
-              editable={!item.locked}
-              {...invalidProps(fieldError)}
-            />
+                styles.cashOutRow,
+                item.locked
+                  ? { backgroundColor: c.card, borderColor: c.borderDanger }
+                  : { backgroundColor: c.inputBg, borderColor: c.inputBorder },
+                errorBorder(c, fieldError),
+              ]}>
+              <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
+              <TextInput
+                value={item.cashOutInput}
+                onChangeText={(v) => updateCashOut(item.playerId, sanitizeAmountInput(v))}
+                onFocus={() => focusPlayerRow(index)}
+                placeholder={isChipsMode ? 'Chips' : '0.00'}
+                placeholderTextColor={c.placeholder}
+                keyboardType="numeric"
+                accessibilityLabel={`Cash-out amount for ${item.playerName}`}
+                accessibilityHint={`Bought in ${isChipsMode ? `${formatChipsLedger(item.totalBuyIn)} chips` : `$${item.totalBuyIn.toFixed(2)}`}, currently ${profit >= 0 ? 'up' : 'down'} ${isChipsMode ? `${formatChipsLedger(Math.abs(profit))} chips` : `$${Math.abs(profit).toFixed(2)}`}`}
+                style={[
+                  styles.cashOutInput,
+                  { color: c.text },
+                  item.locked && { color: c.textMuted },
+                ]}
+                selectTextOnFocus
+                editable={!item.locked}
+                {...invalidProps(fieldError)}
+              />
+            </View>
+            <FieldError message={fieldError} />
           </View>
-          <FieldError message={fieldError} />
 
           {!item.locked && (
             <View style={styles.chipRow}>

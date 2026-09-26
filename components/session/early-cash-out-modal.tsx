@@ -72,36 +72,38 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
               textStyle={[formStyles.sub, { color: c.textMuted }]}
             />
           </View>
-          <View style={formStyles.inputRow}>
-            <SessionAmountInputRow
-              unit={unit}
-              color={c.textMuted}
-              iconSize={16}
-              style={[
-                formStyles.amountInputWrap,
-                formStyles.amountInputWrapFull,
-                { borderColor: c.inputBorder, backgroundColor: c.inputBg },
-                errorBorder(c, amountError),
-              ]}>
-              <TextInput
-                value={amount}
-                onChangeText={(t) => {
-                  setAmount(sanitizeAmountInput(t));
-                  setAmountError(null);
-                }}
-                placeholder={unit === 'chips' ? 'Chips' : '0.00'}
-                placeholderTextColor={c.placeholder}
-                keyboardType="numeric"
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={() => void confirm()}
-                accessibilityLabel={`Cash-out ${unit === 'chips' ? 'chips' : 'amount'} for ${target.playerName}`}
-                style={[formStyles.amountInput, { color: c.text }]}
-                {...invalidProps(amountError)}
-              />
-            </SessionAmountInputRow>
+          <View>
+            <View style={formStyles.inputRow}>
+              <SessionAmountInputRow
+                unit={unit}
+                color={c.textMuted}
+                iconSize={16}
+                style={[
+                  formStyles.amountInputWrap,
+                  formStyles.amountInputWrapFull,
+                  { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+                  errorBorder(c, amountError),
+                ]}>
+                <TextInput
+                  value={amount}
+                  onChangeText={(t) => {
+                    setAmount(sanitizeAmountInput(t));
+                    setAmountError(null);
+                  }}
+                  placeholder={unit === 'chips' ? 'Chips' : '0.00'}
+                  placeholderTextColor={c.placeholder}
+                  keyboardType="numeric"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => void confirm()}
+                  accessibilityLabel={`Cash-out ${unit === 'chips' ? 'chips' : 'amount'} for ${target.playerName}`}
+                  style={[formStyles.amountInput, { color: c.text }]}
+                  {...invalidProps(amountError)}
+                />
+              </SessionAmountInputRow>
+            </View>
+            <FieldError message={amountError} />
           </View>
-          <FieldError message={amountError} />
         </>
       ) : null}
     </ModalShell>

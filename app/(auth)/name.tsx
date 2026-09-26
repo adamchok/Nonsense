@@ -164,28 +164,30 @@ export default function NameScreen() {
             </Text>
           ) : null}
           <View style={styles.inputBlock}>
-            <TextInput
-              value={name}
-              onChangeText={(t) => {
-                setName(t);
-                setNameError(null);
-              }}
-              accessibilityLabel="Display name"
-              placeholder="Enter display name"
-              placeholderTextColor={c.placeholder}
-              autoCapitalize="words"
-              autoCorrect={false}
-              maxLength={MAX_NAME_LEN}
-              onFocus={() => scrollModalFieldToTop(nameScrollRef)}
-              style={[
-                styles.input,
-                { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                errorBorder(c, nameError),
-              ]}
-              editable={!isBusy}
-              {...invalidProps(nameError)}
-            />
-            <FieldError message={nameError} />
+            <View>
+              <TextInput
+                value={name}
+                onChangeText={(t) => {
+                  setName(t);
+                  setNameError(null);
+                }}
+                accessibilityLabel="Display name"
+                placeholder="Enter display name"
+                placeholderTextColor={c.placeholder}
+                autoCapitalize="words"
+                autoCorrect={false}
+                maxLength={MAX_NAME_LEN}
+                onFocus={() => scrollModalFieldToTop(nameScrollRef)}
+                style={[
+                  styles.input,
+                  { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
+                  errorBorder(c, nameError),
+                ]}
+                editable={!isBusy}
+                {...invalidProps(nameError)}
+              />
+              <FieldError message={nameError} />
+            </View>
             <Text
               style={[
                 styles.charCounter,

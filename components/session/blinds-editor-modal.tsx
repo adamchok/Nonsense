@@ -127,28 +127,30 @@ function BlindField({
         <Text style={[formStyles.fieldLabel, { color: c.textMuted }]}>{label}</Text>
         <Text style={[formStyles.requiredMark, { color: c.loss }]}>*</Text>
       </View>
-      <SessionAmountInputRow
-        unit={unit}
-        color={c.textMuted}
-        iconSize={16}
-        style={[
-          formStyles.compactAmountWrap,
-          { borderColor: c.inputBorder, backgroundColor: c.inputBg },
-          errorBorder(c, error),
-        ]}>
-        <TextInput
-          value={value}
-          onChangeText={(t) => onChange(sanitizeAmountInput(t))}
-          placeholder="0"
-          accessibilityLabel={unit === 'chips' ? `${label} in chips` : label}
-          placeholderTextColor={c.placeholder}
-          keyboardType="decimal-pad"
-          onFocus={onFocus}
-          style={[formStyles.compactTextInput, { color: c.text }]}
-          {...invalidProps(error)}
-        />
-      </SessionAmountInputRow>
-      <FieldError message={error} />
+      <View>
+        <SessionAmountInputRow
+          unit={unit}
+          color={c.textMuted}
+          iconSize={16}
+          style={[
+            formStyles.compactAmountWrap,
+            { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+            errorBorder(c, error),
+          ]}>
+          <TextInput
+            value={value}
+            onChangeText={(t) => onChange(sanitizeAmountInput(t))}
+            placeholder="0"
+            accessibilityLabel={unit === 'chips' ? `${label} in chips` : label}
+            placeholderTextColor={c.placeholder}
+            keyboardType="decimal-pad"
+            onFocus={onFocus}
+            style={[formStyles.compactTextInput, { color: c.text }]}
+            {...invalidProps(error)}
+          />
+        </SessionAmountInputRow>
+        <FieldError message={error} />
+      </View>
     </View>
   );
 }

@@ -1233,25 +1233,27 @@ export default function FriendsScreen() {
                 <Text style={[styles.addCardSub, { color: c.textMuted }]}>
                   This name is only visible to you.
                 </Text>
-                <TextInput
-                  value={renameGroupName}
-                  onChangeText={(t) => {
-                    setRenameGroupName(t);
-                    setRenameGroupError(null);
-                  }}
-                  placeholder="Group name"
-                  placeholderTextColor={c.placeholder}
-                  autoCapitalize="words"
-                  autoFocus
-                  editable={!renameGroupSaving}
-                  style={[
-                    styles.renameGroupInput,
-                    { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                    errorBorder(c, renameGroupError),
-                  ]}
-                  {...invalidProps(renameGroupError)}
-                />
-                <FieldError message={renameGroupError} />
+                <View>
+                  <TextInput
+                    value={renameGroupName}
+                    onChangeText={(t) => {
+                      setRenameGroupName(t);
+                      setRenameGroupError(null);
+                    }}
+                    placeholder="Group name"
+                    placeholderTextColor={c.placeholder}
+                    autoCapitalize="words"
+                    autoFocus
+                    editable={!renameGroupSaving}
+                    style={[
+                      styles.renameGroupInput,
+                      { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
+                      errorBorder(c, renameGroupError),
+                    ]}
+                    {...invalidProps(renameGroupError)}
+                  />
+                  <FieldError message={renameGroupError} />
+                </View>
                 <View style={styles.addCardActions}>
                   <Pressable
                     style={styles.cancelBtn}
