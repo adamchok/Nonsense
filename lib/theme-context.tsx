@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { useColorScheme as useSystemColorScheme } from 'react-native';
 
+import { applyWebTheme } from '@/lib/web-interactions';
+
 const STORAGE_KEY = '@nonsense_theme_preference';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -54,6 +56,11 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
     if (preference === 'dark') return 'dark';
     return systemScheme === 'dark' ? 'dark' : 'light';
   }, [preference, systemScheme]);
+
+  // Web: expose the resolved theme to the global CSS interaction layer (no-op on native).
+  useEffect(() => {
+    applyWebTheme(resolvedColorScheme);
+  }, [resolvedColorScheme]);
 
   const setPreference = useCallback(async (p: ThemePreference) => {
     setPreferenceState(p);
