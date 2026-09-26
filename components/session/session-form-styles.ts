@@ -1,6 +1,5 @@
 import { Platform, StyleSheet } from 'react-native';
 
-/** Field and text styles shared by the live-session modals. Colors come from theme tokens at the call site. */
 export const formStyles = StyleSheet.create({
   sub: {
     fontSize: 13,
@@ -23,7 +22,6 @@ export const formStyles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
-  /** Text field: 48 min height, 12/14 padding, radius 9, 1px inputBorder (color at call site). */
   input: {
     minHeight: 48,
     borderRadius: 9,
@@ -34,7 +32,6 @@ export const formStyles = StyleSheet.create({
   },
   amountInputWrap: {
     flex: 1,
-    // ponytail: web <input> has an intrinsic min width; without this flex rows overflow.
     minWidth: 0,
     minHeight: 48,
     flexDirection: 'row',

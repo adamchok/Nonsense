@@ -40,20 +40,12 @@ interface AuthContextValue {
   user: User | null;
   playerProfile: PlayerProfile | null;
   isReady: boolean;
-  /** True once a Google account is linked to (or signed in as) the current uid. */
   isLinked: boolean;
-  /** Email of the linked Google account, if any. */
   linkedEmail: string | null;
   saveDisplayName: (name: string) => Promise<void>;
   saveAvatarEmoji: (emoji: string) => Promise<void>;
   signOutUser: () => Promise<void>;
-  /** Link Google to the current anonymous uid (same uid, no data migration). Throws AccountLinkError. */
   linkWithGoogle: () => Promise<void>;
-  /**
-   * Sign in as the Google-linked account (e.g. after a reinstall). Resolves only after the
-   * profile for the new uid is loaded, so callers can route on `playerProfile` right away.
-   * Throws AccountLinkError.
-   */
   signInWithGoogle: () => Promise<void>;
 }
 
@@ -112,17 +104,14 @@ function mapGoogleError(err: unknown): AccountLinkError {
 
 const IS_WEB = Platform.OS === 'web';
 
-/** Web: Firebase's own Google popup. Always show the account chooser, like the native picker. */
 function newGoogleProvider(): GoogleAuthProvider {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   return provider;
 }
 
-/** Show the native Google account picker and turn the result into a Firebase credential. */
 async function getGoogleCredential(): Promise<AuthCredential> {
   if (IS_WEB) {
-    // Web goes through the popup helpers instead; reaching this is a programming error.
     throw new AccountLinkError('unknown', 'Native Google sign-in is not available on web.');
   }
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
@@ -140,7 +129,6 @@ async function getGoogleCredential(): Promise<AuthCredential> {
 
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    // v13+: a dismissed picker resolves with { type: 'cancelled' } instead of throwing.
     const response = await GoogleSignin.signIn();
     if (isCancelledResponse(response)) {
       throw new AccountLinkError('cancelled');
@@ -153,8 +141,6 @@ async function getGoogleCredential(): Promise<AuthCredential> {
   } catch (err) {
     throw mapGoogleError(err);
   } finally {
-    // Forget the app-local Google session so the account picker shows again next time.
-    // Firebase keeps its own session; this does not sign the user out of the app.
     GoogleSignin.signOut().catch(() => {});
   }
 }
@@ -183,7 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           console.error('Failed to load player profile:', err);
         }
-        // A newer sign-in (signInWithGoogle) may have replaced this user while we were loading.
         if (auth.currentUser?.uid === firebaseUser.uid) {
           setPlayerProfile(profile);
         }
@@ -231,15 +216,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const linkWithGoogle = useCallback(async () => {
     const auth = getFirebaseAuth();
-    // Fail fast before showing the picker; linkAnonymousWithCredential re-checks both.
     if (!auth.currentUser) throw new AccountLinkError('no-user');
     if (isGoogleLinked(auth.currentUser)) throw new AccountLinkError('already-linked');
 
-    // Web: no await before the popup opens, so the browser still treats it as user-initiated.
     const linked = IS_WEB
       ? await linkAnonymousWithPopup(auth, newGoogleProvider())
       : await linkAnonymousWithCredential(auth, await getGoogleCredential());
-    // Same uid, so onAuthStateChanged does not fire: refresh link state explicitly.
     setLinkInfo(linkInfoOf(linked));
   }, []);
 
@@ -248,8 +230,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signedIn = IS_WEB
       ? await signInWithPopupProvider(auth, newGoogleProvider())
       : await signInWithAccountCredential(auth, await getGoogleCredential());
-    // onAuthStateChanged also fires for the new uid, but load here too so that when this
-    // resolves playerProfile already reflects the signed-in account.
     let profile: PlayerProfile | null = null;
     try {
       profile = await loadProfile(signedIn.uid);
@@ -261,7 +241,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPlayerProfile(profile);
   }, []);
 
-  // Stable identity so unrelated ancestor re-renders don't cascade through every consumer.
   const value = useMemo(
     () => ({
       user,

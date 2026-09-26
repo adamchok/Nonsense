@@ -23,7 +23,6 @@ import { GoogleButton } from '@/components/google-button';
 import { Animated } from '@/components/motion';
 import { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 
-/** First-launch card: a single, slightly longer fade-up than list rows. */
 const cardEntering = FadeInDown.duration(360).reduceMotion(ReduceMotion.System);
 
 export default function NameScreen() {
@@ -37,7 +36,6 @@ export default function NameScreen() {
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
-  // Set once Google sign-in succeeds; the profile may arrive a moment later via the auth listener.
   const [didGoogleSignIn, setDidGoogleSignIn] = useState(false);
 
   const isEditing = !!playerProfile?.name;
@@ -49,7 +47,6 @@ export default function NameScreen() {
     }
   }, [playerProfile?.name]);
 
-  // Returning user: once their existing profile loads, go home. No profile → stay and ask for a name.
   useEffect(() => {
     if (didGoogleSignIn && playerProfile?.name) {
       router.replace('/(tabs)');
@@ -58,7 +55,6 @@ export default function NameScreen() {
 
   const trimmed = name.trim();
   const isBusy = isSaving || isSigningIn;
-  // Stays enabled for bad input so a tap can explain what's wrong under the field.
   const canSubmit = !isBusy;
 
   if (!isReady) {
@@ -92,7 +88,6 @@ export default function NameScreen() {
 
     try {
       setIsSaving(true);
-      // onSave navigates itself; stop the post-sign-in effect from navigating a second time.
       setDidGoogleSignIn(false);
       await saveDisplayName(trimmed);
 

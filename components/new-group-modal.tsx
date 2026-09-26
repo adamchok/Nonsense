@@ -14,7 +14,6 @@ const MIN_NAME_LEN = 2;
 
 type Props = { onClose: () => void };
 
-/** Name a new group, then continue to its members screen. Mount only while open. */
 export function NewGroupModal({ onClose }: Props) {
   const c = useAppColors();
   const { playerProfile } = useAuth();
@@ -22,7 +21,6 @@ export function NewGroupModal({ onClose }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const trimmed = name.trim();
-  // Stays tappable for a short name so the problem is explained under the field.
   const canCreate = !isSaving;
 
   async function create() {

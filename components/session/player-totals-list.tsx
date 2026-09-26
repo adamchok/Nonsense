@@ -18,10 +18,6 @@ type Props = LedgerRowHandlers & {
   dollarsPerChip: number | undefined;
 };
 
-/**
- * Plain rows inside the screen's ScrollView. A home game has a dozen players at most, so
- * there is no inner scroller (a capped one trapped scrolling and hid rows at large font scale).
- */
 export function PlayerTotalsList({
   players,
   earlyCashOutMap,
@@ -34,8 +30,6 @@ export function PlayerTotalsList({
   ...handlers
 }: Props) {
   const c = useAppColors();
-  // Rows present at the first non-empty render stagger in; later arrivals enter at once.
-  // `entering` only runs on mount, so snapshot updates to existing keys never re-animate.
   const initialIds = useRef<Set<string> | null>(null);
   if (initialIds.current === null && players.length > 0) {
     initialIds.current = new Set(players.map((p) => p.playerId));

@@ -7,9 +7,7 @@ import { AppSwitch } from '@/components/app-switch';
 type Props = {
   count: number;
   showTapHint: boolean;
-  /** Buy-ins queued locally but not yet acknowledged by the server. */
   pendingCount: number;
-  /** Present only when the ledger can switch between chips and dollars. */
   dollarsToggle: { value: boolean; onChange: (v: boolean) => void } | null;
 };
 

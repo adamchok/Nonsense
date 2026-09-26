@@ -1,6 +1,5 @@
 export type SessionStatus = 'active' | 'finished';
 
-/** Cash: all amounts are dollar. Chips: buy-ins, blinds, and cash-outs are tracked in chips; summaries use `dollarsPerChip` for dollar figures. */
 export type SessionAmountUnit = 'cash' | 'chips';
 
 export interface PlayerProfile {
@@ -32,9 +31,7 @@ export interface SessionRecord {
   location?: string;
   smallBlind?: number;
   bigBlind?: number;
-  /** Defaults to `cash` when absent (legacy sessions). */
   amountUnit?: SessionAmountUnit;
-  /** When `amountUnit === 'chips'`, dollar value of one chip (e.g. 0.5 for 100 chips = $50). */
   dollarsPerChip?: number;
   status: SessionStatus;
   finishedAt?: Date;

@@ -15,7 +15,6 @@ type SessionAmountDisplayProps = {
   numberOfLines?: number;
 };
 
-/** Read-only amount: chip icon + ledger/compact string in chip mode; formatted cash otherwise. */
 export function SessionAmountDisplay({
   value,
   unit,
@@ -52,7 +51,6 @@ type SessionAmountInputRowProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Prefix ($ or poker chip) + input (or any trailing child) in a row. */
 export function SessionAmountInputRow({ unit, color, iconSize, children, style }: SessionAmountInputRowProps) {
   return (
     <View style={[styles.inlineRow, style]}>

@@ -29,7 +29,6 @@ import {
 } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
-/** Settle-moment choreography (ms): winner first, then the rest of the standings. */
 const WINNER_DELAY_MS = 120;
 const STANDINGS_START_MS = 380;
 const STANDINGS_STEP_MS = 70;
@@ -49,7 +48,6 @@ type ResultRowProps = {
   c: AppColors;
 };
 
-/** One standings row. On the settle moment it staggers in and its P/L counts up from zero. */
 function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: ResultRowProps) {
   const reduceMotion = useReducedMotion();
   const delay = celebrationRowDelay(index);
@@ -141,8 +139,6 @@ function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: Resul
 
 export default function SessionSummaryScreen() {
   const { id, settled } = useLocalSearchParams<{ id: string; settled?: string }>();
-  // Cash-out lands here with ?settled=1: play the settle moment once. Captured at mount so
-  // stripping the param below (so refresh/back doesn't replay it) doesn't cancel it.
   const [celebrate] = useState(settled === '1');
   const navigation = useNavigation();
   const c = useAppColors();
@@ -222,8 +218,6 @@ export default function SessionSummaryScreen() {
     [earlyCashOuts]
   );
 
-  // Subset-DP settlement solve is exponential in player count — never re-run it for an
-  // unrelated re-render, and keep its identity stable for the header layout effect.
   const settlements = useMemo(() => computeSettlements(results), [results]);
   const durationMs =
     sessionDate && sessionFinishedAt
@@ -278,7 +272,6 @@ export default function SessionSummaryScreen() {
     const message = buildSettlementMessage();
     try {
       if (Platform.OS === 'web') {
-        // whatsapp:// means nothing to a desktop browser; wa.me opens WhatsApp Web or the app.
         await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`);
         return;
       }
@@ -321,7 +314,6 @@ export default function SessionSummaryScreen() {
         <Pressable
           onPress={handleShareWhatsApp}
           hitSlop={8}
-          // Web header has no end padding: line up with the page gutter.
           style={[styles.headerShareBtn, Platform.OS === 'web' && { marginRight: layout.gutter }]}
           accessibilityRole="button"
           accessibilityLabel="Share on WhatsApp">
@@ -367,7 +359,6 @@ export default function SessionSummaryScreen() {
     return 'transparent';
   };
 
-  // Settlement follows the standings on the settle moment; plain visits just fade it in.
   const settlementEntering = celebrate
     ? FadeIn.duration(260)
         .delay(celebrationRowDelay(results.length))

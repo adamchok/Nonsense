@@ -3,7 +3,6 @@ import { formatDateTimeDMY } from '@/lib/date-format';
 import type { SessionAmountUnit } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 
-/** The live-session screen's view of `sessions/{id}`. */
 export type SessionView = {
   hostId?: string;
   date?: Date;
@@ -16,7 +15,6 @@ export type SessionView = {
   participantIds: string[];
 };
 
-/** One ledger line: every buy-in for a player, summed. */
 export type LedgerPlayer = {
   playerId: string;
   name: string;
@@ -42,7 +40,6 @@ export function toDate(value: unknown): Date | undefined {
   return undefined;
 }
 
-/** Maps a raw session document to the fields this screen renders. */
 export function sessionViewFromData(data: Record<string, unknown>): SessionView {
   const amountUnit: SessionAmountUnit = data.amountUnit === 'chips' ? 'chips' : 'cash';
   const rawDpc = data.dollarsPerChip;
@@ -79,15 +76,10 @@ export function formatCashOutTimestamp(d: Date): string {
   }
 }
 
-/** Small and big blind both positive, big blind at least the small blind. */
 export function isValidBlinds(sb: number | null, bb: number | null): boolean {
   return sb != null && bb != null && Number.isFinite(sb) && Number.isFinite(bb) && sb > 0 && bb >= sb;
 }
 
-/**
- * Ledger amounts in the unit the ledger is showing. `dollarsPerChip` is set only when the
- * chips-to-dollars toggle is on.
- */
 export function ledgerRowValues(
   total: number,
   cashOutAmount: number | undefined,

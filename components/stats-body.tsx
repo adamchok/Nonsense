@@ -26,10 +26,8 @@ function signedColor(c: AppColors, n: number | null): string {
 const signedOrDash = (n: number | null) => (n === null ? '—' : formatSignedCurrency(n));
 const dateOrDash = (d: Date | null) => (d ? formatDateDMY(d) : '—');
 
-/** A row's value; null renders a bone in its place while statistics load. */
 type Row = { label: string; value: string | null };
 
-/** Statistics content: P/L headline + win bar, key-number tiles, then grouped detail lists. */
 export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
   const c = useAppColors();
   const hasSessions = s.finishedSessions > 0;
@@ -120,17 +118,12 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
   );
 }
 
-/** Tile labels in display order, shared by the loaded grid and its skeleton. */
 const TILE_LABELS = ['Per session', 'Per hour', 'Best', 'Worst', 'Return on buy-in', 'Time played'];
 const SKELETON_SECTIONS: { title: string; icon: IconName; labels: string[] }[] = [
   { title: 'Money', icon: 'account-balance-wallet', labels: ['Total buy-in', 'Total cash-out'] },
   { title: 'Sessions', icon: 'history', labels: ['First', 'Latest', 'Hosted / joined'] },
 ];
 
-/**
- * StatsBody while loading: the same hero, tile grid and grouped lists with bones where the
- * numbers go, so results land in place. Labels stay real; only data pulses.
- */
 export function StatsSkeleton() {
   const c = useAppColors();
   return (
@@ -275,7 +268,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, minHeight: 40 },
   rowLabel: { flex: 1, fontSize: 14 },
   rowValue: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  // Bone margins pad each bone out to the line height of the text it stands in for.
   skelHeroValue: { marginVertical: 2 },
   skelHeroSub: { marginVertical: 3 },
   skelLegendText: { marginVertical: 3 },

@@ -1,26 +1,12 @@
-/**
- * Layout-matching loading states for the session screens. Each skeleton copies the loaded
- * screen's containers (padding, radius, borders, gaps, line heights) and puts a bone exactly
- * where data lands, so the real content replaces it in place without a jump. Static chrome
- * (section titles, field labels, icons) stays real.
- *
- * Keep in sync with: session-header, pot-badge, session-meta-cards, ledger-header,
- * player-ledger-row, session-footer-actions, app/session/summary/[id], app/session/cashout/[id].
- */
 import { Icon, type IconName } from '@/components/icon';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { useAppColors } from '@/lib/app-theme';
 import { text as type, ui } from '@/lib/ui';
 import { StyleSheet, Text, View, type DimensionValue, type StyleProp, type ViewStyle } from 'react-native';
 
-/** Realistic table: a few players with differing name lengths. */
 const PLAYER_NAME_WIDTHS: DimensionValue[] = ['55%', '40%', '62%'];
 const SETTLEMENT_NAME_WIDTHS: DimensionValue[] = ['45%', '38%'];
 
-/**
- * A bone sitting inside a box one text line tall, so the row keeps the real text's height.
- * The bone itself is a bit shorter than the line, like a cap-height glyph run.
- */
 function TextBone({
   lineHeight,
   width,
@@ -37,13 +23,8 @@ function TextBone({
   );
 }
 
-/* ------------------------------------------------------------------------------------------ */
-/* Live session                                                                                */
-/* ------------------------------------------------------------------------------------------ */
-
 type LayoutProps = { contentStyle: StyleProp<ViewStyle> };
 
-/** Mirrors app/session/[id].tsx: header, pot, meta cards, ledger, footer button. */
 export function LiveSessionSkeleton({ contentStyle }: LayoutProps) {
   const c = useAppColors();
   return (
@@ -149,7 +130,6 @@ function LedgerRowSkeleton({
   );
 }
 
-/* Values copied from the live session components listed at the top of the file. */
 const live = StyleSheet.create({
   screen: { flex: 1, overflow: 'hidden' },
   group: { gap: 12 },
@@ -191,10 +171,6 @@ const live = StyleSheet.create({
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 });
 
-/* ------------------------------------------------------------------------------------------ */
-/* Session summary                                                                             */
-/* ------------------------------------------------------------------------------------------ */
-
 type MetaTile = { icon: IconName; label: string; tint: 'accent' | 'yellow' | 'blue' | 'chip'; width: DimensionValue };
 const SUMMARY_META: MetaTile[][] = [
   [
@@ -207,7 +183,6 @@ const SUMMARY_META: MetaTile[][] = [
   ],
 ];
 
-/** Mirrors app/session/summary/[id].tsx: info grid, standings cards, settlement rows. */
 export function SessionSummarySkeleton({ contentStyle }: LayoutProps) {
   const c = useAppColors();
   return (
@@ -308,7 +283,6 @@ function StandingSkeleton({ nameWidth }: { nameWidth: DimensionValue }) {
   );
 }
 
-/* Values copied from app/session/summary/[id].tsx styles. */
 const summary = StyleSheet.create({
   screen: { flex: 1, overflow: 'hidden' },
   content: { flexGrow: 1 },
@@ -343,17 +317,8 @@ const summary = StyleSheet.create({
   settlementFlow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 });
 
-/* ------------------------------------------------------------------------------------------ */
-/* Cash-out                                                                                    */
-/* ------------------------------------------------------------------------------------------ */
-
-/** Four minus and four plus quick-amount chips per player. */
 const CHIP_COUNT = 8;
 
-/**
- * Mirrors the body of app/session/cashout/[id].tsx under its title: instructions line, balance
- * tracker, player cards and the confirm button. The screen keeps its own container and title.
- */
 export function CashOutSkeleton() {
   const c = useAppColors();
   return (
@@ -382,7 +347,6 @@ export function CashOutSkeleton() {
   );
 }
 
-/** A tracker column; the third one's label flips between Remaining and Balanced, so it's a bone. */
 function TrackerItemSkeleton({ label }: { label?: string }) {
   const c = useAppColors();
   return (
@@ -421,9 +385,7 @@ function CashOutCardSkeleton({ nameWidth }: { nameWidth: DimensionValue }) {
   );
 }
 
-/* Values copied from app/session/cashout/[id].tsx styles. */
 const cashOut = StyleSheet.create({
-  /** Same gap as the screen container, so the skeleton's children space like the real ones. */
   body: { flex: 1, gap: 12 },
   flex: { flex: 1 },
   center: { alignItems: 'center' },

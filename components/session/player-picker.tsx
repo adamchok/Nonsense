@@ -6,7 +6,6 @@ import { Icon } from '@/components/icon';
 import { StyleSheet, Text, View } from 'react-native';
 
 type Props = {
-  /** Seated players who haven't cashed out. */
   activePlayers: LedgerPlayer[];
   friendsNotInSession: FriendRecord[];
   selfId: string | undefined;
@@ -14,7 +13,6 @@ type Props = {
   onPick: (playerId: string, name: string) => void;
 };
 
-/** Rebuy chips for seated players and add-chips for friends not yet in the session. */
 export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, pickedPlayerId, onPick }: Props) {
   const c = useAppColors();
   if (activePlayers.length === 0 && friendsNotInSession.length === 0) return null;
@@ -104,7 +102,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.66,
   },
-  /** Wraps rather than scrolling: a horizontal strip hides players past the fourth. */
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',

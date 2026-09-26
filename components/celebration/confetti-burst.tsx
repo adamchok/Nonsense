@@ -1,9 +1,3 @@
-/**
- * A short, light confetti/chip burst built on Reanimated (no Lottie/Skia). Pieces fall from
- * the top edge of the parent for ~1s and then the component unmounts itself. Renders nothing
- * when the OS "reduce motion" setting is on. Place it as the last child of a relatively
- * positioned container; it never intercepts touches.
- */
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -17,9 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 type Props = {
-  /** Piece colours, cycled (e.g. gold + emerald from the theme). */
   colors: readonly string[];
-  /** Number of pieces; keep it small, this is a flourish. */
   count?: number;
 };
 
@@ -39,10 +31,8 @@ const DEFAULT_COUNT = 18;
 const MAX_DELAY_MS = 220;
 const BASE_DURATION_MS = 950;
 const DURATION_JITTER_MS = 350;
-/** Unmount a little after the slowest piece has faded. */
 const LIFETIME_MS = MAX_DELAY_MS + BASE_DURATION_MS + DURATION_JITTER_MS + 100;
 
-/** Deterministic 0..1 noise so layout is stable across re-renders (no Math.random in render). */
 function noise(i: number, salt: number): number {
   const v = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
   return v - Math.floor(v);
@@ -50,7 +40,7 @@ function noise(i: number, salt: number): number {
 
 function buildPieces(count: number, width: number, height: number, colors: readonly string[]): Piece[] {
   return Array.from({ length: count }, (_, i) => {
-    const round = i % 3 === 0; // every third piece is a little "chip"
+    const round = i % 3 === 0;
     return {
       x: noise(i, 1) * width,
       drift: (noise(i, 2) - 0.5) * 80,
@@ -111,7 +101,6 @@ export function ConfettiBurst({ colors, count = DEFAULT_COUNT }: Props) {
   const reduceMotion = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const [done, setDone] = useState(false);
-  // Snapshot the window size at mount; a resize mid-burst shouldn't reshuffle pieces.
   const [size] = useState({ width, height });
   const pieces = useMemo(
     () => buildPieces(count, size.width, size.height, colors),

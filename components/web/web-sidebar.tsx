@@ -17,17 +17,11 @@ const HOVER_BG_ALPHA = 0.07;
 const ITEM_HEIGHT = 42;
 const ITEM_GAP = 2;
 
-/** `#rrggbb` + alpha -> `rgba(...)`; theme accents are all 6-digit hex. */
 function withAlpha(hex: string, alpha: number): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
-/**
- * Tablet/desktop web navigation: a full-height left sidebar rendered as the bottom-tabs
- * `tabBar` with `tabBarPosition: 'left'`. Mirrors BottomTabBar's press semantics
- * (tabPress event, preventDefault, links with real hrefs).
- */
 export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps) {
   const c = useAppColors();
   const scheme = useResolvedColorScheme();
@@ -35,7 +29,6 @@ export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps
   const pillY = useSharedValue(state.index * (ITEM_HEIGHT + ITEM_GAP));
   const isFirstRender = useRef(true);
 
-  // The active pill springs between items instead of the highlight jumping.
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -121,7 +114,6 @@ function SidebarItem({ label, focused, href, onPress, onLongPress, renderIcon }:
   const c = useAppColors();
   const [hovered, setHovered] = useState(false);
   const color = focused || hovered ? (focused ? c.accentText : c.text) : c.textMuted;
-  // The focused item's tint is the sliding pill drawn behind the items.
   const backgroundColor = !focused && hovered ? withAlpha(c.textMuted, HOVER_BG_ALPHA) : 'transparent';
 
   return (

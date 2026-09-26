@@ -24,17 +24,10 @@ type Options = {
   session: SessionView | null;
   viewerIsHost: boolean;
   pendingBuyIns: number;
-  /** Closes whichever modal is open. */
   closeModal: () => void;
-  /** Opens the blinds editor (End Session needs blinds). */
   openBlindsEditor: () => void;
 };
 
-
-/**
- * Host-only writes for the live session screen. Each guards host status and alerts on save
- * failures; the modals show invalid input inline before calling these, so bad input just returns.
- */
 export function useSessionActions({
   id,
   session,
@@ -101,7 +94,6 @@ export function useSessionActions({
       ]);
       return;
     }
-    // Cash-out settles from the ledger; wait until every buy-in has reached the server.
     if (pendingBuyIns > 0) {
       appAlert(
         'Buy-ins still saving',
@@ -109,7 +101,6 @@ export function useSessionActions({
       );
       return;
     }
-    // No confirm: the cash-out screen is reversible (Back returns here) and settles nothing yet.
     router.push(`./cashout/${id}`);
   }
 

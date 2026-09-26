@@ -21,7 +21,6 @@ type Props = {
   onEditChipValue: () => void;
 };
 
-/** Location, blinds and (chip sessions) dollars-per-chip cards. Editable for the host. */
 export function SessionMetaCards({ session, canEdit, onEditLocation, onEditBlinds, onEditChipValue }: Props) {
   const location = session?.location?.trim() ? session.location : undefined;
   const dpc = session?.dollarsPerChip;
@@ -92,7 +91,6 @@ function MetaCard({
 }: {
   icon: IconName;
   label: string;
-  /** Spoken value; the visible value may be icons plus numbers. */
   a11yValue: string;
   onEdit?: () => void;
   fullRow?: boolean;

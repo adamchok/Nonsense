@@ -21,7 +21,6 @@ export default function SavedLocationsScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Stagger only the first batch of rows; a newly saved location animates in without a delay.
   const hasLocations = locations.length > 0;
   const [initialStagger, setInitialStagger] = useState(true);
   useEffect(() => {
@@ -221,4 +220,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-

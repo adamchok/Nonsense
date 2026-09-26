@@ -33,11 +33,6 @@ export function isFirebaseConfigured(): boolean {
   );
 }
 
-/**
- * Local emulator suite (see `emulators` in firebase.json). Opt-in via EXPO_PUBLIC_USE_EMULATOR=1.
- * The Android emulator reaches the host machine at 10.0.2.2, so set EXPO_PUBLIC_EMULATOR_HOST
- * there; a physical device needs the host's LAN IP.
- */
 const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
 const EMULATOR_HOST = process.env.EXPO_PUBLIC_EMULATOR_HOST || '127.0.0.1';
 const FIRESTORE_EMULATOR_PORT = 8080;
@@ -47,10 +42,6 @@ let app: FirebaseApp | undefined;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!isFirebaseConfigured()) {
-    // This message can reach an installed build: EXPO_PUBLIC_* come from EAS environment
-    // variables, which are not in the repo, so a misconfigured cloud build fails here at
-    // runtime rather than at build time. Keep it meaningful to whoever is holding the
-    // phone; the developer-facing detail goes to the log.
     console.error(
       'Firebase config missing. Set EXPO_PUBLIC_FIREBASE_* in .env locally, or as EAS environment variables for cloud builds.'
     );
@@ -69,8 +60,6 @@ let auth: Auth | undefined;
 export function getFirebaseAuth(): Auth {
   if (!auth) {
     const firebaseApp = getFirebaseApp();
-    // The web bundle resolves firebase/auth to its browser build, which has no
-    // getReactNativePersistence; getAuth() there defaults to IndexedDB/localStorage persistence.
     auth =
       Platform.OS === 'web'
         ? getAuth(firebaseApp)

@@ -16,7 +16,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SHEET_BREAKPOINT } from '@/lib/spacing';
 
-/** Filled destructive button: white text meets 4.5:1 on this red in both themes. */
 const DANGER_FILL = '#dc2626';
 
 export type AppAlertButtonStyle = 'default' | 'cancel' | 'destructive';
@@ -36,13 +35,9 @@ type AlertPayload = {
 type ShowAlert = (payload: AlertPayload) => void;
 
 let globalShowAlert: ShowAlert | null = null;
-/** Alerts fired while the provider is unmounted (startup, fast refresh) — flushed on mount. */
 let pendingAlerts: AlertPayload[] = [];
 const MAX_PENDING_ALERTS = 5;
 
-/**
- * Imperative API matching `Alert.alert` overloads so you can replace calls in place.
- */
 export function appAlert(title: string, message?: string, buttons?: AppAlertButton[]): void;
 export function appAlert(title: string, buttons?: AppAlertButton[]): void;
 export function appAlert(
@@ -77,7 +72,6 @@ export function appAlert(
   globalShowAlert({ title, message, buttons: resolvedButtons });
 }
 
-/** Same as importing `appAlert` directly; useful if you prefer hook-style access in a component. */
 export function useAppAlert(): { alert: typeof appAlert } {
   return { alert: appAlert };
 }
@@ -96,7 +90,6 @@ function buttonTextStyle(
   }
 }
 
-/** Sheet buttons are filled: gold for the main action, red for destructive, outlined cancel. */
 function sheetButtonStyle(
   style: AppAlertButtonStyle | undefined,
   c: ReturnType<typeof useAppColors>
@@ -124,7 +117,6 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     globalShowAlert = show;
     if (pendingAlerts.length > 0) {
-      // The modal shows one payload at a time; surface the most recent buffered alert.
       const latest = pendingAlerts[pendingAlerts.length - 1];
       pendingAlerts = [];
       show(latest);
@@ -151,7 +143,6 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
 
   const visible = payload != null;
   const buttons = payload?.buttons ?? [];
-  // Phones: a choice (2+ buttons) docks as a bottom sheet; a plain notice (just OK) stays a centred dialog.
   const isSheet = width < SHEET_BREAKPOINT && buttons.length > 1;
   const isStacked = buttons.length > 2;
   const cancelButton = buttons.find((b) => b.style === 'cancel');
@@ -166,8 +157,6 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
         statusBarTranslucent
         onRequestClose={close}>
         <View style={styles.root}>
-          {/* Tapping outside a sheet counts as Cancel (only when there is one to press). A plain
-              View otherwise: a disabled Pressable picks up the web disabled-opacity style. */}
           {isSheet && cancelButton ? (
             <ModalBackdrop
               onPress={() => onButtonPress(cancelButton)}
@@ -192,7 +181,6 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
                 {payload?.message ? (
                   <Text style={[styles.sheetMessage, { color: c.textSecondary }]}>{payload.message}</Text>
                 ) : null}
-                {/* Two buttons sit side by side in the order given; more stack full-width. */}
                 <View style={isStacked ? styles.sheetColumn : styles.sheetRow}>
                   {buttons.map((btn, i) => {
                     const look = sheetButtonStyle(btn.style, c);

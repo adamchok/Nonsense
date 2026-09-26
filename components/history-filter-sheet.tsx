@@ -21,14 +21,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-
 type Props = {
   visible: boolean;
   draft: FilterState;
   setDraft: (update: (prev: FilterState) => FilterState) => void;
   locationSummary: string;
   onOpenLocations: () => void;
-  /** Sessions the draft filters would show. */
   matchCount: number;
   onReset: () => void;
   onApply: () => void;

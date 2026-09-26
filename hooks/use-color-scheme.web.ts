@@ -3,10 +3,6 @@ import { useColorScheme as useRNColorScheme } from 'react-native';
 
 import { ThemePreferenceContext } from '@/lib/theme-context';
 
-/**
- * Web twin of the native hook — same signature and precedence (app theme preference from
- * Settings first, system otherwise). Re-calculates client-side to support static rendering.
- */
 export function useColorScheme(): 'light' | 'dark' | null {
   const [hasHydrated, setHasHydrated] = useState(false);
 

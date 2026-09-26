@@ -11,11 +11,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-/** One clock for every bone on screen, so a whole skeleton breathes together, not in a ripple. */
 const pulse = makeMutable(0);
 let pulseUsers = 0;
 const PULSE_MS = 850;
-/** Bone opacity at the pulse's low and high points. */
 const LOW = 0.45;
 const HIGH = 1;
 
@@ -37,16 +35,10 @@ function usePulseClock(enabled: boolean) {
 type BoneProps = {
   width?: DimensionValue;
   height?: number;
-  /** Corner radius; defaults to a soft 6, pass height / 2 for pills and circles. */
   radius?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-/**
- * A placeholder block shaped like the content it stands in for. Compose bones inside a
- * <SkeletonGroup> that mirrors the real layout, so data replaces them in place without a jump.
- * Pulses in sync with every other bone; still under reduce motion.
- */
 export function Skeleton({ width = '100%', height = 14, radius = 6, style }: BoneProps) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
@@ -63,7 +55,6 @@ export function Skeleton({ width = '100%', height = 14, radius = 6, style }: Bon
   );
 }
 
-/** Wraps a skeleton layout: one "Loading" announcement for screen readers instead of many bones. */
 export function SkeletonGroup({
   label = 'Loading',
   style,
@@ -85,7 +76,6 @@ export function SkeletonGroup({
   );
 }
 
-/** Common shapes, so screens don't hand-roll the same bones. */
 export const skeletonStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   grow: { flex: 1, gap: 8 },

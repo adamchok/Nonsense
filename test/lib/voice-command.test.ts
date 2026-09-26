@@ -1,12 +1,3 @@
-/**
- * Run with: npm test   (node --test, no framework, no dependencies)
- *
- * Mirrors the source tree: test/lib/x.test.ts covers lib/x.ts.
- *
- * Node's native type-stripping needs the explicit `.ts` extension on relative
- * imports and `import type` for type-only imports. The `@/` alias is deliberately
- * not used here — Node has no import map for it.
- */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -54,7 +45,6 @@ function assertUnparsed(transcript: string, reason: string) {
   assert.equal(result.reason, reason, `${transcript} reason`);
 }
 
-/** Amount-only helper: every phrasing is anchored to a known player. */
 function assertAmount(spokenAmount: string, expected: number) {
   const transcript = `Adam buys in for ${spokenAmount}`;
   const result = parse(transcript);
@@ -62,8 +52,6 @@ function assertAmount(spokenAmount: string, expected: number) {
   if (result.kind !== 'buyIn') return;
   assert.equal(result.amount, expected, `"${spokenAmount}" should be ${expected}`);
 }
-
-// ---------------------------------------------------------------------------
 
 test('buy-in phrasings', () => {
   assertBuyIn('add fifty for Adam', 'adam', 50);
@@ -76,7 +64,6 @@ test('buy-in phrasings', () => {
   assertBuyIn('Adam tops up fifty', 'adam', 50);
   assertBuyIn('Adam bought in for fifty', 'adam', 50);
   assertBuyIn('reload Adam fifty', 'adam', 50);
-  // Bare shorthand with no intent keyword at all.
   assertBuyIn('Adam fifty', 'adam', 50);
 });
 
@@ -92,7 +79,6 @@ test('cash-out phrasings', () => {
 });
 
 test('cash-out is detected before buy-in when both keywords appear', () => {
-  // "for" is a weak buy-in trigger but "cashes out" must win.
   assertCashOut('Jordan cashes out for two hundred', 'jordan', 200);
 });
 
@@ -113,7 +99,6 @@ test('spoken numbers - juxtaposition means hundreds, not cents', () => {
   assertAmount('two fifty', 250);
   assertAmount('twelve fifty', 1250);
   assertAmount('one twenty', 120);
-  // tens + unit is a single group, so this must stay 25
   assertAmount('twenty five', 25);
   assertAmount('forty five', 45);
 });
@@ -149,7 +134,6 @@ test('the two idioms for 1200 do not collide', () => {
 });
 
 test('rejects amounts it cannot resolve safely', () => {
-  // A cents group of 100+ is ambiguous: 200.50? 250? Refuse rather than guess.
   assertUnparsed('cash out Jordan two hundred and fifty cents', 'no-amount');
   assertUnparsed('Adam buys in for zero', 'no-amount');
   assertUnparsed('Adam buys in for fifty big blinds', 'unsupported-unit');
@@ -163,7 +147,6 @@ test('cents below a dollar still parse', () => {
 test('fuzzy name matching tolerates STT slips', () => {
   assertBuyIn('Adem buys in fifty', 'adam', 50);
   assertCashOut('Jordn cash out two hundred', 'jordan', 200);
-  // First-token match against a full name.
   assertBuyIn('Mike fifty', 'mike_chen', 50);
   assertBuyIn('Mike Chen fifty', 'mike_chen', 50);
 });
@@ -171,7 +154,6 @@ test('fuzzy name matching tolerates STT slips', () => {
 test('short names require an exact match', () => {
   assertBuyIn('Ed fifty', 'ed', 50);
   assertBuyIn('Al fifty', 'al', 50);
-  // "Ad" must not reach Adam, Al or Ed, and must not become a phantom guest.
   assertUnparsed('Ad fifty', 'unknown-name');
 });
 
@@ -181,7 +163,6 @@ test('unknown names become new guests for buy-ins only', () => {
   assert.equal(result.kind, 'buyIn');
   if (result.kind === 'buyIn') assert.equal(result.playerName, 'Sarah');
 
-  // You cannot cash out someone with no ledger row.
   assertUnparsed('cash out Sarah fifty', 'unknown-name');
 });
 
@@ -229,7 +210,6 @@ test('filler words are tolerated', () => {
 });
 
 test('chip-mode wording does not convert the amount', () => {
-  // "fifty chips" in a chips session is 50, exactly like typing 50.
   assertBuyIn('Adam buys in for fifty chips', 'adam', 50);
 });
 
@@ -249,31 +229,24 @@ test('two different people in one utterance is an ambiguity, not a race', () => 
   if (twoNames.kind !== 'unparsed') return;
   assert.equal(twoNames.reason, 'ambiguous-name');
   assert.deepEqual([...(twoNames.candidates ?? [])].sort(), ['Adam', 'Jordan']);
-  // The amount is still carried over for the retry prompt.
   assert.equal(twoNames.amount, 200);
 
-  // Whatever the connecting word is, two seated players must never resolve to one.
   assertUnparsed('Adam pays Jordan fifty', 'ambiguous-name');
   assertUnparsed('Adam and Ed fifty', 'ambiguous-name');
 });
 
 test('one person named several ways is still a single match', () => {
-  // "Mike" (first-token tier) and "Mike Chen" (exact tier) are the same player.
   assertBuyIn('Mike Chen buys in for fifty', 'mike_chen', 50);
-  // A better tier wins outright rather than counting as a second candidate:
-  // "Mike" is an exact first token for Mike Chen but only a prefix of Mikey.
   assertBuyIn('Mike fifty', 'mike_chen', 50);
 });
 
 test('negated amounts are refused rather than silently made positive', () => {
-  // Before: "minus fifty" invented a new guest called "Minus" with a 50 buy-in.
   assertUnparsed('minus fifty', 'negative-amount');
   assertUnparsed('negative twenty', 'negative-amount');
   assertUnparsed('Adam buys in for minus fifty', 'negative-amount');
   assertUnparsed('Adam buys in for -50', 'negative-amount');
   assertUnparsed('cash out Jordan -200', 'negative-amount');
 
-  // Hyphens that are not signs must keep working.
   assertBuyIn('Adam re-buy fifty', 'adam', 50);
   assertAmount('twenty-five', 25);
   assertAmount('12.50', 12.5);
@@ -284,12 +257,9 @@ test('being at the table outranks the tighter literal match', () => {
     { playerId: 'bryan', name: 'Bryan', inSession: false },
     { playerId: 'bryan_tan', name: 'Bryan Tan', inSession: true },
   ];
-  // "Bryan" is an exact match for a friend who isn't playing, but only the first
-  // token of the player who is. The one at the table wins.
   assertBuyIn('bryan fifty', 'bryan_tan', 50, bryanAway);
   assertBuyIn('bryan fifty', 'bryan_tan', 50, [...bryanAway].reverse());
 
-  // Once both are at the table, the exact name is taken at face value.
   const bothSeated: VoiceRosterEntry[] = [
     { playerId: 'bryan', name: 'Bryan', inSession: true },
     { playerId: 'bryan_tan', name: 'Bryan Tan', inSession: true },
@@ -302,7 +272,6 @@ test('a longer name is not two people just because it contains a shorter one', (
     { playerId: 'bryan', name: 'Bryan', inSession: true },
     { playerId: 'bryan_tan', name: 'Bryan Tan', inSession: true },
   ];
-  // "bryan tan" and its own sub-span "bryan" overlap, so they are one mention.
   assertBuyIn('bryan tan fifty', 'bryan_tan', 50, roster);
 
   const cashOut = parse('cash out bryan tan two hundred', roster);
@@ -319,12 +288,9 @@ test('a player whose name is also a unit word is still reachable', () => {
   assertBuyIn('Bill fifty', 'bill', 50, roster);
   assertBuyIn('Bill buys in for fifty', 'bill', 50, roster);
   assertBuyIn('Chip buys in for fifty chips', 'chip', 50, roster);
-  // The unit word attached to the figure is still swallowed by the amount run,
-  // so it never doubles as a second name.
   assertBuyIn('Adam buys in for fifty chips', 'adam', 50, roster);
   assertBuyIn('Adam buys in for fifty bucks', 'adam', 50, roster);
 
-  // With nobody called Bill, the unit word stays pure grammar.
   assertUnparsed('fifty bills', 'no-name');
 });
 

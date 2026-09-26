@@ -1,12 +1,5 @@
 rules_version = '2';
 
-// Nonsense Poker — aligned with lib/firestore.ts
-// - Session docs and ledger subcollections are readable only by the host and participants
-//   (via the `participantIds` mirror on the session doc, with a `session_participants`
-//   fallback for docs written before the mirror existed).
-// - Session writes (doc + subcollections): host only, with numeric range validation.
-// - Friend docs can only be written through the request → accept flow (batched client-side;
-//   exists() sees pre-batch state), with display fields pinned to canonical profiles.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -31,33 +24,23 @@ service cloud.firestore {
         && sessionData(sessionId).hostId == request.auth.uid;
     }
 
-    // Host check that also holds when the session doc is created in the same batch.
     function isSessionHostAfter(sessionId) {
       return signedIn()
         && getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.hostId == request.auth.uid;
     }
 
-    // Ledger writes are only legal while the session is open. Uses post-batch state so a
-    // session and its first buy-ins can still be written together, and so a buy-in cannot
-    // ride along in the batch that settles the session.
     function sessionActiveAfter(sessionId) {
       return getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.status == 'active';
     }
 
-    // Anyone may create a session naming anyone else as a participant, so every player
-    // needs a unilateral way out of a session they never agreed to be in. This is the
-    // only session write a non-host may make: strip their own uid, touch nothing else.
     function removesOnlySelfFromParticipants() {
       return signedIn()
         && request.auth.uid != resource.data.hostId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds'])
-        // get(): legacy sessions predate the mirror; arrayRemove there writes [].
         && resource.data.get('participantIds', []).removeAll([request.auth.uid])
           == request.resource.data.participantIds;
     }
 
-    // Ledger read access: host, participantIds mirror, or (legacy sessions written before
-    // the mirror existed) a session_participants row for this user.
     function canReadSession(sessionId) {
       return signedIn()
         && (
@@ -68,7 +51,6 @@ service cloud.firestore {
         );
     }
 
-    // Money fields must be real numbers in a sane range (NaN fails every comparison).
     function validAmount(v) {
       return v is number && v > 0 && v < 100000000;
     }
@@ -90,7 +72,6 @@ service cloud.firestore {
         && d.get('participantIds', []) is list;
     }
 
-    // Written display fields must match the canonical profile of the player the doc describes.
     function friendDocMatchesProfile(describedId) {
       return request.resource.data.name
           == get(/databases/$(database)/documents/players/$(describedId)).data.name
@@ -99,20 +80,12 @@ service cloud.firestore {
             == get(/databases/$(database)/documents/players/$(describedId)).data.get('avatarEmoji', null));
     }
 
-    // A profile refCode must be reserved in `refCodes/{code}` and map back to this player.
     function refCodeReserved(playerId) {
       return !request.resource.data.keys().hasAny(['refCode'])
         || get(/databases/$(database)/documents/refCodes/$(request.resource.data.refCode)).data.playerId == playerId;
     }
 
     match /players/{playerId} {
-      // Display-only profile (name / avatar / ref code) used across friends lists, ref-code
-      // lookups, and group member rendering. Financial data lives under /sessions and is
-      // participant-scoped there.
-      //
-      // `get` only, never `list`: sign-in is anonymous and automatic, so a listable
-      // collection means anyone holding the public app config can enumerate every player.
-      // Every read path in the app is a point get, so denying list costs nothing.
       allow get: if signedIn();
       allow list: if false;
 
@@ -124,12 +97,6 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 64
         && refCodeReserved(playerId);
 
-      // Keep profile anchored to this auth user; refCode is immutable once set, and adding
-      // one (creation or backfill) requires the refCodes reservation to exist first.
-      // The name is validated on create but was unchecked on update, while
-      // friendDocMatchesProfile() forces every cached copy to equal it — so an unbounded
-      // value here propagates into every friend list and group roster that renders it. The
-      // cap is deliberately looser than the client's own limit so existing names still save.
       allow update: if isPlayerOwner(playerId)
         && request.resource.data.anonymousUid == playerId
         && request.resource.data.name is string
@@ -143,13 +110,10 @@ service cloud.firestore {
 
       match /friends/{friendId} {
         allow read: if isPlayerOwner(playerId);
-        // Only creatable by accepting a pending request: the client batches the request-doc
-        // deletes with both friend-doc writes, and exists() here evaluates pre-batch state.
         allow create: if signedIn()
           && (request.auth.uid == playerId || request.auth.uid == friendId)
           && exists(/databases/$(database)/documents/players/$(request.auth.uid)/friend_requests/$(request.auth.uid == playerId ? friendId : playerId))
           && friendDocMatchesProfile(friendId);
-        // Display-sync only: a player may refresh their own denormalized copy in a friend's list.
         allow update: if signedIn()
           && request.auth.uid == friendId
           && friendDocMatchesProfile(friendId);
@@ -181,10 +145,8 @@ service cloud.firestore {
         allow read, write: if isPlayerOwner(playerId);
       }
 
-      // Index of groups this user belongs to (efficient Groups tab). Synced from canonical `groups/{groupId}`.
       match /group_memberships/{groupId} {
         allow read: if isPlayerOwner(playerId);
-        // Owner creates their row when creating a group; group owner may create rows for invited players.
         allow create: if signedIn()
           && exists(/databases/$(database)/documents/groups/$(groupId))
           && (
@@ -194,8 +156,6 @@ service cloud.firestore {
             )
             || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
           );
-        // A member may update their own cached row, but not to change role/ownerId — those
-        // only sync from the canonical group via its owner.
         allow update: if signedIn()
           && (
             get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
@@ -213,7 +173,6 @@ service cloud.firestore {
       }
     }
 
-    // Canonical poker groups (shared by all members). Members list lives under `members`.
     match /groups/{groupId} {
       allow read: if signedIn()
         && (
@@ -228,9 +187,6 @@ service cloud.firestore {
 
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
 
-      // A member leaving decrements memberCount and touches nothing else. Without this the
-      // owner is the only one who can adjust the count, so members could never leave on
-      // their own — and being added to a group needs no consent, so leaving must be possible.
       allow update: if signedIn()
         && (
           resource.data.ownerId == request.auth.uid
@@ -252,8 +208,6 @@ service cloud.firestore {
         allow create: if signedIn()
           && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid;
 
-        // Owner removes anyone; a member removes only themselves (the owner cannot, since
-        // deleting the owner's row would leave a group nobody administers).
         allow delete: if signedIn()
           && (
             get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
@@ -263,8 +217,6 @@ service cloud.firestore {
             )
           );
 
-        // Owner can manage any member. A member may update their own row only when `name` matches
-        // canonical `players/{uid}` (profile sync) and `isRegistered` is unchanged.
         allow update: if signedIn()
           && (
             get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
@@ -279,7 +231,6 @@ service cloud.firestore {
     }
 
     match /refCodes/{code} {
-      // Point lookups only — listing these maps back to every player id (see /players).
       allow get: if signedIn();
       allow list: if false;
       allow create: if signedIn()
@@ -289,9 +240,6 @@ service cloud.firestore {
     }
 
     match /sessions/{sessionId} {
-      // Host or participant only. Collection queries must filter on hostId or
-      // participantIds so one of the first two disjuncts is provable; the exists()
-      // fallback keeps direct links working for legacy pre-participantIds sessions.
       allow read: if signedIn()
         && (
           resource.data.hostId == request.auth.uid
@@ -305,8 +253,6 @@ service cloud.firestore {
         && request.resource.data.status == 'active'
         && validSessionShape(request.resource.data);
 
-      // 'finished' is terminal: reopening would re-arm the results rule below and let the
-      // host rewrite money records other players already settled against.
       allow update: if (
           isSessionHost(sessionId)
           && request.resource.data.hostId == resource.data.hostId
@@ -338,18 +284,12 @@ service cloud.firestore {
 
       match /results/{resultPlayerId} {
         allow read: if canReadSession(sessionId);
-        // Settlement is written while the session is still active (the cash-out flow runs
-        // saveResults before finishSession); once finished, results are immutable.
         allow create, update: if isSessionHost(sessionId)
           && sessionData(sessionId).status == 'active'
           && request.resource.data.playerName is string
           && validNonNegativeAmount(request.resource.data.totalBuyIn)
           && validNonNegativeAmount(request.resource.data.cashOut)
           && validSignedAmount(request.resource.data.profit);
-        // Host deletes are what let deleteSession cascade — results left behind outlive
-        // the parent doc that canReadSession needs, so nobody could read or remove them.
-        // A player who has already removed themselves from participantIds may delete the
-        // record written about them; a player still in the session may not.
         allow delete: if isSessionHost(sessionId)
           || (signedIn()
             && resultPlayerId == request.auth.uid
@@ -360,8 +300,6 @@ service cloud.firestore {
         allow read: if signedIn()
           && (participantId == request.auth.uid || canReadSession(sessionId));
         allow create, update: if isSessionHostAfter(sessionId);
-        // Self-delete is the companion to removesOnlySelfFromParticipants(): leaving a
-        // session must also clear the row that keeps the ledger readable to you.
         allow delete: if isSessionHost(sessionId)
           || (signedIn() && participantId == request.auth.uid);
       }

@@ -14,20 +14,16 @@ import { userMessage } from '@/lib/user-message';
 export type BuyInDraft = {
   playerName: string;
   amount: string;
-  /** Set when the host picked a seated player or friend chip rather than typing a name. */
   pickedPlayerId: string | null;
-  /** Buying a cashed-out player back in: this buy-in clears their early cash-out in the same batch. */
   isBuyBack?: boolean;
 };
 
-/** A queued buy-in that can still be undone. `buyInId` resolves once the batch commits. */
 export type QueuedBuyIn = {
   playerName: string;
   amount: number;
   buyInId: Promise<string | null>;
 };
 
-/** First unused `name_2` / `name_3` … id, so two guests typed with the same name stay separate. */
 function firstFreeGuestId(base: string, playerTotals: LiveSession['playerTotals']): string {
   let n = 2;
   while (playerTotals[`${base}_${n}`]) n += 1;
@@ -43,28 +39,18 @@ function resolvePlayerId(draft: BuyInDraft, playerProfile: PlayerProfile | null)
   return trimmed.toLowerCase().replace(/\s+/g, '_');
 }
 
-/** Removes one buy-in entry (the undo for an add). The host-delete rule already allows it. */
 export async function deleteBuyInEntry(sessionId: string, buyInId: string): Promise<void> {
   await deleteDoc(doc(getFirestoreDb(), 'sessions', sessionId, 'buy_ins', buyInId));
 }
 
-/**
- * Validates and queues a buy-in. `handleAddBuyIn` resolves true once the write is queued
- * (the form may close) and false when nothing was written (the form keeps its entry).
- */
 export function useAddBuyIn(
   id: string | undefined,
   live: LiveSession,
   playerProfile: PlayerProfile | null,
   onQueued: (queued: QueuedBuyIn, draft: BuyInDraft) => void
 ) {
-  /** Buy-in batches written locally but not yet acked by the server. */
   const [pendingBuyIns, setPendingBuyIns] = useState(0);
 
-  /**
-   * Fire-and-forget: the buy-in lands in the ledger from the local snapshot immediately, so
-   * the form doesn't wait on the server ack (slow on poor mobile networks).
-   */
   function commitBuyIn(draft: BuyInDraft, playerId: string, name: string, parsedAmount: number) {
     if (!id) return;
     setPendingBuyIns((n) => n + 1);
@@ -97,7 +83,6 @@ export function useAddBuyIn(
       appAlert('Host only', 'Only the host can add buy-ins.');
       return false;
     }
-    // The form shows missing / invalid name and amount inline before calling this.
     const name = draft.playerName.trim();
     const parsed = parseAmount(draft.amount);
     if (!id || !name || parsed == null || parsed <= 0) return false;
@@ -107,9 +92,6 @@ export function useAddBuyIn(
       appAlert(`${name} already cashed out`, 'Tap their row and choose Buy Back In to add chips for them.');
       return false;
     }
-    // A typed (non-picked) name colliding with an existing ledger entry is ambiguous:
-    // a re-buy for that person, or a second guest with the same name. Ask, and keep the
-    // form open until the host picks (Cancel leaves the entry in place).
     const typedNameCollision =
       !draft.pickedPlayerId &&
       Boolean(live.playerTotals[resolvedId]) &&

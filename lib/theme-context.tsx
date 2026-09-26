@@ -18,7 +18,6 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 
 type ThemeContextValue = {
   preference: ThemePreference;
-  /** Resolved theme for UI (never 'system'). */
   resolvedColorScheme: 'light' | 'dark';
   setPreference: (p: ThemePreference) => Promise<void>;
   isReady: boolean;
@@ -40,7 +39,6 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
           setPreferenceState(stored);
         }
       } catch (err) {
-        // Fall back to the default preference; without this the rejection would be unhandled.
         console.warn('Failed to load theme preference:', err);
       } finally {
         if (!cancelled) setIsReady(true);
@@ -57,7 +55,6 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
     return systemScheme === 'dark' ? 'dark' : 'light';
   }, [preference, systemScheme]);
 
-  // Web: expose the resolved theme to the global CSS interaction layer (no-op on native).
   useEffect(() => {
     applyWebTheme(resolvedColorScheme);
   }, [resolvedColorScheme]);
@@ -67,7 +64,6 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, p);
     } catch (err) {
-      // Theme is applied in memory but won't survive a restart; let callers surface it.
       console.warn('Failed to persist theme preference:', err);
       throw err;
     }
@@ -91,7 +87,6 @@ export function useThemePreference(): ThemeContextValue {
   return ctx;
 }
 
-/** Resolved light/dark for styling; falls back to system when outside provider. */
 export function useResolvedColorScheme(): 'light' | 'dark' {
   const ctx = useContext(ThemePreferenceContext);
   const system = useSystemColorScheme();

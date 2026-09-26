@@ -5,14 +5,10 @@ import { StyleSheet, Text, type StyleProp, type TextStyle, type ViewStyle } from
 type Props = {
   unit: SessionAmountUnit;
   color: string;
-  /** Roughly match adjacent `$` text size (e.g. 18 in buy-in rows, 16 in blinds modal). */
   size?: number;
   style?: StyleProp<TextStyle & ViewStyle>;
 };
 
-/**
- * Cash: `$`. Chips: Phosphor PokerChip (SVG) via the shared `Icon`.
- */
 export function SessionAmountPrefix({ unit, color, size = 20, style }: Props) {
   if (unit === 'cash') {
     return <Text style={[styles.dollar, { color, fontSize: size }, style]}>$</Text>;

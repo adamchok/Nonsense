@@ -11,14 +11,9 @@ type Props<K extends string> = {
   tabs: readonly SegmentedTab<K>[];
   value: K;
   onChange: (key: K) => void;
-  /** 'radio' for a value choice (e.g. Cash / Chips) rather than switching views. */
   variant?: 'tabs' | 'radio';
 };
 
-/**
- * Pill-style tab switcher: an accent pill springs to the selected tab (filled icon), the rest
- * stay muted. Hover/focus feedback on web comes from lib/web-interactions.css.
- */
 export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant = 'tabs' }: Props<K>) {
   const isRadio = variant === 'radio';
   const c = useAppColors();
@@ -31,7 +26,6 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
   useEffect(() => {
     if (!selectedLayout) return;
     if (!placed.current) {
-      // First measurement: jump into place, don't slide in from the left edge.
       x.value = selectedLayout.x;
       width.value = selectedLayout.width;
       placed.current = true;
@@ -75,7 +69,6 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
             aria-checked={isRadio ? selected : undefined}
             accessibilityLabel={tab.label}
             onPress={() => onChange(tab.key)}
-            // Until measured, tint the tab itself so the first frame isn't blank.
             style={[styles.tab, selected && !selectedLayout && { backgroundColor: c.accentBg }]}>
             <Icon name={tab.icon} size={18} color={color} weight={selected ? 'fill' : 'regular'} />
             <Text style={[styles.label, { color }]} numberOfLines={1}>
@@ -102,8 +95,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   tab: {
-    // Grow to fill the row but size by content, so long labels (Leaderboard) aren't truncated
-    // on phones while short ones give up space.
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 'auto',

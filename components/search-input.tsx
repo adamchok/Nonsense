@@ -8,11 +8,6 @@ type Props = Omit<TextInputProps, 'style' | 'value' | 'onChangeText'> & {
   onChangeText: (text: string) => void;
 };
 
-/**
- * Text field with a leading search icon and a clear button once something is typed. The icon
- * and button sit over the input's padding, so the input itself stays the full-width field
- * (its border and the web focus ring wrap the whole thing).
- */
 export function SearchInput({ value, onChangeText, ...inputProps }: Props) {
   const c = useAppColors();
   return (

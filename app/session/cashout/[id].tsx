@@ -46,7 +46,6 @@ type PlayerEntry = {
   locked: boolean;
 };
 
-/** Split `totalCents` into `n` non-negative integers that sum to `totalCents` (extra cent to lower indices first). */
 function splitCents(totalCents: number, n: number): number[] {
   if (n <= 0) return [];
   const base = Math.floor(totalCents / n);
@@ -54,28 +53,20 @@ function splitCents(totalCents: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0));
 }
 
-/** Inline error for a cash-out input, or null when it's a valid amount (0 or more). */
 function cashOutError(input: string): string | null {
   const val = parseAmount(input);
   if (val == null) return input.trim() ? 'Enter a number' : 'Enter a cash-out';
   return val < 0 ? 'Must be 0 or more' : null;
 }
 
-/** Entering animation only for the first screenful; rows mounted later by scrolling just appear. */
 const MAX_ANIMATED_ROWS = 10;
-/** How far (px) the confirm button's ready ring spreads before fading out. */
 const RING_SPREAD = 8;
 
-/** P/L text that pops whenever the displayed value changes. */
 function ProfitValue({ text, color }: { text: string; color: string }) {
   const pop = usePop(text);
   return <Animated.Text style={[styles.profitValue, { color }, pop]}>{text}</Animated.Text>;
 }
 
-/**
- * One-shot "good to go" cue for the confirm button: a small scale bump plus a ring that
- * spreads out and fades. Fires only on the transition into ready, never on mount.
- */
 function useReadyPulse(isReady: boolean) {
   const scale = useSharedValue(1);
   const ring = useSharedValue(1);
@@ -286,7 +277,6 @@ export default function CashOutScreen() {
       const parts = splitCents(overCents, unlockedPrev.length);
       const subById = new Map<string, number>();
       unlockedPrev.forEach((p, i) => subById.set(p.playerId, parts[i] / 100));
-      // Anything left over (a player hit 0) stays visible in the over-distributed banner.
       return prev.map((p) => {
         if (p.locked) return p;
         const sub = subById.get(p.playerId) ?? 0;
@@ -309,7 +299,6 @@ export default function CashOutScreen() {
   const wasReadyRef = useRef<boolean | null>(null);
 
   useEffect(() => {
-    // Buzz only on the transition into "balanced", not on first render (prefill starts balanced).
     if (wasReadyRef.current === false && isReady) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
@@ -340,7 +329,6 @@ export default function CashOutScreen() {
       return;
     }
 
-    // The button is disabled until balanced; the tracker banner already explains the gap.
     if (!balanced) return;
 
     if (isChipsMode && (dollarsPerChip == null || !Number.isFinite(dollarsPerChip) || dollarsPerChip <= 0)) {
@@ -348,7 +336,6 @@ export default function CashOutScreen() {
       return;
     }
 
-    // Cash-outs are prefilled with buy-ins for speed, so review before the irreversible write.
     const formatAmount = (v: number) => (isChipsMode ? `${formatChipsLedger(v)} chips` : `$${v.toFixed(2)}`);
     const summaryLines = players.map((p) => {
       const cashOut = parseAmount(p.cashOutInput) ?? 0;
@@ -397,7 +384,6 @@ export default function CashOutScreen() {
     }
   }
 
-  // Stable renderItem so editing one player's amount doesn't re-render every mounted card.
   const renderItem = useCallback(
     ({ item, index }: { item: PlayerEntry; index: number }) => {
       const cashOut = parseAmount(item.cashOutInput) ?? 0;
@@ -586,7 +572,6 @@ export default function CashOutScreen() {
             />
           </View>
           <Animated.View style={[styles.trackerItem, statusPop]}>
-            {/* Keyed by status so the label/colour crossfades instead of snapping. */}
             <Animated.Text
               key={`label-${status}`}
               entering={fadeIn}

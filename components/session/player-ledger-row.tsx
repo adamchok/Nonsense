@@ -18,9 +18,7 @@ import {
 } from 'react-native';
 
 export type LedgerRowHandlers = {
-  /** Row tap: add a rebuy for this player. */
   onRebuy: (player: LedgerPlayer) => void;
-  /** Row long-press: replace the player's total. */
   onCorrectTotal: (player: LedgerPlayer) => void;
   onOpenCashedOut: (playerId: string) => void;
   onCashOut: (player: LedgerPlayer) => void;
@@ -32,17 +30,13 @@ type Props = LedgerRowHandlers & {
   cashOut: EarlyCashOut | undefined;
   avatar: string;
   isHostRow: boolean;
-  /** Host viewing an active session. */
   canAct: boolean;
   isRemoving: boolean;
-  /** Rows after the first draw a divider above themselves. */
   showDivider: boolean;
   displayUnit: SessionAmountUnit;
-  /** Set when the ledger is converting chips to dollars. */
   dollarsPerChip: number | undefined;
 };
 
-/** Full-width rows squish less than buttons. */
 const ROW_PRESSED_SCALE = 0.985;
 
 function spoken(value: number, unit: SessionAmountUnit): string {
@@ -50,7 +44,6 @@ function spoken(value: number, unit: SessionAmountUnit): string {
   return unit === 'chips' ? `${text} chips` : text;
 }
 
-/** One screen-reader stop per row: name, role and every amount the row shows. */
 function rowLabel(
   player: LedgerPlayer,
   isHostRow: boolean,
@@ -169,7 +162,6 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
         </View>
       </View>
       {canAct && !isCashedOut ? (
-        // Hidden from screen readers: the same actions are on the row's accessibilityActions.
         <View style={styles.actions} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           <PressableScale
             pressedScale={0.92}
@@ -316,7 +308,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     minWidth: 80,
   },
-  /** Accent tint behind the amounts, faded in and out by useAmountFlash. */
   flash: {
     position: 'absolute',
     top: -4,

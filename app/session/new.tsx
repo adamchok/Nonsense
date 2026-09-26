@@ -124,10 +124,6 @@ export default function NewSessionScreen() {
     };
   }, []);
 
-  /**
-   * ScrollView does not auto-scroll to focused inputs. `scrollToEnd` is only for fields near the bottom
-   * (group / join buy-in). Do not use it for upper fields like “Dollars per chip” — it jumps past them.
-   */
   function scrollLowerFormIntoView() {
     requestAnimationFrame(() => {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
@@ -138,7 +134,6 @@ export default function NewSessionScreen() {
     setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   }
 
-  /** Messages are worded for the unit (cash vs chips), so switching units clears them. */
   function onChangeAmountUnit(unit: SessionAmountUnit) {
     setAmountUnit(unit);
     setErrors({});
@@ -193,7 +188,6 @@ export default function NewSessionScreen() {
         membersForCreate = await getGroupMembers(playerProfile.id, selectedGroup.id);
         setGroupMembers(membersForCreate);
       } catch {
-        /* keep previous membersForCreate */
       }
     }
 
@@ -204,10 +198,7 @@ export default function NewSessionScreen() {
     const shouldAddGroupMembers = Boolean(selectedGroup && membersForCreate.length > 0);
     const shouldAddSelf = joinSelf && (!selectedGroup || !userInGroupForCreate);
 
-    // Validated amounts are snapshotted here and used for the write — never re-read from
-    // the still-editable inputs after an await.
     const initialBuyIns: { playerId: string; playerName: string; amount: number }[] = [];
-    // Validate every field at once so each mistake shows inline, not one alert at a time.
     const nextErrors: FormErrors = {};
 
     let dollarsPerChip: number | undefined;
@@ -274,7 +265,6 @@ export default function NewSessionScreen() {
 
     try {
       setIsSaving(true);
-      // One atomic write: session + every initial buy-in. No partial roster on failure.
       const sessionId = await createSession({
         hostId: playerProfile.id,
         hostName: playerProfile.name,
@@ -334,7 +324,6 @@ export default function NewSessionScreen() {
                     <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Dollars per chip</Text>
                     <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                   </View>
-                  {/* Input + its error share a gap-free wrapper so the error sits close, like the others. */}
                   <View>
                     <View style={styles.buyInRow}>
                     <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
@@ -435,7 +424,6 @@ export default function NewSessionScreen() {
             </View>
             </Animated.View>
 
-            {/* ---- Group picker ---- */}
             {groups.length > 0 && (
               <Animated.View
                 entering={listItemEntering(2)}
@@ -520,7 +508,6 @@ export default function NewSessionScreen() {
               </Animated.View>
             )}
 
-            {/* ---- Solo join (hidden only when user is already in the selected group) ---- */}
             {shouldShowJoinAsPlayer && (
               <Animated.View
                 entering={listItemEntering(3)}
@@ -639,7 +626,6 @@ export default function NewSessionScreen() {
             </Animated.View>
         </ScrollView>
 
-      {/* ---- Group picker modal ---- */}
       <Modal
         visible={showGroupPicker}
         transparent
@@ -893,7 +879,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  /** Segmented control: track padding 3, gap 2, radius 9; items 38 tall, radius 8. */
   chipValueBlock: {
     gap: 7,
   },

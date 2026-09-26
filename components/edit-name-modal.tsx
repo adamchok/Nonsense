@@ -7,7 +7,6 @@ import { userMessage } from '@/lib/user-message';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-/** Same limits as the first-launch name screen (app/(auth)/name.tsx). */
 const MIN_NAME_LEN = 2;
 const MAX_NAME_LEN = 15;
 
@@ -17,14 +16,12 @@ type Props = {
   onSave: (name: string) => Promise<void>;
 };
 
-/** Mount only while open, so each open starts from the current name. */
 export function EditNameModal({ initialName, onClose, onSave }: Props) {
   const c = useAppColors();
   const [name, setName] = useState(initialName.slice(0, MAX_NAME_LEN));
   const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const trimmed = name.trim();
-  // Too-short names stay tappable so the problem is explained under the field.
   const canSave = trimmed !== initialName && !isSaving;
 
   async function save() {

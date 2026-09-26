@@ -1,12 +1,3 @@
-/**
- * Anonymous -> Google account linking against the Auth + Firestore emulators. Run with
- * `npm run test:auth`, not `npm test` (which only globs test/lib).
- *
- * `emulators:exec` exports FIREBASE_AUTH_EMULATOR_HOST and FIRESTORE_EMULATOR_HOST. The Auth
- * emulator accepts unsigned Google ID tokens, so a JSON claims string stands in for the
- * token a real Google sign-in would return. Every test uses its own Google `sub` and its
- * own FirebaseApp, so tests never observe each other's accounts or auth state.
- */
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 
@@ -39,7 +30,6 @@ import {
   signInWithAccountCredential,
 } from '../../lib/account-link.ts';
 
-/** Must match the --project passed to emulators:exec in the test:auth script. */
 const PROJECT_ID = 'demo-nonsense';
 const AUTH_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099';
 const FIRESTORE_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
@@ -53,7 +43,6 @@ interface Client {
 const clients: Client[] = [];
 let appCounter = 0;
 
-/** A fresh app instance: its own auth state, like a fresh install of the app. */
 function newClient(): Client {
   appCounter += 1;
   const app = initializeApp(
@@ -70,7 +59,6 @@ function newClient(): Client {
   return client;
 }
 
-/** Fake Google credential the Auth emulator accepts in place of a signed ID token. */
 function googleCredential(sub: string, email: string): OAuthCredential {
   return GoogleAuthProvider.credential(
     JSON.stringify({ sub, email, email_verified: true })
@@ -126,7 +114,6 @@ test('reinstall: signing in with the linked Google account restores the original
   const original = (await signInAnonymously(auth)).user;
   const originalUid = original.uid;
 
-  // Written as the anonymous user through the real rules, as the app does on first launch.
   await setDoc(doc(db, 'players', originalUid), {
     name: 'Reinstaller',
     anonymousUid: originalUid,
@@ -137,7 +124,6 @@ test('reinstall: signing in with the linked Google account restores the original
     googleCredential('google-uid-reinstall', 'reinstall@example.com')
   );
 
-  // Reinstall: local auth state is gone and the app signs in anonymously again.
   await signOut(auth);
   const fresh = (await signInAnonymously(auth)).user;
   assert.notEqual(fresh.uid, originalUid);

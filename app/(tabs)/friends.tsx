@@ -58,7 +58,6 @@ import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
 import { NewGroupModal } from '@/components/new-group-modal';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 
-/** Dropdown menus grow from their top-right anchor: fade + scale up from 0.96. */
 const menuEntering = webSafe(
   new Keyframe({
     0: { opacity: 0, transform: [{ scale: 0.96 }] },
@@ -86,7 +85,6 @@ export default function FriendsScreen() {
   const router = useRouter();
   const { user, playerProfile } = useAuth();
   const [friends, setFriends] = useState<FriendRecord[]>([]);
-  // False until the first friends / groups snapshot lands, so the lists show skeletons, not an empty state.
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestRecord[]>([]);
@@ -98,9 +96,7 @@ export default function FriendsScreen() {
   const addFriendScrollRef = useRef<ScrollView>(null);
   const [adding, setAdding] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  // Starts true: the leaderboard waits on the friends list, so show its skeleton from the first frame.
   const [lbLoading, setLbLoading] = useState(true);
-  // A leaderboard that fails to load looks identical to one with no results — say which it is.
   const [lbFailed, setLbFailed] = useState(false);
 
   const [groups, setGroups] = useState<PokerGroup[]>([]);
@@ -122,10 +118,6 @@ export default function FriendsScreen() {
   const [leaderboardSortDirection, setLeaderboardSortDirection] = useState<SortDirection>('desc');
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
-  /**
-   * Leaderboard rows already shown since the tab was opened. Refresh swaps in a skeleton and
-   * remounts the rows, so only ids not seen yet play their entrance.
-   */
   const shownLbIdsRef = useRef(new Set<string>());
 
   const sortedLeaderboard = useMemo(() => {
@@ -195,12 +187,10 @@ export default function FriendsScreen() {
       } else {
         setLbLoading(true);
         try {
-          // Pull-to-refresh must bypass the cached session scan, or it appears to do nothing.
           const lb = await getFriendLeaderboard(user.uid, true);
           setLeaderboard(lb);
           setLbFailed(false);
         } catch (e) {
-          // Keep the existing list, but do not let the failure pass unseen.
           console.error('Friend leaderboard refresh failed:', e);
           setLbFailed(true);
         } finally {
@@ -247,7 +237,6 @@ export default function FriendsScreen() {
   useEffect(() => {
     if (!user || friends.length === 0) {
       setLeaderboard([]);
-      // Nothing to rank once the friends snapshot confirms there are no friends.
       if (!user || friendsLoaded) setLbLoading(false);
       return;
     }
@@ -368,7 +357,6 @@ export default function FriendsScreen() {
     ]);
   }
 
-  /** A group owner can add anyone without asking, so members need an exit of their own. */
   function handleLeaveGroup(groupId: string, groupName: string) {
     if (!user) return;
     appAlert(`Leave "${groupName}"?`, 'It disappears from your Groups tab. The owner can add you back.', [
@@ -506,7 +494,6 @@ export default function FriendsScreen() {
         }}
       />
 
-      {/* ---- Friends tab ---- */}
       {activeTab === 'friends' && (
         <>
           <View style={styles.sectionHeader}>
@@ -721,7 +708,6 @@ export default function FriendsScreen() {
         </>
       )}
 
-      {/* ---- Groups tab ---- */}
       {activeTab === 'groups' && (
         <>
           <View style={styles.sectionHeader}>
@@ -796,7 +782,6 @@ export default function FriendsScreen() {
                   exiting={fadeOut}
                   layout={layoutTransition}
                   style={[styles.groupCard, { backgroundColor: c.card, borderColor: isExpanded ? c.borderAccent : c.border }]}>
-                  {/* The whole header row toggles the card; the icon buttons inside handle their own presses. */}
                   <Pressable
                     style={styles.groupHeader}
                     onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}
@@ -939,11 +924,9 @@ export default function FriendsScreen() {
         </>
       )}
 
-            {/* ---- Leaderboard tab ---- */}
             {activeTab === 'leaderboard' && (
         <>
           {showLeaderboardSortDropdown ? (
-            // Not a control (no role, no focus), so it gets no hover tint or tab stop.
             <Pressable style={styles.menuBackdrop} onPress={() => setShowLeaderboardSortDropdown(false)} accessible={false} focusable={false} tabIndex={-1} aria-hidden />
           ) : null}
           <View style={[styles.sectionHeader, showLeaderboardSortDropdown && styles.menuAnchorRaised]}>
@@ -1048,7 +1031,6 @@ export default function FriendsScreen() {
                   key={entry.playerId}
                   entering={isFirstShow ? listItemEntering(idx) : undefined}
                   exiting={fadeOut}
-                  // Re-sorting slides rows to their new rank.
                   layout={layoutTransition}
                   style={[
                     styles.lbRow,
@@ -1074,7 +1056,6 @@ export default function FriendsScreen() {
         </>
       )}
 
-      {/* ---- Add Friend Modal ---- */}
       <Modal
         visible={showAddModal}
         transparent
@@ -1149,7 +1130,6 @@ export default function FriendsScreen() {
         </View>
       </Modal>
 
-      {/* ---- Group Leaderboard Modal ---- */}
       <Modal
         visible={showGroupLeaderboardModal}
         transparent
@@ -1224,7 +1204,6 @@ export default function FriendsScreen() {
         </View>
       </Modal>
 
-      {/* ---- Rename group modal ---- */}
       <Modal
         visible={renameGroupTarget != null}
         transparent
@@ -1310,11 +1289,9 @@ export default function FriendsScreen() {
   );
 }
 
-/** Name bone widths per skeleton row, so a loading list reads as varied names, not a barcode. */
 const SKELETON_NAME_WIDTHS = [118, 86, 140, 98, 124];
 const skeletonName = (i: number) => SKELETON_NAME_WIDTHS[i % SKELETON_NAME_WIDTHS.length];
 
-/** Leaderboard rows in loading form: same row chrome, bones for rank, avatar, name and amount. */
 function LeaderboardSkeleton({ rows, label }: { rows: number; label: string }) {
   const c = useAppColors();
   return (
@@ -1343,7 +1320,6 @@ function LeaderboardSkeleton({ rows, label }: { rows: number; label: string }) {
   );
 }
 
-/** Friend rows in loading form: avatar tile, name and "Friends since" line as bones. */
 function FriendRowsSkeleton({ rows = 4 }: { rows?: number }) {
   const c = useAppColors();
   return (
@@ -1372,7 +1348,6 @@ function FriendRowsSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
-/** Collapsed group cards in loading form: icon, name and player count as bones. */
 function GroupCardsSkeleton({ gap, cards = 3 }: { gap: number; cards?: number }) {
   const c = useAppColors();
   return (
@@ -1410,8 +1385,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.3,
   },
-  /** Segmented control: track padding 3, gap 2, radius 9; items 38 tall, radius 8. */
-  /** Rows of one card: side + top borders on every row; radius and bottom border on the ends. */
   vRow: {
     minHeight: 52,
     borderRadius: 0,
@@ -1488,7 +1461,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  /** Invisible layer behind an open dropdown: tapping anywhere outside the menu closes it. */
   menuBackdrop: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 5,
@@ -1665,11 +1637,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  /** Holds the rank bone at the rank column's width, so names line up with loaded rows. */
   lbRankSlot: {
     width: 28,
   },
-  /** Pads 14px / 12px bones to the 15px name and 16px meta line heights of a loaded friend row. */
   skelNameLine: {
     marginVertical: 3,
   },

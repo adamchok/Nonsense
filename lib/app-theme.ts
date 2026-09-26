@@ -6,7 +6,6 @@ export interface AppColors {
   cardAlt: string;
   inputBg: string;
   border: string;
-  /** Text-field outline; meets WCAG 1.4.11 3:1 against card/inputBg. */
   inputBorder: string;
   borderAccent: string;
   borderDanger: string;
@@ -20,12 +19,10 @@ export interface AppColors {
   placeholder: string;
 
   accent: string;
-  /** Accent used as text on card surfaces (accent itself is too dark in dark mode). */
   accentText: string;
   accentBg: string;
   accentBorder: string;
   accentBgDashed: string;
-  /** Text/icons drawn on an `accent` fill (dark ink: gold is too light for white text). */
   onAccent: string;
 
   profit: string;

@@ -30,10 +30,8 @@ import { userMessage } from '@/lib/user-message';
 
 type Tab = 'my' | 'scan';
 
-/** Copy icon <-> check swap: a quick pop-in so the confirmation registers. */
 const iconSwapEntering = ZoomIn.duration(180).reduceMotion(ReduceMotion.System);
 
-/** Image export relies on react-native-view-shot + expo-sharing, which have no web implementation. */
 const CAN_SHARE_QR_IMAGE = Platform.OS !== 'web';
 
 export default function QrCodeScreen() {
@@ -59,8 +57,6 @@ export default function QrCodeScreen() {
   const outgoingRef = useRef<FriendRequestRecord[]>([]);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
 
-  // Profiles created before referral codes (or whose back-fill failed at sign-in) have no
-  // code yet: create it here rather than showing an empty card.
   const [backfilledCode, setBackfilledCode] = useState<string | null>(null);
   const [codeStatus, setCodeStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [codeAttempt, setCodeAttempt] = useState(0);
@@ -121,7 +117,6 @@ export default function QrCodeScreen() {
     try {
       await Clipboard.setStringAsync(inviteMessage);
     } catch (e) {
-      // Web browsers can refuse clipboard access (permissions, insecure context).
       appAlert('Copy failed', userMessage(e, `Could not copy. Your code is ${refCode}.`));
       return;
     }
@@ -220,7 +215,6 @@ export default function QrCodeScreen() {
     scanLock.current = true;
     const code = data.trim().toUpperCase();
 
-    // Prevent the same visible QR code from immediately re-triggering after a cancel.
     if (
       lastDismissedRef.current?.code === code &&
       Date.now() - lastDismissedRef.current.at < 2500
@@ -229,8 +223,6 @@ export default function QrCodeScreen() {
       return;
     }
 
-    // The lock stays held until the user dismisses whatever alert we show; dismissing also
-    // starts the cooldown above so a code still in frame can't instantly re-trigger.
     const releaseWithCooldown = () => {
       lastDismissedRef.current = { code, at: Date.now() };
       scanLock.current = false;
@@ -286,8 +278,6 @@ export default function QrCodeScreen() {
         return;
       }
 
-      // Pause scanning and ask for confirmation before sending a request (lock stays held;
-      // dismissAddFriendModal releases it).
       setPendingFriend(found);
       setPendingRefCode(code);
     } catch (e) {
@@ -488,7 +478,6 @@ export default function QrCodeScreen() {
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleBarCodeScanned}
               onMountError={() => {
-                // Web: no camera attached, or the page isn't served over HTTPS.
                 appAlert('Camera unavailable', 'Could not start the camera on this device.');
                 setActiveTab('my');
               }}
@@ -856,4 +845,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-

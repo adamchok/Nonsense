@@ -1,7 +1,3 @@
-/**
- * Phosphor icons are imported one file at a time (`phosphor-react-native/src/icons/<Name>`): Metro
- * does not tree-shake, so importing from the package root would ship every icon in every weight.
- */
 import { ArrowCounterClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowCounterClockwise';
 import { MagnifyingGlassIcon } from 'phosphor-react-native/src/icons/MagnifyingGlass';
 import { ArrowLeftIcon } from 'phosphor-react-native/src/icons/ArrowLeft';
@@ -62,12 +58,7 @@ import { XIcon } from 'phosphor-react-native/src/icons/X';
 import type { Icon as PhosphorIcon } from 'phosphor-react-native';
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 
-/**
- * App icon names: the Material / MaterialCommunity names the app used before moving to Phosphor,
- * kept so call sites read the same.
- */
 const ICONS = {
-  // Actions
   add: PlusIcon,
   close: XIcon,
   check: CheckIcon,
@@ -84,7 +75,6 @@ const ICONS = {
   logout: SignOutIcon,
   mic: MicrophoneIcon,
   stop: StopIcon,
-  // Navigation / disclosure
   home: HouseIcon,
   history: ClockCounterClockwiseIcon,
   settings: GearIcon,
@@ -95,7 +85,6 @@ const ICONS = {
   'arrow-left': ArrowLeftIcon,
   'arrow-right': ArrowRightIcon,
   'arrow-right-bold': ArrowRightIcon,
-  // People
   person: UserIcon,
   'person-add': UserPlusIcon,
   people: UsersIcon,
@@ -103,17 +92,14 @@ const ICONS = {
   'group-add': UsersThreeIcon,
   groups: UsersThreeIcon,
   search: MagnifyingGlassIcon,
-  // Selection
   'check-box': CheckSquareIcon,
   'check-box-outline-blank': SquareIcon,
   'check-circle': CheckCircleIcon,
   'check-circle-outline': CheckCircleIcon,
-  // Places
   place: MapPinIcon,
   'location-on': MapPinIcon,
   'map-marker-outline': MapPinIcon,
   'edit-location-alt': MapPinLineIcon,
-  // Money / stats
   payments: MoneyIcon,
   'cash-multiple': MoneyIcon,
   'attach-money': CurrencyDollarIcon,
@@ -125,7 +111,6 @@ const ICONS = {
   leaderboard: RankingIcon,
   'trophy-outline': TrophyIcon,
   'crown-outline': CrownIcon,
-  // Misc
   style: CardsIcon,
   'clock-outline': ClockIcon,
   calendar: CalendarBlankIcon,
@@ -143,7 +128,6 @@ const ICONS = {
 export type IconName = keyof typeof ICONS;
 export type IconWeight = 'regular' | 'bold' | 'fill';
 
-/** Per-glyph weight overrides: Material glyphs that were solid (voice "stop") or heavy (bold arrow). */
 const DEFAULT_WEIGHT: Partial<Record<IconName, IconWeight>> = {
   stop: 'fill',
   'check-circle': 'fill',
@@ -162,7 +146,6 @@ export type IconProps = {
   importantForAccessibility?: 'auto' | 'yes' | 'no' | 'no-hide-descendants';
 };
 
-/** Crisp SVG icon (Phosphor) used everywhere instead of icon fonts. */
 export function Icon({
   name,
   size = 24,
@@ -177,7 +160,6 @@ export function Icon({
     accessibilityElementsHidden === true ||
     importantForAccessibility === 'no' ||
     importantForAccessibility === 'no-hide-descendants';
-  // On web these native-only a11y props would leak into the DOM as unknown attributes.
   const a11y =
     Platform.OS === 'web'
       ? hidden

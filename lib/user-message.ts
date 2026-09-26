@@ -1,10 +1,3 @@
-/**
- * Turns a caught error into text that is safe to show the user.
- *
- * Firebase errors carry developer detail (codes, console URLs for missing indexes) that
- * means nothing to someone at the table, so they are logged and replaced with a short
- * message. Errors the app throws itself already carry user-facing text and pass through.
- */
 const FIREBASE_MESSAGES: Record<string, string> = {
   unavailable: "Can't reach the server. Check your connection and try again.",
   'deadline-exceeded': "Can't reach the server. Check your connection and try again.",

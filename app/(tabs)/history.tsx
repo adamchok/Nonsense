@@ -28,7 +28,6 @@ import { Animated as Motion, PressableScale, layoutTransition, fadeOut, listItem
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
 
-/** Dropdown menus grow from their top-right anchor: fade + scale up from 0.96. */
 const menuEntering = webSafe(
   new Keyframe({
     0: { opacity: 0, transform: [{ scale: 0.96 }] },
@@ -39,7 +38,6 @@ const menuEntering = webSafe(
   FadeIn.duration(160).reduceMotion(ReduceMotion.System),
 );
 
-/** Width of the red action revealed by swiping a history row left. */
 const SWIPE_ACTION_WIDTH = 96;
 
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
@@ -89,12 +87,7 @@ export default function HistoryScreen() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
-  /**
-   * Rows already shown once. The list remounts on every focus (spinner in between), so rows
-   * only play their entrance the first time their id appears: new or newly loaded ones.
-   */
   const shownRowIdsRef = useRef(new Set<string>());
-  /** Bumped on every fresh load and on blur so a stale response (or its cursor) can't land. */
   const loadGenerationRef = useRef(0);
 
   const loadHistory = useCallback(async () => {
@@ -156,7 +149,6 @@ export default function HistoryScreen() {
       setLoading(true);
       void loadHistory();
       return () => {
-        // Invalidate in-flight loads when the screen blurs.
         loadGenerationRef.current += 1;
       };
     }, [loadHistory])
@@ -249,10 +241,6 @@ export default function HistoryScreen() {
     }
   }, [refreshing, loadHistory, refreshSpin]);
 
-  /**
-   * A session you did not host can be created by anyone, listing you as a participant with
-   * a result in your name. Leaving removes you from it and deletes that record.
-   */
   const confirmLeaveSession = useCallback(
     (sessionId: string) => {
       const playerId = playerProfile?.id;
@@ -282,7 +270,6 @@ export default function HistoryScreen() {
     [playerProfile?.id, loadHistory]
   );
 
-  /** Host-only: deletes the whole session (ledger and every player's result) for everyone. */
   const confirmDeleteSession = useCallback(
     (sessionId: string) => {
       appAlert(
@@ -317,7 +304,6 @@ export default function HistoryScreen() {
         { backgroundColor: c.bg, paddingHorizontal: layout.gutter, paddingBottom: layout.gutter, gap: layout.sectionGap },
       ]}>
       {showSortDropdown ? (
-        // Not a control (no role, no focus), so it gets no hover tint or tab stop.
         <Pressable style={styles.menuBackdrop} onPress={() => setShowSortDropdown(false)} accessible={false} focusable={false} tabIndex={-1} aria-hidden />
       ) : null}
       <View style={[styles.titleRow, showSortDropdown && styles.menuAnchorRaised]}>
@@ -518,8 +504,6 @@ export default function HistoryScreen() {
           keyExtractor={(item) => item.id}
           itemLayoutAnimation={layoutTransition}
           style={styles.list}
-          // The chart scrolls away with the sessions (only the summary cards stay pinned),
-          // so the list keeps its height on small screens.
           ListHeaderComponent={
             filteredHistory.length >= 2 ? (
               <View
@@ -704,10 +688,6 @@ type HistoryRowProps = {
   onRemove: () => void;
 };
 
-/**
- * One history session. Tap opens the summary; swipe left (or the more button, long-press, or
- * the accessibility action) offers the same remove/delete, which still asks to confirm.
- */
 function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove }: HistoryRowProps) {
   const c = useAppColors();
   const swipeRef = useRef<SwipeableMethods>(null);
@@ -734,12 +714,9 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
         renderRightActions={() => (
           <Pressable
             onPress={remove}
-            // Red lives on the action, not the container: a red container bleeds through the
-            // card's anti-aliased rounded corners.
             style={[styles.historySwipeAction, { backgroundColor: c.loss }]}
             accessibilityRole="button"
             accessibilityLabel={removeLabel}
-            // The row already exposes this action (more button + accessibility action).
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             tabIndex={-1}>
@@ -802,7 +779,6 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
   );
 }
 
-/** Bones for a summary card's value (24/30 type) and meta line (12/16), same heights as the text. */
 function SummaryValueSkeleton({ valueWidth, metaWidth }: { valueWidth: number; metaWidth: number }) {
   return (
     <>
@@ -820,10 +796,6 @@ const SKELETON_ROWS = [
   { date: 120, badge: 80, profit: 52, meta: '50%', detail: '54%' },
 ] as const;
 
-/**
- * Loading state for the list area: the chart card and a grouped card of session rows, built
- * from the real card styles so data lands in the same spots.
- */
 function HistorySkeleton() {
   const c = useAppColors();
   const layout = usePageLayout();
@@ -870,19 +842,15 @@ function HistorySkeleton() {
   );
 }
 
-/** PLChart's plot area as rendered: 160px chart plus its x-axis strip (measured on web). */
 const SKELETON_PLOT_HEIGHT = 186;
 
 const styles = StyleSheet.create({
-  /** Centres a 24px bone in the value's 30px line. */
   skeletonValue: {
     marginVertical: 3,
   },
-  /** Centres an 11px bone in a 16px meta line. */
   skeletonLine: {
     marginVertical: 2.5,
   },
-  /** Mirrors PLChart's title row (min 40 tall, 8 below) and plot/caption spacing. */
   skeletonChartTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -902,7 +870,6 @@ const styles = StyleSheet.create({
   historySwipeContainer: {
     overflow: 'hidden',
   },
-  /** Only the last row's corners are rounded at the bottom; clip the red layer to match. */
   historySwipeContainerLast: {
     borderBottomLeftRadius: 14,
     borderBottomRightRadius: 14,
@@ -922,7 +889,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 48,
   },
-  /** Matches Settings tab screen title (display 28/700). */
   title: {
     fontSize: 28,
     lineHeight: 34,
@@ -952,7 +918,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 40,
   },
-  /** Invisible layer behind an open dropdown: tapping anywhere outside the menu closes it. */
   menuBackdrop: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 5,
@@ -1068,7 +1033,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  /** Rows of one card: side + top borders on every row; radius and bottom border on the ends. */
   historyCard: {
     minHeight: 52,
     borderLeftWidth: 1,
@@ -1098,7 +1062,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  // Small visual circle; hitSlop keeps the tap target at 44px.
   historyMoreBtn: {
     width: 28,
     height: 28,

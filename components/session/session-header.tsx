@@ -6,7 +6,6 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 
 type Props = {
   title: string;
-  /** Host-only actions; omitted for viewers. */
   hostActions?: { micSlot: ReactNode; onBuyIn: () => void } | null;
 };
 

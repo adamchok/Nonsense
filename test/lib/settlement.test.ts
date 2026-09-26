@@ -1,12 +1,3 @@
-/**
- * Run with: npm test   (node --test, no framework, no dependencies)
- *
- * Mirrors the source tree: test/lib/x.test.ts covers lib/x.ts.
- *
- * Node's native type-stripping needs the explicit `.ts` extension on relative
- * imports and `import type` for type-only imports. The `@/` alias is deliberately
- * not used here — Node has no import map for it.
- */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -23,7 +14,6 @@ function player(playerId: string, profit: number, playerName = playerId): Player
   return { playerId, playerName, profit };
 }
 
-/** Net movement for one player across all transfers: paying out is negative. */
 function netFor(settlements: Settlement[], playerId: string): number {
   return settlements.reduce((sum, s) => {
     if (s.fromId === playerId) return sum - s.amount;
@@ -32,7 +22,6 @@ function netFor(settlements: Settlement[], playerId: string): number {
   }, 0);
 }
 
-/** Every player ends up whole, nobody pays themselves, and n players need at most n-1 transfers. */
 function assertSettles(players: Player[], settlements: Settlement[]): void {
   for (const p of players) {
     assert.ok(
@@ -76,7 +65,6 @@ test('independent zero-sum pairs are settled without cross-payments', () => {
   const players = [player('a', 30), player('b', -30), player('c', 45), player('d', -45)];
   const settlements = computeSettlements(players);
 
-  // Two disjoint pairs beat any three-transfer chain.
   assert.equal(settlements.length, 2);
   assertSettles(players, settlements);
 });
@@ -93,7 +81,6 @@ test('a table with no clean pairing still settles in at most n-1 transfers', () 
 });
 
 test('players sharing a display name are settled as separate people', () => {
-  // A registered John and a typed guest John: only the id tells them apart.
   const players = [player('john_registered', 60, 'John'), player('guest_2', -60, 'John')];
   const settlements = computeSettlements(players);
 
@@ -106,7 +93,6 @@ test('players sharing a display name are settled as separate people', () => {
 });
 
 test('a table too large for the exact solve still settles correctly and fast', () => {
-  // 24 non-zero balances: the exact O(3^n) path would be ~280 billion steps.
   const players: Player[] = [];
   for (let i = 0; i < 12; i++) {
     players.push(player(`w${i}`, 10 + i));

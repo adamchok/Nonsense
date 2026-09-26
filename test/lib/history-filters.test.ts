@@ -61,7 +61,7 @@ test('presetRange ends today and covers the right span', () => {
 });
 
 test('monthGrid starts weeks on Monday and pads to whole weeks', () => {
-  const sept = monthGrid(2026, 8); // 1 Sep 2026 is a Tuesday
+  const sept = monthGrid(2026, 8);
   assert.equal(sept[0], null);
   assert.equal(sept[1]?.getDate(), 1);
   assert.equal(sept.length % 7, 0);

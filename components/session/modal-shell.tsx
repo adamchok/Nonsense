@@ -24,7 +24,6 @@ export type ModalPrimaryAction = {
   onPress: () => void;
   disabled?: boolean;
   busy?: boolean;
-  /** Screen-reader label while busy (the button shows a spinner). */
   busyLabel?: string;
 };
 
@@ -33,22 +32,14 @@ type Props = {
   onClose: () => void;
   title?: ReactNode;
   children: ReactNode;
-  /** Cancel + primary row. Without it, a single Close button is shown. */
   primary?: ModalPrimaryAction;
-  /** Wraps the card in a KeyboardAvoidingView (every editor modal). */
   avoidKeyboard?: boolean;
   cardStyle?: StyleProp<ViewStyle>;
 };
 
-/** Phones: how far below its resting place the sheet starts before springing up. */
 const PHONE_RISE_PX = 48;
-/** Wide screens: the card grows from this scale while the Modal fades in. */
 const WIDE_START_SCALE = 0.96;
 
-/**
- * Card entrance on open. The RN Modal's own fade drives backdrop + card opacity (and the
- * exit, since the Modal unmounts its content on close); this only adds the card's motion.
- */
 function useCardEntrance(visible: boolean, isWide: boolean) {
   const progress = useSharedValue(visible ? 0 : 1);
   useEffect(() => {
@@ -63,7 +54,6 @@ function useCardEntrance(visible: boolean, isWide: boolean) {
   );
 }
 
-/** Overlay, keyboard handling, card and Cancel / primary row shared by the live-session modals. */
 export function ModalShell({
   visible,
   onClose,
@@ -76,7 +66,6 @@ export function ModalShell({
   const c = useAppColors();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  // Phones: a bottom sheet, like the filters and confirmations; wider: a centred card.
   const isSheet = width < SHEET_BREAKPOINT;
   const isWide = width >= BREAKPOINT_MD;
   const frame = { maxWidth: isSheet ? undefined : isWide ? 480 : 400 };
@@ -102,8 +91,6 @@ export function ModalShell({
       ) : null}
       {children}
       <View style={[styles.actions, isSheet && styles.actionsSheet]}>
-        {/* Sheets dismiss by tapping outside (or back / VoiceOver escape), so Cancel only
-            shows on the centred card, or as Close when there is no primary action. */}
         {isSheet && primary ? null : (
           <PressableScale
             style={(state) => [
@@ -147,7 +134,6 @@ export function ModalShell({
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.root}>
-        {/* Hidden from screen readers so focus starts in the card; back and Cancel still dismiss. */}
         <ModalBackdrop
                     onPress={onClose}
           importantForAccessibility="no"
@@ -158,7 +144,6 @@ export function ModalShell({
           style={[styles.centerWrap, isSheet ? styles.sheetWrap : { paddingHorizontal: gutterFor(width) }]}>
           {avoidKeyboard ? (
             <KeyboardAvoidingView
-              // Fills the screen; let taps outside the card reach the backdrop (tap to dismiss).
               pointerEvents="box-none"
               behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' && !isSheet ? 64 : 0}

@@ -22,12 +22,9 @@ type Props = {
   cashedOutIds: ReadonlyMap<string, unknown>;
   friends: FriendRecord[];
   playerProfile: PlayerProfile | null;
-  /** Each player's most recent buy-in amount, for the quick-amount chips. */
   lastAmountByPlayer: ReadonlyMap<string, number>;
-  /** The session's most frequent buy-in amount, if any. */
   commonAmount: number | null;
   onClose: () => void;
-  /** Resolves true when the buy-in was queued; the parent then closes the modal. */
   onSubmit: (draft: BuyInDraft) => Promise<boolean>;
 };
 
@@ -58,7 +55,6 @@ export function BuyInModal({
   const friendsNotInSession = friends.filter((f) => !sessionPlayerIds.has(f.playerId));
 
   const lastAmount = draft.pickedPlayerId ? lastAmountByPlayer.get(draft.pickedPlayerId) : undefined;
-  // Player's last + session's most common first, then fixed presets; duplicates dropped.
   const quickAmounts = [lastAmount, commonAmount ?? undefined, ...PRESET_AMOUNTS].filter(
     (v, i, all): v is number => v != null && all.indexOf(v) === i
   );
@@ -128,7 +124,6 @@ export function BuyInModal({
             </PressableScale>
           )}
           <View>
-            {/* Each field is a column so its error sits right under it. */}
             <View style={styles.inputRow}>
               <View style={styles.nameCol}>
                 <TextInput

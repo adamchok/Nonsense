@@ -7,28 +7,19 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-/** Width of each revealed action; two of them sit behind the row. */
 const ACTION_WIDTH = 76;
-/** A click that lands this soon after a drag settles is the tail of the drag, not a tap. */
 const CLICK_AFTER_DRAG_MS = 250;
 
 type Props = {
   isRemoving: boolean;
   onCashOut: () => void;
   onRemove: () => void;
-  /** Receives a guard the row calls before handling a tap (false while/just after a drag). */
   children: (canPress: () => boolean) => ReactNode;
 };
 
-/**
- * Swipe a ledger row left to reveal Cash out and Remove (native touch and web mouse-drag).
- * The actions call the same handlers as the row's icon buttons, confirms included; they are
- * hidden from screen readers because the row already exposes both as accessibilityActions.
- */
 export function LedgerSwipeRow({ isRemoving, onCashOut, onRemove, children }: Props) {
   const c = useAppColors();
   const ref = useRef<SwipeableMethods | null>(null);
-  // Infinity while a drag is in progress; a timestamp once it settles.
   const blockUntil = useRef(0);
   const canPress = useCallback(() => Date.now() >= blockUntil.current, []);
   const onDragStart = useCallback(() => {

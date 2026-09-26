@@ -17,7 +17,6 @@ export default function TabLayout() {
   const { isMd } = useBreakpoint();
   const reduceMotion = useReducedMotion();
 
-  // Theme tokens (not the device scheme), so the bar follows the in-app light/dark choice.
   const tabBarColors = {
     backgroundColor: c.card,
     borderTopColor: c.border,
@@ -28,7 +27,6 @@ export default function TabLayout() {
     tabBarStyle: tabBarColors,
     headerShown: false,
     tabBarButton: HapticTab,
-    // Quick 150ms cross-fade between tabs (React Navigation 7), off under reduce motion.
     animation: reduceMotion ? 'none' : 'fade',
   };
 
@@ -36,20 +34,17 @@ export default function TabLayout() {
     return <Tabs screenOptions={screenOptions}>{tabScreens}</Tabs>;
   }
 
-  // Web: bottom tabs (icon above label) on phones, a left sidebar from BREAKPOINT_MD up.
   return (
     <Tabs
       screenOptions={{
         ...screenOptions,
         tabBarPosition: isMd ? 'left' : 'bottom',
         tabBarLabelPosition: 'below-icon',
-        // Rounded, inset items so the web hover tint reads as a pill, not a full-bleed square.
         tabBarItemStyle: { minHeight: 52, borderRadius: 14, marginHorizontal: 6 },
         tabBarStyle: {
           ...tabBarColors,
           height: 'auto',
           paddingTop: 6,
-          // Breathing room under the labels, plus the home-indicator inset on phones.
           paddingBottom: 'max(10px, env(safe-area-inset-bottom))' as unknown as number,
         },
       }}

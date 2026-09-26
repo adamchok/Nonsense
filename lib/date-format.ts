@@ -1,4 +1,3 @@
-/** Date as dd/mm/yyyy (fixed order, not locale-dependent). */
 export function formatDateDMY(d: Date): string {
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -6,7 +5,6 @@ export function formatDateDMY(d: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-/** dd/mm/yyyy plus 12h time with AM/PM (for event timestamps). */
 export function formatDateTimeDMY(d: Date): string {
   const date = formatDateDMY(d);
   const rawHours = d.getHours();

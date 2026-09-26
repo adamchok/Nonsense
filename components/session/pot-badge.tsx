@@ -5,7 +5,6 @@ import { Animated, useCountUp, usePop } from '@/components/motion';
 import type { SessionAmountUnit } from '@/types';
 import { StyleSheet, Text, View } from 'react-native';
 
-/** Round a mid-count value to the target's precision so it never shows stray decimals. */
 function settle(value: number, target: number): number {
   return Number.isInteger(target) ? Math.round(value) : Math.round(value * 100) / 100;
 }

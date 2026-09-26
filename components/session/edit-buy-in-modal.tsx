@@ -22,7 +22,6 @@ type Props = {
   onSubmit: (target: EditBuyInTarget, amount: string) => Promise<void>;
 };
 
-/** "Correct total": replaces every buy-in entry for a player with one entry at the new total. */
 export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Props) {
   const c = useAppColors();
   const [amount, setAmount] = useState(target ? String(target.currentTotal) : '');

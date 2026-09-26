@@ -4,7 +4,6 @@ import { useAppColors } from '@/lib/app-theme';
 import { StyleSheet, Text } from 'react-native';
 import { ReduceMotion, ZoomIn, FadeIn } from 'react-native-reanimated';
 
-/** Icon circle settles in from slightly smaller, just after the text starts fading. */
 const iconEntering = webSafe(
   ZoomIn.duration(260).delay(40).reduceMotion(ReduceMotion.System).withInitialValues({
     transform: [{ scale: 0.85 }],
@@ -17,11 +16,9 @@ type Props = {
   title: string;
   message?: string;
   action?: { label: string; icon?: IconName; onPress: () => void };
-  /** Tighter spacing for use inside a card. */
   compact?: boolean;
 };
 
-/** Centered icon + title + hint, with an optional next-step button. */
 export function EmptyState({ icon, title, message, action, compact = false }: Props) {
   const c = useAppColors();
   return (

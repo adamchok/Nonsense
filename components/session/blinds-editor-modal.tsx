@@ -80,7 +80,6 @@ export function BlindsEditorModal({
             onChange={(v) => {
               setSmallBlind(v);
               setSmallBlindError(null);
-              // "Big blind must be at least the small blind" may no longer hold.
               setBigBlindError(null);
             }}
             error={smallBlindError}

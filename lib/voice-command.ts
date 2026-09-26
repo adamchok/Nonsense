@@ -1,19 +1,6 @@
-/**
- * Voice command parser for live-session buy-ins and cash-outs.
- *
- * IMPORTANT: this module is deliberately import-free so `node --test` can run it
- * directly under Node's native TypeScript type-stripping. That also rules out
- * `enum`, `namespace`, and constructor parameter properties here and in the test.
- *
- * The parser never mutates anything and never talks to Firestore — it turns a
- * transcript into an intent, and the screen pre-fills an existing modal with it.
- * The host still confirms, so a misparse costs a tap and nothing else.
- */
-
 export type VoiceRosterEntry = {
   playerId: string;
   name: string;
-  /** Already has buy-ins in this session; wins ties against friends not yet playing. */
   inSession?: boolean;
 };
 
@@ -46,7 +33,6 @@ export type VoiceNameMatch =
 
 const MAX_AMOUNT = 1_000_000;
 
-/** Below this, an unmatched name is treated as misheard rather than a new guest. */
 const MIN_NEW_PLAYER_NAME_LENGTH = 3;
 
 const SMALL_NUMBERS: Record<string, number> = {
@@ -66,19 +52,12 @@ const SCALES: Record<string, number> = {
   million: 1_000_000, millions: 1_000_000, mil: 1_000_000,
 };
 
-/** Terminates the whole-dollar part of an amount. */
 const WHOLE_UNIT_WORDS = new Set([
   'dollar', 'dollars', 'buck', 'bucks', 'chip', 'chips', 'bill', 'bills',
 ]);
 
-/** Terminates the fractional part — the explicit cents marker. */
 const CENT_WORDS = new Set(['cent', 'cents']);
 
-/**
- * Grammar and filler only. Deliberately excludes unit words (`dollars`, `chips`,
- * `bills`, `cents`) so real names like "Bill" or "Chip" survive — those are
- * blocked instead by being swallowed into the amount run.
- */
 const BLOCKED_WORDS = new Set([
   'a', 'an', 'the', 'and', 'of', 'to', 'for', 'is', 'are', 'was', 'were',
   'with', 'it', 'that', 'this', 'so', 'then', 'now', 'just', 'please',
@@ -112,18 +91,9 @@ const BUY_IN_WORDS = new Set([
 
 const CASH_VERBS = new Set(['cash', 'cashes', 'cashed', 'cashing']);
 
-/** Spoken sign markers. `normalizeText` cannot carry a sign, so these are refused outright. */
 const NEGATION_WORDS = new Set(['minus', 'negative']);
 
-/**
- * A written sign: "-50", "$-50". Must not fire on hyphenated words like
- * "twenty-five" or "re-buy", hence the required separator before the dash.
- */
 const WRITTEN_SIGN = /(?:^|[\s([{$£€])[-–—]\s*[\d.]/;
-
-// ---------------------------------------------------------------------------
-// Normalization
-// ---------------------------------------------------------------------------
 
 export function normalizeText(text: string): string {
   return text
@@ -147,14 +117,9 @@ function tokenize(text: string): string[] {
   if (!folded) return [];
   return folded
     .split(' ')
-    // Strip sentence-final dots but keep decimal literals like "12.50" intact.
     .map((t) => (/^\d+\.\d+$/.test(t) ? t : t.replace(/\.+$/, '')))
     .filter((t) => t.length > 0 && t !== '.');
 }
-
-// ---------------------------------------------------------------------------
-// Amount parsing
-// ---------------------------------------------------------------------------
 
 const DIGIT_LITERAL = /^\d{1,7}(\.\d{1,2})?$/;
 
@@ -162,7 +127,6 @@ function isDigitLiteral(token: string): boolean {
   return DIGIT_LITERAL.test(token);
 }
 
-/** Numeric value of a single leaf token (word or digit literal), else null. */
 function leafValue(token: string): number | null {
   if (isDigitLiteral(token)) return Number.parseFloat(token);
   if (token in SMALL_NUMBERS) return SMALL_NUMBERS[token];
@@ -178,19 +142,16 @@ function isCore(token: string): boolean {
   return leafValue(token) !== null || isScale(token);
 }
 
-/** True when the amount run may begin at `i`. */
 function startsRun(tokens: string[], i: number): boolean {
   const token = tokens[i];
   if (leafValue(token) !== null) return true;
   if (isScale(token)) return true;
-  // "a hundred" — only meaningful directly before a scale word.
   if ((token === 'a' || token === 'an') && i + 1 < tokens.length && isScale(tokens[i + 1])) {
     return true;
   }
   return false;
 }
 
-/** True when the amount run may continue through `i`, given it started earlier. */
 function continuesRun(tokens: string[], i: number): boolean {
   const token = tokens[i];
   const next = i + 1 < tokens.length ? tokens[i + 1] : '';
@@ -204,11 +165,6 @@ function continuesRun(tokens: string[], i: number): boolean {
 
 type AmountRun = { value: number; start: number; end: number };
 
-/**
- * Locates the first contiguous amount run and evaluates it.
- * Returns null when there is no run at all, and 'invalid' when a run was found
- * but could not be resolved to a sane figure — so the caller reports rather than guesses.
- */
 function findAmount(tokens: string[]): AmountRun | 'invalid' | null {
   let start = -1;
   for (let i = 0; i < tokens.length; i += 1) {
@@ -222,7 +178,6 @@ function findAmount(tokens: string[]): AmountRun | 'invalid' | null {
   let end = start + 1;
   while (end < tokens.length && continuesRun(tokens, end)) end += 1;
 
-  // Never let a dangling connector close the run.
   while (
     end - 1 > start &&
     (tokens[end - 1] === 'and' || tokens[end - 1] === 'point' || tokens[end - 1] === 'dot')
@@ -243,7 +198,6 @@ function evaluateAmountTokens(tokens: string[]): number | null {
   const centIdx = tokens.findIndex((t) => CENT_WORDS.has(t));
   const wholeUnitIdx = tokens.findIndex((t) => WHOLE_UNIT_WORDS.has(t));
 
-  // 1. Explicit cents — "twelve dollars fifty cents", "fifty cents".
   if (centIdx >= 0) {
     const hasWholeMarker = wholeUnitIdx >= 0 && wholeUnitIdx < centIdx;
     const wholeTokens = hasWholeMarker ? tokens.slice(0, wholeUnitIdx) : [];
@@ -254,7 +208,6 @@ function evaluateAmountTokens(tokens: string[]): number | null {
     return combineCents(whole, evaluatePlain(fracTokens));
   }
 
-  // 2. "<A> dollars <B>" with the cents marker left off.
   if (wholeUnitIdx >= 0) {
     const after = tokens.slice(wholeUnitIdx + 1);
     const whole = evaluatePlain(tokens.slice(0, wholeUnitIdx));
@@ -262,13 +215,11 @@ function evaluateAmountTokens(tokens: string[]): number | null {
     return combineCents(whole, evaluatePlain(after));
   }
 
-  // 3/4. No unit words at all.
   return evaluatePlain(tokens);
 }
 
 function combineCents(whole: number | null, frac: number | null): number | null {
   if (whole === null || frac === null) return null;
-  // A cents group of 100+ is ambiguous ("two hundred and fifty cents") — refuse it.
   if (!Number.isInteger(frac) || frac < 0 || frac >= 100) return null;
   return whole + frac / 100;
 }
@@ -298,7 +249,6 @@ function evaluatePlain(tokens: string[]): number | null {
   return hasScale ? accumulate(tokens) : groupJuxtaposed(tokens);
 }
 
-/** Standard spoken-number accumulator. Handles "one thousand two hundred". */
 function accumulate(tokens: string[]): number | null {
   let total = 0;
   let current = 0;
@@ -334,10 +284,6 @@ function accumulate(tokens: string[]): number | null {
   return sawAny ? total + current : null;
 }
 
-/**
- * No scale words present, so segment into bare groups and apply the juxtaposition
- * rule: "two fifty" is 250, but "twenty five" stays 25 because tens+unit is one group.
- */
 function groupJuxtaposed(tokens: string[]): number | null {
   const groups: number[] = [];
   let i = 0;
@@ -365,10 +311,6 @@ function groupJuxtaposed(tokens: string[]): number | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Name matching
-// ---------------------------------------------------------------------------
-
 function levenshteinWithin(a: string, b: string, max: number): number | null {
   if (Math.abs(a.length - b.length) > max) return null;
   if (a === b) return 0;
@@ -395,7 +337,6 @@ function levenshteinWithin(a: string, b: string, max: number): number | null {
   return distance <= max ? distance : null;
 }
 
-/** Fuzz allowance scales with the shorter string — short names must match exactly. */
 function distanceThreshold(a: string, b: string): number {
   const len = Math.min(a.length, b.length);
   if (len <= 3) return 0;
@@ -409,15 +350,8 @@ function firstToken(value: string): string {
   return space === -1 ? value : value.slice(0, space);
 }
 
-/** Tiers 0-2 are literal readings of what was said; 3-4 are edit-distance guesses. */
 const FUZZY_TIER_START = 3;
 
-/**
- * Resolves the literal tiers as a single group, so sitting at the table outranks
- * having the tighter literal match: "Bryan" should reach a seated "Bryan Tan"
- * rather than an exact "Bryan" who isn't playing. Tier only breaks ties between
- * players of equal standing.
- */
 function resolveLiteralTiers(tiers: VoiceRosterEntry[][]): VoiceNameMatch | null {
   const hits: { entry: VoiceRosterEntry; tier: number }[] = [];
   for (let tier = 0; tier < FUZZY_TIER_START; tier += 1) {
@@ -514,10 +448,6 @@ function dedupeById(entries: VoiceRosterEntry[]): VoiceRosterEntry[] {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// Intent
-// ---------------------------------------------------------------------------
-
 type Intent = 'buyIn' | 'cashOut' | null;
 
 function hasPhrase(tokens: string[], phrase: string[]): boolean {
@@ -534,7 +464,6 @@ function hasPhrase(tokens: string[], phrase: string[]): boolean {
   return false;
 }
 
-/** "cash out X", "cash him out", "cash Jordan out for two twenty". */
 function hasSplitCashOut(tokens: string[]): boolean {
   for (let i = 0; i < tokens.length; i += 1) {
     if (!CASH_VERBS.has(tokens[i])) continue;
@@ -559,15 +488,10 @@ function detectIntent(tokens: string[]): Intent {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
-
 function titleCase(tokens: string[]): string {
   return tokens.map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join(' ');
 }
 
-/** Every word appearing in a roster name, so real names are never mistaken for grammar. */
 function rosterNameTokens(roster: readonly VoiceRosterEntry[]): Set<string> {
   const out = new Set<string>();
   for (const entry of roster) {
@@ -578,10 +502,8 @@ function rosterNameTokens(roster: readonly VoiceRosterEntry[]): Set<string> {
   return out;
 }
 
-/** A run of tokens that could plausibly be a name, with its position in the utterance. */
 type NameSpan = { tokens: string[]; start: number };
 
-/** Contiguous stretches of tokens that could plausibly be a name. */
 function nameSpans(
   tokens: string[],
   amountStart: number,
@@ -593,9 +515,6 @@ function nameSpans(
   let currentStart = 0;
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
-    // A unit word is only grammar when nobody is actually called that. "Bill" and
-    // "Chip" are real names; the amount run has already swallowed the unit word
-    // that belongs to the figure, so this cannot loosen amount parsing.
     const isUnitWord =
       (WHOLE_UNIT_WORDS.has(token) || CENT_WORDS.has(token)) && !rosterTokens.has(token);
     const blocked =
@@ -615,17 +534,8 @@ function nameSpans(
   return spans;
 }
 
-/** One candidate reading of one stretch of the utterance. `to` is exclusive. */
 type SpanMatch = { from: number; to: number; result: Exclude<VoiceNameMatch, { status: 'none' }> };
 
-/**
- * Best match across every plausible name span.
- *
- * Two people named in one utterance is a coin flip on a money entry, so it is
- * refused rather than guessed. The unit of counting is a region of the utterance,
- * not a match: "Bryan Tan" also contains the shorter reading "Bryan", and those
- * overlap, so they are one mention of one person rather than two candidates.
- */
 function bestRosterMatch(spans: NameSpan[], roster: readonly VoiceRosterEntry[]): VoiceNameMatch {
   const candidates: SpanMatch[] = [];
   for (const span of spans) {
@@ -639,7 +549,6 @@ function bestRosterMatch(spans: NameSpan[], roster: readonly VoiceRosterEntry[])
   }
   if (candidates.length === 0) return { status: 'none' };
 
-  // Strongest reading first: better tier, then more words accounted for, then earlier.
   candidates.sort(
     (a, b) =>
       a.result.tier - b.result.tier || b.to - b.from - (a.to - a.from) || a.from - b.from
@@ -656,7 +565,6 @@ function bestRosterMatch(spans: NameSpan[], roster: readonly VoiceRosterEntry[])
   );
   const unresolved = mentions.filter((m) => m.result.status === 'ambiguous');
 
-  // More than one person mentioned, however each was matched: ask, never pick.
   if (matched.length + unresolved.length > 1) {
     const names = [...matched.map((e) => e.name)];
     for (const mention of unresolved) {
@@ -680,14 +588,10 @@ export function parseVoiceCommand(
     return { kind: 'unparsed', transcript, reason: 'empty' };
   }
 
-  // A sign cannot survive normalization, and there is no such thing as a negative
-  // buy-in or cash-out. Refusing beats writing the figure with the sign dropped.
   if (WRITTEN_SIGN.test(transcript) || tokens.some((t) => NEGATION_WORDS.has(t))) {
     return { kind: 'unparsed', transcript, reason: 'negative-amount' };
   }
 
-  // Stakes-relative amounts are a different feature; guessing here would be
-  // silently wrong whenever blinds are unset.
   if (
     hasPhrase(tokens, ['big', 'blind']) ||
     hasPhrase(tokens, ['big', 'blinds']) ||
@@ -747,8 +651,6 @@ export function parseVoiceCommand(
     };
   }
 
-  // Everything else carrying a name and an amount is a buy-in, including the
-  // bare "Adam fifty" shorthand.
   if (nameMatch.status === 'match') {
     return {
       kind: 'buyIn',
@@ -759,10 +661,6 @@ export function parseVoiceCommand(
   }
 
   if (spokenName) {
-    // Unrecognised name plus an amount: a brand-new guest. playerId stays null so
-    // the screen's existing resolvePlayerId / collision alert handles it.
-    // Very short fragments ("Ad") are far more likely a clipped roster name than a
-    // real new player, so refuse rather than create a phantom guest.
     if (normalizeText(spokenName).replace(/\s/g, '').length < MIN_NEW_PLAYER_NAME_LENGTH) {
       return {
         kind: 'unparsed',

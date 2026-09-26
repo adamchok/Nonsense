@@ -15,8 +15,6 @@ const SECTIONS = 4;
 const HEADER_HEIGHT = 40;
 const MAX_BAR_WIDTH = 22;
 const MARKER_SIZE = 14;
-// gifted-charts puts the pointer's top-left at (pointerX + 1, pointY - 4 + xAxisThickness);
-// these re-centre our marker on the data point (measured in the browser).
 const MARKER_SHIFT_X = -(1 + MARKER_SIZE / 2);
 const MARKER_SHIFT_Y = -1;
 
@@ -35,7 +33,6 @@ const MODES: { key: Mode; label: string; title: string; hint: string }[] = [
   { key: 'bars', label: 'Bars', title: 'Each session', hint: 'Tap a bar' },
 ];
 
-/** Rounds a raw step up to 1/2/2.5/5 × 10^n so axis labels stay readable. */
 function niceStep(raw: number): number {
   if (raw <= 0) return 1;
   const pow = 10 ** Math.floor(Math.log10(raw));
@@ -63,10 +60,6 @@ function formatAxisLabel(label: string): string {
 
 const signColor = (c: AppColors, n: number) => (n > 0 ? c.profit : n < 0 ? c.loss : c.textMuted);
 
-/**
- * Profit/loss across sessions, oldest to newest, as a running-total line or one bar per
- * session. Selecting a point turns the header into a link to that session.
- */
 export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen: (id: string) => void }) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
@@ -92,8 +85,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
   const values = data.map((p) => p.value);
   const hi = Math.max(0, ...values);
   const lo = Math.min(0, ...values);
-  // Where $0 falls in the line/area bounding box (gradients default to objectBoundingBox),
-  // so the colour flips from green to red exactly at the zero line.
   const zeroAt = hi - lo > 0 ? hi / (hi - lo) : 1;
   const lineData = data.map((p) => ({
     ...p,
@@ -102,7 +93,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
   const markerColor = selected && selected.value < 0 ? c.loss : c.profit;
   const plotWidth = Math.max(0, width - Y_LABEL_WIDTH - 8);
 
-  // Shared y-axis/grid props; gifted-charts `height` covers only the sections above the x-axis.
   const axisProps = {
     height: (CHART_HEIGHT * axis.above) / (axis.above + axis.below),
     width: plotWidth,
@@ -132,7 +122,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
     const color = signColor(c, p.delta);
     return {
       value: p.delta,
-      // Dim the rest while one bar is selected (6-digit hex + alpha).
       frontColor: active >= 0 && i !== active ? `${color}55` : color,
     };
   });
@@ -142,7 +131,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
     setActive(-1);
   }
 
-  /** The line chart keeps its pointer internally, so remount it to drop the marker too. */
   function clearSelection() {
     setActive(-1);
     setChartKey((k) => k + 1);
@@ -174,8 +162,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
         </View>
 
         {selected ? (
-          // Selection stays after release and takes over the title row (no layout shift under
-          // the finger); it doubles as the way into that session, and ✕ clears it.
           <View style={[styles.selectionOverlay, { backgroundColor: c.card }]}>
             <PressableScale
               pressedScale={0.98}
@@ -226,8 +212,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
 
       <View
         style={styles.plot}
-        // Web: gifted-charts wraps plots/bars in focusable elements; web-interactions.css skips
-        // their hover tint here (selection dimming is the feedback).
         nativeID="pl-chart"
         accessible
         accessibilityLabel={
@@ -262,7 +246,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
             )}
             areaGradientId="plArea"
             areaGradientComponent={() => (
-              // Strongest away from $0, fading into the zero line from both sides.
               <LinearGradient id="plArea" x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor={c.profit} stopOpacity={0.3} />
                 <Stop offset={zeroAt} stopColor={c.profit} stopOpacity={0.04} />
@@ -274,8 +257,6 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
             dataPointsRadius={3}
             getPointerProps={({ pointerIndex }: { pointerIndex: number }) => setActive(pointerIndex)}
             pointerConfig={{
-              // gifted-charts' strip runs the wrong way once values go negative, and its default
-              // dot is offset by fixed pixels; draw our own centred marker instead.
               showPointerStrip: false,
               persistPointer: true,
               pointerComponent: () => (
@@ -291,12 +272,10 @@ export function PLChart({ entries, onOpen }: { entries: readonly Entry[]; onOpen
                   ]}
                 />
               ),
-              // Mobile: a floating tooltip sits under the finger, so the header shows the selection.
               pointerLabelComponent: () => null,
             }}
           />
         ) : (
-          // ponytail: bars shrink to 3px past ~60 sessions; group by month if that gets crowded.
           <BarChart
             key={chartKey}
             {...axisProps}

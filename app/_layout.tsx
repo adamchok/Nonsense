@@ -17,13 +17,8 @@ export const unstable_settings = {
   anchor: 'index',
 };
 
-/** Routes that lay out their own width (the tab shell has a sidebar + its own column). */
 const FULL_WIDTH_ROUTES = new Set(['(tabs)', 'index']);
 
-/**
- * Web only: keeps pushed stack screens (session, cashout, summary, qr-code, ...) in the
- * centred content column on wide viewports; their headers still span the page.
- */
 const webScreenLayout =
   Platform.OS === 'web'
     ? ({ route, children }: { route: { name: string }; children: ReactElement }) =>
@@ -92,7 +87,6 @@ function ThemedNavigation() {
 
 export default function RootLayout() {
   return (
-    // Swipeable rows (history, session players) need the gesture root above every screen.
     <GestureHandlerRootView style={styles.root}>
       <ThemePreferenceProvider>
         <AppAlertProvider>

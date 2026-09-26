@@ -12,32 +12,25 @@ export type LiveSession = {
   earlyCashOuts: EarlyCashOut[];
   friends: FriendRecord[];
   error: string | null;
-  /** No session snapshot and no error yet. */
   isLoading: boolean;
-  /** Re-subscribes everything after an error. */
   retry: () => void;
   earlyCashOutMap: Map<string, EarlyCashOut>;
   friendAvatarMap: Map<string, string | undefined>;
   playerTotals: Record<string, { name: string; total: number }>;
-  /** Host first, then by name. */
   players: LedgerPlayer[];
   totalPot: number;
   viewerIsHost: boolean;
   isActive: boolean;
-  /** Chip session with a dollars-per-chip value, so the ledger can show dollars. */
   ledgerCanToggleDollars: boolean;
-  /** Host always sees location/blinds cards; participants see them when the host has set values. */
   showSessionMetaCards: boolean;
 };
 
-/** Session doc, buy-ins, early cash-outs and the viewer's friends, plus derived ledger data. */
 export function useLiveSession(id: string | undefined, playerProfile: PlayerProfile | null): LiveSession {
   const [session, setSession] = useState<SessionView | null>(null);
   const [buyIns, setBuyIns] = useState<BuyIn[]>([]);
   const [earlyCashOuts, setEarlyCashOuts] = useState<EarlyCashOut[]>([]);
   const [friends, setFriends] = useState<FriendRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
-  /** Bumped by `retry` to tear down and re-open the listeners. */
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -82,8 +75,6 @@ export function useLiveSession(id: string | undefined, playerProfile: PlayerProf
     [friends]
   );
 
-  // Memoized: the screen re-renders on every modal keystroke, and the ledger reduce/sort
-  // only depends on the buy-in data.
   const playerTotals = useMemo(
     () =>
       buyIns.reduce<Record<string, { name: string; total: number }>>((acc, b) => {

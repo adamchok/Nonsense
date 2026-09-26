@@ -1,10 +1,3 @@
-/**
- * Security rules for sessions/{id} and the settle / leave flows. Needs the Firestore
- * emulator: run with `npm run test:rules`, not `npm test`.
- *
- * Writes mirror the shapes and batching in lib/firestore.ts (createSession, settleSession,
- * leaveSession, update*) so a rules change that breaks a real app write fails here.
- */
 import { after, before, test } from 'node:test';
 
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
@@ -45,10 +38,6 @@ after(async () => {
 });
 
 const sid = () => nextSessionId('sessions');
-
-// ---------------------------------------------------------------------------
-// Session create (createSession batch)
-// ---------------------------------------------------------------------------
 
 test('host can create a session with participant rows and initial buy-ins in one batch', async () => {
   const db = dbAs(env, HOST);
@@ -114,10 +103,6 @@ test('session create rejects invalid blinds and chip rates', async () => {
   );
 });
 
-// ---------------------------------------------------------------------------
-// Session read / update
-// ---------------------------------------------------------------------------
-
 test('host and participants can read a session; a stranger cannot', async () => {
   const id = sid();
   await seedSession(env, id);
@@ -147,10 +132,6 @@ test('a finished session cannot be reopened', async () => {
   await seedSession(env, id, { status: 'finished' });
   await assertFails(updateDoc(doc(dbAs(env, HOST), 'sessions', id), { status: 'active' }));
 });
-
-// ---------------------------------------------------------------------------
-// Settlement (settleSession batch) and results
-// ---------------------------------------------------------------------------
 
 function settleBatch(db: ReturnType<typeof dbAs>, sessionId: string) {
   const batch = writeBatch(db);
@@ -223,10 +204,6 @@ test('results reject non-numeric or out-of-range money fields', async () => {
   );
 });
 
-// ---------------------------------------------------------------------------
-// Leaving a session (leaveSession: update, then batch delete)
-// ---------------------------------------------------------------------------
-
 async function seedFinishedWithResult(sessionId: string, participantIds: string[] | null) {
   await seedSession(env, sessionId, { status: 'finished', participantIds });
   await seedDoc(env, `sessions/${sessionId}/results/${PLAYER}`, {
@@ -248,7 +225,6 @@ test('a participant can leave: remove self, then delete own result and participa
   batch.delete(doc(db, 'sessions', id, 'session_participants', PLAYER));
   await assertSucceeds(batch.commit());
 
-  // Once both are gone the ledger is no longer readable to them.
   await assertFails(getDoc(doc(db, 'sessions', id)));
 });
 
@@ -273,8 +249,6 @@ test('a player cannot delete a result written about someone else', async () => {
   await assertFails(deleteDoc(doc(dbAs(env, STRANGER), 'sessions', id, 'results', PLAYER)));
 });
 
-// Regression: removesOnlySelfFromParticipants() used to read resource.data.participantIds
-// directly, which errors on sessions written before the mirror existed.
 test(
   'a participant of a legacy session without participantIds can leave',
   async () => {
@@ -291,7 +265,6 @@ test('the host can delete a finished session with its results; other players can
   const id = sid();
   await seedFinishedWithResult(id, [HOST, PLAYER]);
 
-  // Same order as deleteSession(): subcollection docs first, parent doc last.
   await assertFails(deleteDoc(doc(dbAs(env, PLAYER), 'sessions', id)));
   const db = dbAs(env, HOST);
   const batch = writeBatch(db);

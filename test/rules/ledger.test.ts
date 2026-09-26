@@ -1,10 +1,3 @@
-/**
- * Security rules for the money ledger under sessions/{id}: buy_ins, early_cashouts and
- * session_participants. Needs the Firestore emulator: run with `npm run test:rules`.
- *
- * Writes mirror lib/firestore.ts (addBuyIn batch, saveEarlyCashOut) so a rules change that
- * breaks a real app write fails here.
- */
 import { after, before, test } from 'node:test';
 
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
@@ -46,7 +39,6 @@ after(async () => {
 
 const sid = () => nextSessionId('ledger');
 
-/** The addBuyIn batch: buy-in, participant row + participantIds mirror, clear early cash-out. */
 function addBuyInBatch(db: Firestore, sessionId: string, playerId: string, amount: unknown) {
   const batch = writeBatch(db);
   batch.set(doc(collection(db, 'sessions', sessionId, 'buy_ins')), {
@@ -64,10 +56,6 @@ function addBuyInBatch(db: Firestore, sessionId: string, playerId: string, amoun
   batch.delete(doc(db, 'sessions', sessionId, 'early_cashouts', playerId));
   return batch;
 }
-
-// ---------------------------------------------------------------------------
-// buy_ins
-// ---------------------------------------------------------------------------
 
 test('host can add a buy-in for a new player (full addBuyIn batch)', async () => {
   const id = sid();
@@ -89,7 +77,6 @@ test('a non-host participant cannot add a buy-in', async () => {
   const id = sid();
   await seedSession(env, id);
   await assertFails(addBuyInBatch(dbAs(env, PLAYER), id, PLAYER, 50).commit());
-  // Not even the bare buy-in doc without the session update.
   await assertFails(
     setDoc(doc(collection(dbAs(env, PLAYER), 'sessions', id, 'buy_ins')), {
       playerId: PLAYER,
@@ -154,10 +141,6 @@ test('participants can read the buy-in ledger; a stranger cannot', async () => {
   await assertFails(getDocs(collection(dbAs(env, STRANGER), 'sessions', id, 'buy_ins')));
 });
 
-// ---------------------------------------------------------------------------
-// early_cashouts
-// ---------------------------------------------------------------------------
-
 test('host can record an early cash-out; a participant cannot', async () => {
   const id = sid();
   await seedSession(env, id);
@@ -192,10 +175,6 @@ test('early cash-outs are rejected on a finished session or with a negative amou
     })
   );
 });
-
-// ---------------------------------------------------------------------------
-// session_participants
-// ---------------------------------------------------------------------------
 
 test('a stranger cannot join a session by writing a participant row or participantIds', async () => {
   const id = sid();

@@ -1,8 +1,6 @@
 import { parseAmount } from './parse-amount.ts';
 
-/** History filter values as typed/picked; dates are YYYY-MM-DD, '' means unset. */
 export type FilterState = {
-  /** null = every location. */
   locations: string[] | null;
   startDate: string;
   endDate: string;
@@ -24,14 +22,12 @@ export const DEFAULT_FILTERS: FilterState = {
 
 type FilterableEntry = { date: Date; location?: string | null; totalBuyIn: number; profit: number };
 
-/** Local calendar date as YYYY-MM-DD. */
 export function toYmd(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-/** YYYY-MM-DD to a local midnight Date; null when blank or not a real date. */
 export function parseYmd(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
   if (!match) return null;
@@ -46,7 +42,6 @@ function parseAmountInput(value: string): number | null {
   return trimmed ? parseAmount(trimmed) : null;
 }
 
-/** How many filter groups are set (location, dates, buy-in, profit). */
 export function countActiveFilters(f: FilterState): number {
   return [
     f.locations !== null,
@@ -56,7 +51,6 @@ export function countActiveFilters(f: FilterState): number {
   ].filter(Boolean).length;
 }
 
-/** Entries matching every set filter; the end date is inclusive. */
 export function filterEntries<T extends FilterableEntry>(entries: readonly T[], f: FilterState): T[] {
   const start = parseYmd(f.startDate);
   const end = parseYmd(f.endDate);
@@ -87,7 +81,6 @@ export const DATE_PRESETS: { key: DatePreset; label: string }[] = [
   { key: 'year', label: 'This year' },
 ];
 
-/** Start/end (YYYY-MM-DD) for a preset, ending today. */
 export function presetRange(key: DatePreset, today: Date): { start: string; end: string } {
   const y = today.getFullYear();
   const m = today.getMonth();
@@ -99,7 +92,6 @@ export function presetRange(key: DatePreset, today: Date): { start: string; end:
   return { start: toYmd(new Date(y, 0, 1)), end };
 }
 
-/** Month grid for a calendar, weeks starting Monday; null pads the leading/trailing days. */
 export function monthGrid(year: number, month: number): (Date | null)[] {
   const lead = (new Date(year, month, 1).getDay() + 6) % 7;
   const days = new Date(year, month + 1, 0).getDate();

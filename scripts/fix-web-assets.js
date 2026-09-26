@@ -1,10 +1,3 @@
-/**
- * Cloudflare Pages (wrangler pages deploy) skips every `node_modules` directory, but Expo's
- * web export places package assets such as the icon fonts under `assets/node_modules/...`.
- * Move them to `assets/vendor/...` and rewrite the references so they get uploaded.
- *
- * Usage: node scripts/fix-web-assets.js <export dir>
- */
 const fs = require('fs');
 const path = require('path');
 

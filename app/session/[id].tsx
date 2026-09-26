@@ -41,7 +41,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
-/** Only one Modal is ever on screen, so a single discriminated state drives them all. */
 type ActiveModal =
   | { kind: 'buyIn'; draft: BuyInDraft }
   | { kind: 'cashOut'; target: CashOutTarget; amount: string }
@@ -60,7 +59,6 @@ function numberDraft(value: number | undefined): string {
 export default function ActiveSessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
-  // Room for the undo snackbar / voice banner over the last rows.
   const layout = usePageLayout(96);
   const { playerProfile } = useAuth();
   const live = useLiveSession(id, playerProfile);
@@ -69,9 +67,7 @@ export default function ActiveSessionScreen() {
   const canAct = viewerIsHost && live.isActive;
 
   const [modal, setModal] = useState<ActiveModal | null>(null);
-  /** Bumped on every open so each modal remounts with fresh drafts. */
   const [modalSeq, setModalSeq] = useState(0);
-  /** Chip sessions with dollars per chip: the ledger switch toggles chip vs dollar display for all rows. */
   const [ledgerShowDollars, setLedgerShowDollars] = useState(false);
 
   function openModal(next: ActiveModal) {
@@ -83,7 +79,6 @@ export default function ActiveSessionScreen() {
     setModal(null);
   }
 
-  /** The last queued buy-in, undoable for UNDO_WINDOW_MS. Buy-backs aren't offered undo. */
   const [undoable, setUndoable] = useState<(QueuedBuyIn & { key: number }) | null>(null);
   const dismissUndo = useCallback(() => setUndoable(null), []);
 
@@ -99,7 +94,6 @@ export default function ActiveSessionScreen() {
     openBlindsEditor: () => openModal({ kind: 'blinds' }),
   });
 
-  /** Closes the form only when the buy-in was queued; a failed check keeps the entry. */
   async function submitBuyIn(draft: BuyInDraft): Promise<boolean> {
     const queued = await handleAddBuyIn(draft);
     if (queued) closeModal();
@@ -111,7 +105,6 @@ export default function ActiveSessionScreen() {
     setUndoable(null);
     if (!target || !id) return;
     hapticTap();
-    // The id resolves once the add commits; null means the add itself failed (already reported).
     void target.buyInId.then((buyInId) => {
       if (!buyInId) return;
       return deleteBuyInEntry(id, buyInId).catch((e) =>
@@ -120,7 +113,6 @@ export default function ActiveSessionScreen() {
     });
   }
 
-  /** Quick-amount chips in the buy-in form: each player's latest buy-in and the session's most common one. */
   const { lastAmountByPlayer, commonAmount } = useMemo(() => {
     const last = new Map<string, number>();
     const counts = new Map<number, number>();
@@ -165,7 +157,6 @@ export default function ActiveSessionScreen() {
     return { playerId: p.playerId, name: p.name, totalBuyIn: p.total, cashOut: co };
   }, [modal, earlyCashOutMap, players]);
 
-  /** Seated players first, so they win name ties against friends who aren't playing. */
   const voiceRoster = useMemo<VoiceRosterEntry[]>(() => {
     const entries: VoiceRosterEntry[] = players.map((p) => ({
       playerId: p.playerId,
@@ -185,10 +176,6 @@ export default function ActiveSessionScreen() {
     return entries;
   }, [players, live.friends, playerProfile]);
 
-  /**
-   * Voice only pre-fills these existing modals — it never writes. The host still
-   * taps Confirm, which runs the same validated handlers as a typed entry.
-   */
   const voice = useVoiceSession({
     isHost: viewerIsHost,
     sessionActive: live.isActive,
@@ -204,7 +191,6 @@ export default function ActiveSessionScreen() {
         cashedOut: earlyCashOutMap.has(player.playerId),
       };
     },
-    // null pickedPlayerId keeps the typed-name collision prompt in play for new guests.
     prefillBuyIn: ({ playerId, playerName, amount }) =>
       openModal({ kind: 'buyIn', draft: { playerName, amount: String(amount), pickedPlayerId: playerId } }),
     prefillCashOut: (player, amount) =>
@@ -224,7 +210,6 @@ export default function ActiveSessionScreen() {
           pressedScale={0.9}
           onPress={actions.confirmDeleteSession}
           disabled={actions.isDeletingSession}
-          // Web header has no end padding: line the 24px glyph (10px inset) up with the page gutter.
           style={[styles.headerIconBtn, Platform.OS === 'web' && { marginRight: layout.gutter - 10 }]}
           accessibilityRole="button"
           accessibilityLabel="Delete session"

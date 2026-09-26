@@ -1,6 +1,3 @@
-/**
- * Run with: npm test   (node --test, no framework, no dependencies)
- */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 

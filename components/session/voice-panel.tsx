@@ -16,7 +16,6 @@ import {
 
 const PULSE_MS = 1400;
 
-/** A soft ring that swells out from the mic and fades while it is listening. */
 function ListeningPulse({ color }: { color: string }) {
   const t = useSharedValue(0);
   useEffect(() => {
@@ -72,11 +71,6 @@ export function VoiceMicButton({ voice }: { voice: VoiceSession }) {
   );
 }
 
-/**
- * A banner rather than a Modal: an RN Modal takes window focus on Android and can pull audio
- * focus away from the recogniser, and this screen's invariant is that only one Modal is ever
- * on screen at a time.
- */
 export function VoiceBanner({ voice }: { voice: VoiceSession }) {
   const c = useAppColors();
   if (voice.status === 'idle') return null;
@@ -88,7 +82,6 @@ export function VoiceBanner({ voice }: { voice: VoiceSession }) {
       <Icon name="mic" size={20} color={c.accentText} importantForAccessibility="no" />
       <View style={styles.bannerText}>
         {voice.transcript ? (
-          // No live region here: partial results update many times a second and TalkBack would chatter.
           <Text style={[styles.transcript, { color: c.textSecondary }]} numberOfLines={2}>
             {voice.transcript}
           </Text>

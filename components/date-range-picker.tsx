@@ -19,16 +19,11 @@ function summary(start: Date | null, end: Date | null): string {
 }
 
 type Props = {
-  /** YYYY-MM-DD or ''. */
   start: string;
   end: string;
   onChange: (start: string, end: string) => void;
 };
 
-/**
- * Quick presets plus a tap-to-open month calendar: first tap sets the start, second the end
- * (tapping before the start restarts). Future days are disabled; there are no future sessions.
- */
 export function DateRangePicker({ start, end, onChange }: Props) {
   const c = useAppColors();
   const today = new Date();
@@ -156,7 +151,6 @@ export function DateRangePicker({ start, end, onChange }: Props) {
               const isEdge = isStart || isEnd;
               const inRange = Boolean(start && end && ymd > start && ymd < end);
               const isFuture = ymd > todayYmd;
-              // Band joins the range: full across middle days, half on each edge.
               const bandLeft = inRange || (isEnd && Boolean(start) && start !== end);
               const bandRight = inRange || (isStart && Boolean(end) && start !== end);
               return (

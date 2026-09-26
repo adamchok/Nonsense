@@ -26,7 +26,6 @@ export default function HomeScreen() {
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [sessionMetaById, setSessionMetaById] = useState<Record<string, { playerCount: number; totalBuyIns: number }>>({});
   const [error, setError] = useState<string | null>(null);
-  /** False until the first load settles, so the card shows bones instead of a false "No active sessions". */
   const [isLoaded, setIsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
@@ -267,7 +266,6 @@ export default function HomeScreen() {
   );
 }
 
-/** Bones in the exact spots of an active-session row: tile, date, meta line, LIVE badge, chevron. */
 function ActiveSessionsSkeleton() {
   const c = useAppColors();
   return (
@@ -288,7 +286,6 @@ function ActiveSessionsSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  /** Text lines are 20 + 16 tall with a 2px gap; bones are shorter, so pad the gap to match. */
   skeletonBody: {
     gap: 7,
     paddingVertical: 2,

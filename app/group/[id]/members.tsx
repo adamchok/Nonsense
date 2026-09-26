@@ -69,7 +69,6 @@ export default function GroupMembersScreen() {
     return subscribeFriends(user.uid, setFriends, () => {});
   }, [user]);
 
-  // Stagger only the first batch of rows; members added later animate in without a delay.
   const hasMembers = members.length > 0;
   const [initialStagger, setInitialStagger] = useState(true);
   useEffect(() => {

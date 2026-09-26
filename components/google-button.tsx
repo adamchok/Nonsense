@@ -3,7 +3,6 @@ import { useResolvedColorScheme } from '@/lib/theme-context';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-/** Google's recommended neutral button colours (Sign in with Google branding guidelines). */
 const THEMES = {
   light: { bg: '#FFFFFF', border: '#747775', text: '#1F1F1F' },
   dark: { bg: '#131314', border: '#8E918F', text: '#E3E3E3' },
@@ -28,7 +27,6 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
   );
 }
 
-/** Neutral "Sign in with Google"-style button used for sign-in and account backup. */
 export function GoogleButton({ label, onPress, busy = false, disabled = false, accessibilityLabel }: Props) {
   const t = THEMES[useResolvedColorScheme()];
   const isDisabled = disabled || busy;

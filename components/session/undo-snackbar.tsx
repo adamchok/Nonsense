@@ -26,7 +26,6 @@ type Props = {
   onDismiss: () => void;
 };
 
-/** Thin bar along the bottom edge that drains over the undo window. */
 function UndoCountdown({ color }: { color: string }) {
   const remaining = useSharedValue(1);
   useEffect(() => {
@@ -40,10 +39,6 @@ function UndoCountdown({ color }: { color: string }) {
   );
 }
 
-/**
- * Bottom snackbar with an Undo action; dismisses itself after UNDO_WINDOW_MS. Remount (key)
- * per message: the old one slides out as the new one slides in.
- */
 export function UndoSnackbar({ message, onUndo, onDismiss }: Props) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
@@ -69,7 +64,6 @@ export function UndoSnackbar({ message, onUndo, onDismiss }: Props) {
         accessibilityLabel={`Undo: ${message}`}>
         <Text style={[styles.undoLabel, { color: c.accentText }]}>UNDO</Text>
       </PressableScale>
-      {/* A draining bar is motion; with reduce-motion the timeout alone still applies. */}
       {reduceMotion ? null : <UndoCountdown color={c.accent} />}
     </Animated.View>
   );
@@ -114,7 +108,6 @@ const styles = StyleSheet.create({
   },
   track: {
     position: 'absolute',
-    // Inset past the bar's rounded corners so it runs along the straight bottom edge.
     left: 14,
     right: 14,
     bottom: 0,

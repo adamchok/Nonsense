@@ -22,7 +22,6 @@ import { EditNameModal } from '@/components/edit-name-modal';
 import { Animated as Motion, PressableScale, webSafe } from '@/components/motion';
 import { LayoutAnimationConfig, ReduceMotion, ZoomIn, FadeIn } from 'react-native-reanimated';
 
-/** Theme radio: the check pops in when a row becomes selected. */
 const checkEntering = webSafe(
   ZoomIn.springify()
     .damping(16)
@@ -40,7 +39,6 @@ export default function SettingsScreen() {
   const layout = usePageLayout(40);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  // Phones: statistics open as a bottom sheet, like the other modals.
   const isSheet = width < SHEET_BREAKPOINT;
   const { preference, setPreference } = useThemePreference();
   const t = settingsTheme(c);
@@ -77,7 +75,6 @@ export default function SettingsScreen() {
   }, [showStatsModal, user]);
 
   function onSelectTheme(p: 'system' | 'light' | 'dark') {
-    // Theme applies in memory even if persisting fails; tell the user it won't stick.
     void setPreference(p).catch(() => {
       appAlert(
         'Theme not saved',
@@ -246,7 +243,6 @@ export default function SettingsScreen() {
           Appearance
         </Text>
         <Text style={[styles.sectionHint, { color: t.muted }]}>Choose light, dark, or match your device.</Text>
-        {/* The current choice's check shows without a pop on first render; later picks pop in. */}
         <LayoutAnimationConfig skipEntering>
         <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
           <ThemeOption
@@ -312,7 +308,6 @@ export default function SettingsScreen() {
                   Sign in to see statistics.
                 </Text>
               ) : statsLoading ? (
-                // Same scroll container as the loaded stats, so the numbers land where the bones were.
                 <ScrollView contentContainerStyle={styles.statsScrollContent}>
                   <StatsSkeleton />
                 </ScrollView>
@@ -401,7 +396,6 @@ function ThemeOption({
   selected: boolean;
   onPress: () => void;
   t: SettingsTheme;
-  /** Rows after the first draw a 1px divider above themselves. */
   showDivider?: boolean;
 }) {
   const c = useAppColors();
@@ -438,7 +432,6 @@ function ThemeOption({
   );
 }
 
-/** The shared palette, narrowed to what this screen and its row helpers draw with. */
 function settingsTheme(c: AppColors) {
   return {
     bg: c.bg,

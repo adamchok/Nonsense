@@ -1,8 +1,3 @@
-/**
- * Pure error-mapping tests (no emulator needed; also runs under `npm run test:auth`).
- * Covers the codes the web popup flow (linkWithPopup / signInWithPopup) can throw, since
- * popups cannot be driven headless against the Auth emulator.
- */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 

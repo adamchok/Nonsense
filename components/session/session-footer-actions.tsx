@@ -3,14 +3,12 @@ import { useAppColors } from '@/lib/app-theme';
 import { StyleSheet, Text, View } from 'react-native';
 
 type Props = {
-  /** Host viewing an active session. */
   canManage: boolean;
   isFinished: boolean;
   onEndSession: () => void;
   onViewSummary: () => void;
 };
 
-/** End Session (host) or View Summary (finished). Delete lives in the header, away from this thumb zone. */
 export function SessionFooterActions({ canManage, isFinished, onEndSession, onViewSummary }: Props) {
   const c = useAppColors();
   return (

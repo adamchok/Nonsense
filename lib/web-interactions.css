@@ -1,21 +1,6 @@
-/*
- * Web-only global interaction layer (loaded by lib/web-interactions.web.ts).
- *
- * react-native-web renders Pressable / TouchableOpacity as <div tabindex="0"> (plus role="button"
- * when accessibilityRole is set), links as <a>, tab bar items as role="tab", TextInput as
- * <input>/<textarea>. Everything here targets those DOM shapes, never app class names.
- *
- * Theme comes from <html data-theme="light|dark">, set from ThemePreferenceProvider via
- * applyWebTheme(); before hydration it falls back to prefers-color-scheme.
- * Accent values mirror lib/app-theme.ts (light: accent, dark: accentText, since the dark
- * accent is too dark to read as a focus ring on the dark background).
- */
-
 :root {
   --accent: #8a5a00;
   --interaction-hover-filter: brightness(0.97);
-  /* Tint painted over the element on hover: visible on transparent buttons too, where a
-     brightness filter alone changes nothing. */
   --interaction-hover-overlay: rgba(15, 23, 42, 0.06);
   --danger: #dc2626;
   --danger-hover-overlay: rgba(220, 38, 38, 0.08);
@@ -48,8 +33,6 @@
   --scrollbar-thumb: rgba(148, 163, 184, 0.25);
   --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
 }
-
-/* ---------- Interactive elements ---------- */
 
 :is(
     [role='button'],
@@ -101,14 +84,10 @@
       [tabindex='0']
     ):not([aria-disabled='true'], :disabled, [aria-selected='true']):hover {
     filter: var(--interaction-hover-filter);
-    /* Inset shadow = full-cover tint that follows border-radius and sits under the content.
-       Elements with their own inline box-shadow keep it (inline wins) and get the filter only. */
     box-shadow: inset 0 0 0 100vmax var(--interaction-hover-overlay);
   }
 }
 
-/* Destructive actions (labels starting Delete / Remove / Leave): red tint and red icon on
- * hover instead of the neutral tint, so the consequence reads before the click. */
 @media (hover: hover) {
   :is([role='button'], button):is([aria-label^='Delete' i], [aria-label^='Remove' i], [aria-label^='Leave' i]):not(
       [aria-disabled='true'],
@@ -129,7 +108,6 @@
   }
 }
 
-/* Pressed: a 1px nudge on button-like controls (not tabs/links, which navigate in place). */
 :is([role='button'], button, [tabindex='0']:not([role])):not(
     [aria-disabled='true'],
     :disabled
@@ -137,7 +115,6 @@
   transform: translateY(1px);
 }
 
-/* Focus: accent ring for keyboard focus only; drop the browser ring where this replaces it. */
 :is(
     [role='button'],
     [role='tab'],
@@ -169,8 +146,6 @@
   outline: none;
 }
 
-/* Disabled: dimmed, no pointer, no hover/press feedback. Inline opacity set by a component
- * for its own disabled look wins over this default. */
 :is([aria-disabled='true'], :disabled) {
   opacity: 0.42;
   cursor: not-allowed;
@@ -178,10 +153,6 @@
   transform: none;
 }
 
-/* ---------- Text inputs ---------- */
-
-/* RN-web writes border colors inline and some screens drive their own focus/error borders, so
- * feedback is a 1px ring hugging the border (box-shadow) instead of overriding border-color. */
 :is(input, textarea) {
   transition: box-shadow 180ms var(--interaction-ease);
 }
@@ -192,26 +163,18 @@
   }
 }
 
-/* Focus recolours the field's own border rather than drawing a ring outside it: an outer
- * ring gets clipped on some sides inside modals/scroll views with overflow hidden.
- * !important is needed because react-native-web writes border colours inline. */
 :is(input, textarea)[class*='r-borderWidth']:not([readonly], [aria-invalid='true']):focus {
   border-color: var(--accent) !important;
 }
 
-/* The accent border above replaces the browser's own focus outline on text fields. */
 :is(input, textarea) {
   outline: none;
 }
 
-/* Borderless inputs inside a bordered wrapper (e.g. "$ [amount]" fields): ring the wrapper,
- * not the bare input. react-native-web emits atomic `r-borderWidth-*` classes only when a
- * border is set, which is how a bordered input is told apart from a bare one. */
 :has(> :is(input, textarea):not([class*='r-borderWidth'], [readonly], [aria-invalid='true']):focus) {
   border-color: var(--accent) !important;
 }
 
-/* Fields in error (components/field-error.tsx) keep their red border while focused. */
 :is(input, textarea)[aria-invalid='true'] {
   outline: none;
 }
@@ -239,7 +202,6 @@
   }
 }
 
-/* Scrollbars: thin rounded thumb in theme colours, no arrows, transparent track. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -254,7 +216,6 @@
 ::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);
   border-radius: 999px;
-  /* Transparent borders inset the 4px thumb: 4px from the content, 2px from the edge. */
   border: 2px solid transparent;
   border-left-width: 4px;
   border-top-width: 4px;
@@ -263,7 +224,6 @@
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
 }
-/* Firefox (Chromium would let these override the ::-webkit rules above). */
 @supports not selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: thin;
@@ -271,8 +231,6 @@
   }
 }
 
-/* Charts (components/pl-chart.tsx): the library's focusable wrappers span the whole plot, so a
-   hover tint there reads as a grey box. Selection dimming is the chart's own feedback. */
 #pl-chart [tabindex] {
   box-shadow: none !important;
 }
