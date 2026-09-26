@@ -1,6 +1,5 @@
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { AVATAR_EMOJIS } from '@/constants/avatar';
-import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
@@ -10,14 +9,12 @@ import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestor
 import { useThemePreference } from '@/lib/theme-context';
 import { Icon, type IconName } from '@/components/icon';
 import { StatsBody, StatsSkeleton } from '@/components/stats-body';
-import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SHEET_BREAKPOINT } from '@/lib/spacing';
 import { userMessage } from '@/lib/user-message';
-import { GoogleButton } from '@/components/google-button';
 import { EditNameModal } from '@/components/edit-name-modal';
 import { Animated as Motion, PressableScale, webSafe } from '@/components/motion';
 import { LayoutAnimationConfig, ReduceMotion, ZoomIn, FadeIn } from 'react-native-reanimated';
@@ -34,7 +31,8 @@ const checkEntering = webSafe(
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, linkWithGoogle } = useAuth();
+  const { user, playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, email, signOutUser } =
+    useAuth();
   const c = useAppColors();
   const layout = usePageLayout(40);
   const { width } = useWindowDimensions();
@@ -42,6 +40,8 @@ export default function SettingsScreen() {
   const isSheet = width < SHEET_BREAKPOINT;
   const { preference, setPreference } = useThemePreference();
   const t = settingsTheme(c);
+  const signInMethodLabel = isLinked ? 'Signed in with Google' : 'Signed in with email';
+  const accountEmail = (isLinked ? linkedEmail : null) ?? email;
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showNameEditor, setShowNameEditor] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
@@ -50,7 +50,6 @@ export default function SettingsScreen() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [stats, setStats] = useState<PlayerAppStatistics | null>(null);
-  const [isLinking, setIsLinking] = useState(false);
 
   useEffect(() => {
     if (!showStatsModal || !user) return;
@@ -83,29 +82,19 @@ export default function SettingsScreen() {
     });
   }
 
-  async function onBackUpWithGoogle() {
-    if (isLinking) return;
-    setIsLinking(true);
-    try {
-      await linkWithGoogle();
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      appAlert(
-        'Backed up',
-        'Sign in with Google after reinstalling or on a new phone to restore this profile.'
-      );
-    } catch (e) {
-      if (e instanceof AccountLinkError && e.code === 'cancelled') return;
-      if (e instanceof AccountLinkError && e.code === 'credential-in-use') {
-        appAlert(
-          'Google account already in use',
-          'That Google account already has a different Nonsense profile, and this profile can’t be merged into it. Try another Google account.'
-        );
-        return;
-      }
-      appAlert('Backup failed', userMessage(e, 'Please try again.'));
-    } finally {
-      setIsLinking(false);
-    }
+  function onSignOut() {
+    appAlert('Sign out?', 'You can sign back in any time with the same account.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: () => {
+          void signOutUser().catch((e) => {
+            appAlert('Sign out failed', userMessage(e, 'Please try again.'));
+          });
+        },
+      },
+    ]);
   }
 
   async function onPickAvatar(emoji: string) {
@@ -212,29 +201,30 @@ export default function SettingsScreen() {
           Account
         </Text>
         <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
-          {isLinked ? (
-            <View
-              style={styles.linkedRow}
-              accessible
-              accessibilityLabel={`Backed up with Google${linkedEmail ? `, ${linkedEmail}` : ''}`}>
-              <Icon name="check-circle" size={22} color={c.accentText} />
-              <View style={styles.linkedTextCol}>
-                <Text style={[styles.linkedText, { color: t.text }]}>Backed up with Google</Text>
-                {linkedEmail ? (
-                  <Text style={[styles.linkedEmail, { color: t.muted }]} numberOfLines={1} ellipsizeMode="middle">
-                    {linkedEmail}
-                  </Text>
-                ) : null}
-              </View>
+          <View
+            style={styles.linkedRow}
+            accessible
+            accessibilityLabel={`${signInMethodLabel}${accountEmail ? `, ${accountEmail}` : ''}`}>
+            <Icon name="check-circle" size={22} color={c.accentText} />
+            <View style={styles.linkedTextCol}>
+              <Text style={[styles.linkedText, { color: t.text }]}>{signInMethodLabel}</Text>
+              {accountEmail ? (
+                <Text style={[styles.linkedEmail, { color: t.muted }]} numberOfLines={1} ellipsizeMode="middle">
+                  {accountEmail}
+                </Text>
+              ) : null}
             </View>
-          ) : (
-            <>
-              <Text style={[styles.appearanceHint, { color: t.muted }]}>
-                Sign in with Google to keep your data when you reinstall or switch phones.
-              </Text>
-              <GoogleButton label="Back up with Google" onPress={onBackUpWithGoogle} busy={isLinking} />
-            </>
-          )}
+          </View>
+          <PressableScale
+            style={[styles.secondaryBtn, { borderColor: c.inputBorder, backgroundColor: t.card }]}
+            onPress={onSignOut}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out">
+            <View style={styles.secondaryBtnContent}>
+              <Icon name="logout" size={18} color={c.destructive} />
+              <Text style={[styles.secondaryBtnLabel, { color: c.destructive }]}>Sign out</Text>
+            </View>
+          </PressableScale>
         </View>
       </View>
 
@@ -552,12 +542,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 14,
   },
-  btnDisabled: {
-    opacity: 0.5,
-  },
-  btnPressed: {
-    opacity: 0.85,
-  },
   linkedRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -604,10 +588,6 @@ const styles = StyleSheet.create({
   secondaryBtnLabel: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  appearanceHint: {
-    fontSize: 13,
-    lineHeight: 18,
   },
   themeRow: {
     flexDirection: 'row',

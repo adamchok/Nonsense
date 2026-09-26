@@ -26,7 +26,8 @@ const webScreenLayout =
     : undefined;
 
 function RootNavigator() {
-  const { isReady } = useAuth();
+  const { isReady, user, isAnonymous } = useAuth();
+  const isSignedIn = !!user && !isAnonymous;
   const { resolvedColorScheme } = useThemePreference();
 
   useEffect(() => {
@@ -44,29 +45,31 @@ function RootNavigator() {
       <Stack screenLayout={webScreenLayout}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="session/new"
-          options={{ title: 'New Session', presentation: 'modal', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen name="session/[id]" options={{ title: 'Active Session' }} />
-        <Stack.Screen name="session/cashout/[id]" options={{ title: 'End Session' }} />
-        <Stack.Screen
-          name="session/summary/[id]"
-          options={{ title: 'Session Summary', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="group/[id]/members"
-          options={{ title: 'Group Members', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="locations/index"
-          options={{ title: 'Saved Locations', headerBackTitle: 'Back' }}
-        />
-        <Stack.Screen
-          name="qr-code"
-          options={{ title: 'QR code', headerBackTitle: 'Back' }}
-        />
+        <Stack.Protected guard={isSignedIn}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="session/new"
+            options={{ title: 'New Session', presentation: 'modal', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen name="session/[id]" options={{ title: 'Active Session' }} />
+          <Stack.Screen name="session/cashout/[id]" options={{ title: 'End Session' }} />
+          <Stack.Screen
+            name="session/summary/[id]"
+            options={{ title: 'Session Summary', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="group/[id]/members"
+            options={{ title: 'Group Members', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="locations/index"
+            options={{ title: 'Saved Locations', headerBackTitle: 'Back' }}
+          />
+          <Stack.Screen
+            name="qr-code"
+            options={{ title: 'QR code', headerBackTitle: 'Back' }}
+          />
+        </Stack.Protected>
       </Stack>
       <StatusBar style={resolvedColorScheme === 'dark' ? 'light' : 'dark'} />
     </>

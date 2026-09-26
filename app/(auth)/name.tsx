@@ -1,4 +1,3 @@
-import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { useAppColors } from '@/lib/app-theme';
@@ -19,7 +18,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userMessage } from '@/lib/user-message';
-import { GoogleButton } from '@/components/google-button';
 import { Animated } from '@/components/motion';
 import { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 
@@ -30,13 +28,10 @@ export default function NameScreen() {
   const insets = useSafeAreaInsets();
   const nameScrollRef = useRef<ScrollView>(null);
   const navigation = useNavigation();
-  const { isReady, user, playerProfile, saveDisplayName, isLinked, linkedEmail, signInWithGoogle } =
-    useAuth();
+  const { isReady, user, playerProfile, saveDisplayName } = useAuth();
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSigningIn, setIsSigningIn] = useState(false);
-  const [didGoogleSignIn, setDidGoogleSignIn] = useState(false);
 
   const isEditing = !!playerProfile?.name;
   const MAX_NAME_LEN = 15;
@@ -47,14 +42,8 @@ export default function NameScreen() {
     }
   }, [playerProfile?.name]);
 
-  useEffect(() => {
-    if (didGoogleSignIn && playerProfile?.name) {
-      router.replace('/(tabs)');
-    }
-  }, [didGoogleSignIn, playerProfile?.name]);
-
   const trimmed = name.trim();
-  const isBusy = isSaving || isSigningIn;
+  const isBusy = isSaving;
   const canSubmit = !isBusy;
 
   if (!isReady) {
@@ -66,7 +55,7 @@ export default function NameScreen() {
   }
 
   if (!user) {
-    return <Redirect href="/" />;
+    return <Redirect href="/(auth)/welcome" />;
   }
 
   async function onSave() {
@@ -88,7 +77,6 @@ export default function NameScreen() {
 
     try {
       setIsSaving(true);
-      setDidGoogleSignIn(false);
       await saveDisplayName(trimmed);
 
       if (isEditing && navigation.canGoBack()) {
@@ -103,23 +91,6 @@ export default function NameScreen() {
       );
     } finally {
       setIsSaving(false);
-    }
-  }
-
-  async function onSignInWithGoogle() {
-    if (isBusy) return;
-    setIsSigningIn(true);
-    try {
-      await signInWithGoogle();
-      setDidGoogleSignIn(true);
-    } catch (error) {
-      if (error instanceof AccountLinkError && error.code === 'cancelled') return;
-      appAlert(
-        'Unable to sign in',
-        userMessage(error, 'Please try again.')
-      );
-    } finally {
-      setIsSigningIn(false);
     }
   }
 
@@ -146,17 +117,11 @@ export default function NameScreen() {
         ]}>
         <Animated.View entering={cardEntering} style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.title, { color: c.text }]}>
-            {isEditing && !didGoogleSignIn ? 'Edit display name' : 'What should we call you?'}
+            {isEditing ? 'Edit display name' : 'What should we call you?'}
           </Text>
           <Text style={[styles.subtitle, { color: c.textMuted }]}>
             This name is shown to everyone in your poker sessions.
           </Text>
-          {didGoogleSignIn && !playerProfile ? (
-            <Text style={[styles.subtitle, { color: c.textMuted }]} accessibilityLiveRegion="polite">
-              Signed in{linkedEmail ? ` as ${linkedEmail}` : ''}. No existing profile was found, so
-              choose a display name to finish setting up.
-            </Text>
-          ) : null}
           <View style={styles.inputBlock}>
             <View>
               <TextInput
@@ -243,22 +208,6 @@ export default function NameScreen() {
               )}
             </Pressable>
           )}
-          {!isEditing && !isLinked ? (
-            <View style={styles.googleBlock}>
-              <View style={styles.dividerRow} importantForAccessibility="no-hide-descendants">
-                <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
-                <Text style={[styles.dividerText, { color: c.textMuted }]}>Already have an account?</Text>
-                <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
-              </View>
-              <GoogleButton
-                label="Sign in with Google"
-                accessibilityLabel="Already have an account? Sign in with Google"
-                onPress={onSignInWithGoogle}
-                busy={isSigningIn}
-                disabled={isBusy}
-              />
-            </View>
-          ) : null}
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -350,22 +299,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
-  },
-  googleBlock: {
-    gap: 12,
-    marginTop: 8,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  dividerText: {
-    fontSize: 12,
   },
   buttonPressed: {
     opacity: 0.85,

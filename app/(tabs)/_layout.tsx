@@ -4,8 +4,9 @@ import { WebContentColumn } from '@/components/web/web-app-frame';
 import { WebSidebar } from '@/components/web/web-sidebar';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useAppColors } from '@/lib/app-theme';
+import { useAuth } from '@/lib/auth-context';
 import { BottomTabBar, type BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -16,6 +17,7 @@ export default function TabLayout() {
   const c = useAppColors();
   const { isMd } = useBreakpoint();
   const reduceMotion = useReducedMotion();
+  const { isReady, user, isAnonymous } = useAuth();
 
   const tabBarColors = {
     backgroundColor: c.card,
@@ -29,6 +31,14 @@ export default function TabLayout() {
     tabBarButton: HapticTab,
     animation: reduceMotion ? 'none' : 'fade',
   };
+
+  if (isReady && !user) {
+    return <Redirect href="/(auth)/welcome" />;
+  }
+
+  if (isReady && isAnonymous) {
+    return <Redirect href="/(auth)/secure" />;
+  }
 
   if (!isWeb) {
     return <Tabs screenOptions={screenOptions}>{tabScreens}</Tabs>;
