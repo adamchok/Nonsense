@@ -19,13 +19,14 @@ export default function TabLayout() {
   const c = useAppColors();
   const { isMd } = useBreakpoint();
 
+  const tabBarColors = {
+    backgroundColor: isDark ? '#151718' : '#ffffff',
+    borderTopColor: isDark ? '#2f3542' : '#e2e8f0',
+  };
   const screenOptions: BottomTabNavigationOptions = {
     tabBarActiveTintColor: Colors[colorScheme].tint,
     tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
-    tabBarStyle: {
-      backgroundColor: isDark ? '#151718' : '#ffffff',
-      borderTopColor: isDark ? '#2f3542' : '#e2e8f0',
-    },
+    tabBarStyle: tabBarColors,
     headerShown: false,
     tabBarButton: HapticTab,
   };
@@ -44,6 +45,13 @@ export default function TabLayout() {
         tabBarActiveTintColor: c.accentText,
         tabBarInactiveTintColor: c.textMuted,
         tabBarItemStyle: { minHeight: 52 },
+        tabBarStyle: {
+          ...tabBarColors,
+          height: 'auto',
+          paddingTop: 6,
+          // Breathing room under the labels, plus the home-indicator inset on phones.
+          paddingBottom: 'max(10px, env(safe-area-inset-bottom))' as unknown as number,
+        },
       }}
       tabBar={(props) => (isMd ? <WebSidebar {...props} /> : <BottomTabBar {...props} />)}
       screenLayout={({ children }) => <WebContentColumn besideSidebar>{children}</WebContentColumn>}>
