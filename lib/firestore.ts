@@ -940,9 +940,14 @@ export async function getSessionMeta(sessionId: string): Promise<{
 // Buy-ins  (subcollection: sessions/{id}/buy_ins)
 // ---------------------------------------------------------------------------
 
+/**
+ * `options` lets a caller that already holds session state drop no-op writes (each one costs
+ * a rules evaluation on the round trip). Omitted flags keep the full, always-safe batch.
+ */
 export async function addBuyIn(
   sessionId: string,
-  input: { playerId: string; playerName: string; amount: number }
+  input: { playerId: string; playerName: string; amount: number },
+  options?: { isExistingParticipant?: boolean; hasEarlyCashOut?: boolean }
 ): Promise<string> {
   const db = getFirestoreDb();
   const buyInRef = doc(collection(db, 'sessions', sessionId, 'buy_ins'));
@@ -953,9 +958,14 @@ export async function addBuyIn(
     amount: input.amount,
     createdAt: serverTimestamp(),
   });
-  appendSessionParticipantWrites(batch, sessionId, input.playerId, input.playerName);
+  // The buy_ins create rule doesn't depend on the participant row, so skipping it is safe.
+  if (!options?.isExistingParticipant) {
+    appendSessionParticipantWrites(batch, sessionId, input.playerId, input.playerName);
+  }
   /** New chips for this playerId = re-entry; clear early cash-out so ledger/UI stay consistent (no-op when absent). */
-  batch.delete(doc(db, 'sessions', sessionId, 'early_cashouts', input.playerId));
+  if (options?.hasEarlyCashOut !== false) {
+    batch.delete(doc(db, 'sessions', sessionId, 'early_cashouts', input.playerId));
+  }
   await batch.commit();
   return buyInRef.id;
 }
@@ -1063,7 +1073,10 @@ export function subscribeBuyIns(
     q,
     (snapshot) => {
       const buyIns = snapshot.docs.map<BuyIn>((d) => {
-        const data = d.data();
+        // A just-added buy-in is in the local snapshot before the server ack; 'estimate'
+        // gives its pending createdAt the local clock instead of null. Pending server
+        // timestamps already sort after resolved ones under orderBy('createdAt').
+        const data = d.data({ serverTimestamps: 'estimate' });
         return {
           id: d.id,
           sessionId,
