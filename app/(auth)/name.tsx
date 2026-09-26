@@ -1,3 +1,4 @@
+import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -22,9 +23,13 @@ export default function NameScreen() {
   const insets = useSafeAreaInsets();
   const nameScrollRef = useRef<ScrollView>(null);
   const navigation = useNavigation();
-  const { isReady, user, playerProfile, saveDisplayName } = useAuth();
+  const { isReady, user, playerProfile, saveDisplayName, isLinked, linkedEmail, signInWithGoogle } =
+    useAuth();
   const [name, setName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  // Set once Google sign-in succeeds; the profile may arrive a moment later via the auth listener.
+  const [didGoogleSignIn, setDidGoogleSignIn] = useState(false);
 
   const isEditing = !!playerProfile?.name;
   const MAX_NAME_LEN = 15;
@@ -35,11 +40,19 @@ export default function NameScreen() {
     }
   }, [playerProfile?.name]);
 
+  // Returning user: once their existing profile loads, go home. No profile → stay and ask for a name.
+  useEffect(() => {
+    if (didGoogleSignIn && playerProfile?.name) {
+      router.replace('/(tabs)');
+    }
+  }, [didGoogleSignIn, playerProfile?.name]);
+
   const trimmed = name.trim();
+  const isBusy = isSaving || isSigningIn;
   const canSubmit = useMemo(() => {
-    if (isSaving) return false;
+    if (isBusy) return false;
     return trimmed.length >= 2 && trimmed.length <= MAX_NAME_LEN;
-  }, [trimmed, isSaving]);
+  }, [trimmed, isBusy]);
 
   if (!isReady) {
     return (
@@ -64,6 +77,8 @@ export default function NameScreen() {
 
     try {
       setIsSaving(true);
+      // onSave navigates itself; stop the post-sign-in effect from navigating a second time.
+      setDidGoogleSignIn(false);
       await saveDisplayName(trimmed);
 
       if (isEditing && navigation.canGoBack()) {
@@ -78,6 +93,23 @@ export default function NameScreen() {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function onSignInWithGoogle() {
+    if (isBusy) return;
+    setIsSigningIn(true);
+    try {
+      await signInWithGoogle();
+      setDidGoogleSignIn(true);
+    } catch (error) {
+      if (error instanceof AccountLinkError && error.code === 'cancelled') return;
+      appAlert(
+        'Unable to sign in',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setIsSigningIn(false);
     }
   }
 
@@ -105,11 +137,17 @@ export default function NameScreen() {
         ]}>
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.title, { color: c.text }]}>
-            {isEditing ? 'Edit display name' : 'What should we call you?'}
+            {isEditing && !didGoogleSignIn ? 'Edit display name' : 'What should we call you?'}
           </Text>
           <Text style={[styles.subtitle, { color: c.textMuted }]}>
             This name is shown to everyone in your poker sessions.
           </Text>
+          {didGoogleSignIn && !playerProfile ? (
+            <Text style={[styles.subtitle, { color: c.textMuted }]} accessibilityLiveRegion="polite">
+              Signed in{linkedEmail ? ` as ${linkedEmail}` : ''}. No existing profile was found, so
+              choose a display name to finish setting up.
+            </Text>
+          ) : null}
           <View style={styles.inputBlock}>
             <TextInput
               value={name}
@@ -122,7 +160,7 @@ export default function NameScreen() {
               maxLength={MAX_NAME_LEN}
               onFocus={() => scrollModalFieldToTop(nameScrollRef)}
               style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
-              editable={!isSaving}
+              editable={!isBusy}
             />
             <Text
               style={[
@@ -176,10 +214,37 @@ export default function NameScreen() {
                 pressed && canSubmit && styles.buttonPressed,
               ]}
               onPress={onSave}
-              disabled={!canSubmit}>
-              <Text style={styles.buttonLabel}>Continue</Text>
+              disabled={!canSubmit}
+              accessibilityState={{ disabled: !canSubmit, busy: isSaving }}>
+              {isSaving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonLabel}>Continue</Text>
+              )}
             </Pressable>
           )}
+          {!isEditing && !isLinked ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Already have an account? Sign in with Google"
+              accessibilityState={{ disabled: isBusy, busy: isSigningIn }}
+              style={({ pressed }) => [
+                styles.buttonGoogle,
+                { borderColor: c.inputBorder },
+                isBusy && styles.buttonDisabled,
+                pressed && !isBusy && styles.buttonPressed,
+              ]}
+              onPress={onSignInWithGoogle}
+              disabled={isBusy}>
+              {isSigningIn ? (
+                <ActivityIndicator color={c.accentText} />
+              ) : (
+                <Text style={[styles.buttonGoogleLabel, { color: c.accentText }]}>
+                  Already have an account? Sign in with Google
+                </Text>
+              )}
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -259,6 +324,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  buttonGoogle: {
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonGoogleLabel: {
+    fontWeight: '700',
+    fontSize: 14,
+    textAlign: 'center',
   },
   buttonPressed: {
     opacity: 0.85,

@@ -1,4 +1,5 @@
 import { AVATAR_EMOJIS } from '@/constants/avatar';
+import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -7,6 +8,7 @@ import { formatDateDMY } from '@/lib/date-format';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -31,7 +33,7 @@ function signedMetricColor(
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, playerProfile, saveAvatarEmoji } = useAuth();
+  const { user, playerProfile, saveAvatarEmoji, isLinked, linkedEmail, linkWithGoogle } = useAuth();
   const c = useAppColors();
   const { preference, resolvedColorScheme, setPreference } = useThemePreference();
   const isDark = resolvedColorScheme === 'dark';
@@ -52,6 +54,7 @@ export default function SettingsScreen() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [stats, setStats] = useState<PlayerAppStatistics | null>(null);
+  const [isLinking, setIsLinking] = useState(false);
 
   useEffect(() => {
     if (!showStatsModal || !user) return;
@@ -83,6 +86,31 @@ export default function SettingsScreen() {
         'The theme changed for this session but could not be saved to device storage.'
       );
     });
+  }
+
+  async function onBackUpWithGoogle() {
+    if (isLinking) return;
+    setIsLinking(true);
+    try {
+      await linkWithGoogle();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      appAlert(
+        'Backed up',
+        'Sign in with Google after reinstalling or on a new phone to restore this profile.'
+      );
+    } catch (e) {
+      if (e instanceof AccountLinkError && e.code === 'cancelled') return;
+      if (e instanceof AccountLinkError && e.code === 'credential-in-use') {
+        appAlert(
+          'Google account already in use',
+          'That Google account already has a different Nonsense profile, and this profile can’t be merged into it. Try another Google account.'
+        );
+        return;
+      }
+      appAlert('Backup failed', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setIsLinking(false);
+    }
   }
 
   async function onPickAvatar(emoji: string) {
@@ -175,6 +203,49 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
         </View>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
+        <Text style={[styles.cardLabel, { color: t.muted }]}>ACCOUNT</Text>
+        {isLinked ? (
+          <View
+            style={styles.linkedRow}
+            accessible
+            accessibilityLabel={`Backed up with Google${linkedEmail ? `, ${linkedEmail}` : ''}`}>
+            <MaterialIcons name="check-circle" size={22} color={c.accentText} />
+            <Text style={[styles.linkedText, { color: t.text }]} numberOfLines={1} ellipsizeMode="middle">
+              Backed up{linkedEmail ? ` · ${linkedEmail}` : ''}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.appearanceHint, { color: t.muted }]}>
+              Your data is tied to this install. Back up with Google so you can restore it after
+              reinstalling or on a new phone.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                { backgroundColor: t.accent },
+                isLinking && styles.btnDisabled,
+                pressed && !isLinking && styles.btnPressed,
+              ]}
+              onPress={onBackUpWithGoogle}
+              disabled={isLinking}
+              accessibilityRole="button"
+              accessibilityLabel="Back up with Google"
+              accessibilityState={{ disabled: isLinking, busy: isLinking }}>
+              {isLinking ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <MaterialIcons name="cloud-upload" size={18} color="#fff" />
+                  <Text style={styles.primaryBtnLabel}>Back up with Google</Text>
+                </>
+              )}
+            </Pressable>
+          </>
+        )}
       </View>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
@@ -613,6 +684,23 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 12,
+  },
+  btnDisabled: {
+    opacity: 0.5,
+  },
+  btnPressed: {
+    opacity: 0.85,
+  },
+  linkedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 44,
+  },
+  linkedText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
   },
   primaryBtnLabel: {
     color: '#fff',
