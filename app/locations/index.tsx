@@ -8,6 +8,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
+import { EmptyState } from '@/components/empty-state';
 
 export default function SavedLocationsScreen() {
   const c = useAppColors();
@@ -115,7 +116,7 @@ export default function SavedLocationsScreen() {
       <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
         <Text style={[styles.label, { color: c.textMuted }]}>SAVED LOCATIONS</Text>
         {locations.length === 0 ? (
-          <Text style={[styles.empty, { color: c.textHint }]}>No saved locations yet.</Text>
+          <EmptyState compact icon="place" title="No saved locations" message="Locations you add appear here." />
         ) : (
           locations.map((item, i) => (
             <View key={item.id} style={[styles.row, i > 0 && styles.rowDivider, { borderColor: c.border }]}>
@@ -195,9 +196,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontWeight: '600',
     fontSize: 15,
-  },
-  empty: {
-    fontSize: 13,
   },
   disabled: {
     opacity: 0.5,

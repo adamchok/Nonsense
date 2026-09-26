@@ -21,6 +21,7 @@ import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
+import { EmptyState } from '@/components/empty-state';
 
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
 type SortKey = 'datetime' | 'buyIn' | 'profit' | 'duration';
@@ -573,11 +574,20 @@ export default function HistoryScreen() {
           <ActivityIndicator size="large" color={c.textMuted} />
         </View>
       ) : filteredHistory.length === 0 ? (
-        <Text style={[styles.emptyList, { color: c.textMuted }]}>
-          {history.length === 0
-            ? 'No completed sessions yet. Finish a game to see your history.'
-            : 'No sessions match your current filters.'}
-        </Text>
+        history.length === 0 ? (
+          <EmptyState
+            icon="history"
+            title="No sessions yet"
+            message="Finished games show up here with your profit and loss."
+            action={{ label: 'Start a session', icon: 'add', onPress: () => router.push('../session/new') }}
+          />
+        ) : (
+          <EmptyState
+            icon="filter-alt"
+            title="No matching sessions"
+            message="Try changing or clearing your filters."
+          />
+        )
       ) : (
         <FlatList
           data={sortedHistory}
@@ -1176,10 +1186,6 @@ const styles = StyleSheet.create({
   summaryMeta: {
     fontSize: 12,
     textAlign: 'center',
-  },
-  emptyList: {
-    fontSize: 15,
-    lineHeight: 21,
   },
   list: {
     flex: 1,

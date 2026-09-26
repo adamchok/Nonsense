@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, type AppStateStatus, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { text as type, pressBg, ui } from '@/lib/ui';
 import { userMessage } from '@/lib/user-message';
+import { EmptyState } from '@/components/empty-state';
 
 export default function HomeScreen() {
   const c = useAppColors();
@@ -180,9 +181,12 @@ export default function HomeScreen() {
         </View>
         <View style={[ui.card, { backgroundColor: c.card, borderColor: c.border }]}>
           {activeSessions.length === 0 ? (
-            <Text style={[type.label, styles.empty, { color: c.textHint }]}>
-              No active sessions. Start a new game above.
-            </Text>
+            <EmptyState
+              compact
+              icon="style"
+              title="No active sessions"
+              message="Start a new game to track buy-ins live."
+            />
           ) : (
             activeSessions.map((session, index) => {
               const blindsText = formatSessionBlindsForDisplay(
@@ -284,10 +288,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderWidth: 1,
-  },
-  empty: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
   },
   liveBadge: {
     borderRadius: 4,
