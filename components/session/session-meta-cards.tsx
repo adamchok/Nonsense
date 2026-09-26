@@ -7,8 +7,8 @@ import {
   formatCompactCurrency,
 } from '@/lib/currency-format';
 import { sessionBlindsAreSet, type SessionView } from '@/lib/session-view';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import type { ComponentProps, ReactNode } from 'react';
+import { Icon, type IconName } from '@/components/icon';
+import type { ReactNode } from 'react';
 import { pressBg } from '@/lib/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -89,7 +89,7 @@ function MetaCard({
   fullRow,
   children,
 }: {
-  icon: ComponentProps<typeof MaterialIcons>['name'];
+  icon: IconName;
   label: string;
   /** Spoken value; the visible value may be icons plus numbers. */
   a11yValue: string;
@@ -106,7 +106,7 @@ function MetaCard({
   const body = (
     <View style={styles.textBlock}>
       <View style={styles.labelRow}>
-        <MaterialIcons name={icon} size={14} color={c.textHint} />
+        <Icon name={icon} size={14} color={c.textHint} />
         <Text style={[styles.label, { color: c.textHint }]}>{label}</Text>
       </View>
       {children}
@@ -128,7 +128,7 @@ function MetaCard({
       accessibilityLabel={spokenLabel}
       accessibilityHint={`Edit ${label.toLowerCase()}`}>
       {body}
-      <MaterialIcons name="edit" size={18} color={c.textHint} />
+      <Icon name="edit" size={18} color={c.textHint} />
     </Pressable>
   );
 }

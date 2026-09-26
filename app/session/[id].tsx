@@ -33,7 +33,7 @@ import { formatSessionAmountValue } from '@/lib/currency-format';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { VoiceRosterEntry } from '@/lib/voice-command';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -228,7 +228,7 @@ export default function ActiveSessionScreen() {
           {actions.isDeletingSession ? (
             <ActivityIndicator size="small" color={c.lossLight} />
           ) : (
-            <MaterialIcons name="delete-outline" size={24} color={c.lossLight} />
+            <Icon name="delete-outline" size={24} color={c.lossLight} />
           )}
         </Pressable>
       )

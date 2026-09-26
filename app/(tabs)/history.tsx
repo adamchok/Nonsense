@@ -14,7 +14,7 @@ import { formatDateTimeDMY } from '@/lib/date-format';
 import { appAlert } from '@/lib/app-alert';
 import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
@@ -420,7 +420,7 @@ export default function HistoryScreen() {
             accessibilityRole="button"
             accessibilityLabel="Refresh history">
             <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-              <MaterialIcons name="refresh" size={20} color={c.textMuted} />
+              <Icon name="refresh" size={20} color={c.textMuted} />
             </Animated.View>
           </Pressable>
           <View style={styles.sortWrap}>
@@ -429,7 +429,7 @@ export default function HistoryScreen() {
               onPress={() => setShowSortDropdown((prev) => !prev)}
               accessibilityRole="button"
               accessibilityLabel="Open sort options">
-              <MaterialIcons name="sort" size={20} color={c.textMuted} />
+              <Icon name="sort" size={20} color={c.textMuted} />
             </Pressable>
             {showSortDropdown ? (
               <View style={[styles.sortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -443,7 +443,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Date & time</Text>
-                  {sortBy === 'datetime' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'datetime' ? <Icon name="check" size={16} color={c.accent} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'buyIn' && { backgroundColor: c.accentBg }]}
@@ -454,7 +454,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Buy-in</Text>
-                  {sortBy === 'buyIn' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'buyIn' ? <Icon name="check" size={16} color={c.accent} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'profit' && { backgroundColor: c.accentBg }]}
@@ -465,7 +465,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Profit</Text>
-                  {sortBy === 'profit' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'profit' ? <Icon name="check" size={16} color={c.accent} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortBy === 'duration' && { backgroundColor: c.accentBg }]}
@@ -476,7 +476,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Duration</Text>
-                  {sortBy === 'duration' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  {sortBy === 'duration' ? <Icon name="check" size={16} color={c.accent} /> : null}
                 </Pressable>
                 <View style={[styles.sortDivider, { backgroundColor: c.border }]} />
                 <Text style={[styles.sortSectionTitle, { color: c.textHint }]}>Direction</Text>
@@ -489,7 +489,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Descending</Text>
-                  {sortDirection === 'desc' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  {sortDirection === 'desc' ? <Icon name="check" size={16} color={c.accent} /> : null}
                 </Pressable>
                 <Pressable
                   style={[styles.sortOption, sortDirection === 'asc' && { backgroundColor: c.accentBg }]}
@@ -500,7 +500,7 @@ export default function HistoryScreen() {
                     setShowSortDropdown(false);
                   }}>
                   <Text style={[styles.sortOptionText, { color: c.text }]}>Ascending</Text>
-                  {sortDirection === 'asc' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                  {sortDirection === 'asc' ? <Icon name="check" size={16} color={c.accent} /> : null}
                 </Pressable>
               </View>
             ) : null}
@@ -516,7 +516,7 @@ export default function HistoryScreen() {
             onPress={openFilters}
             accessibilityRole="button"
             accessibilityLabel="Open history filters">
-            <MaterialIcons
+            <Icon
               name="filter-alt"
               size={20}
               color={hasActiveFilters ? c.accent : c.textMuted}
@@ -662,7 +662,7 @@ export default function HistoryScreen() {
                       style={styles.historyMoreBtn}
                       accessibilityRole="button"
                       accessibilityLabel={removeLabel}>
-                      <MaterialIcons name="more-vert" size={20} color={c.textMuted} />
+                      <Icon name="more-vert" size={20} color={c.textMuted} />
                     </Pressable>
                   </View>
                 </View>
@@ -708,7 +708,7 @@ export default function HistoryScreen() {
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel="Close filters">
-                  <MaterialIcons name="close" size={20} color={c.textHint} />
+                  <Icon name="close" size={20} color={c.textHint} />
                 </Pressable>
               </View>
 
@@ -732,7 +732,7 @@ export default function HistoryScreen() {
                           ? 'No locations selected'
                           : `${draftFilters.locations?.length ?? 0} selected`}
                     </Text>
-                    <MaterialIcons name="chevron-right" size={20} color={c.textHint} />
+                    <Icon name="chevron-right" size={20} color={c.textHint} />
                   </Pressable>
                 </View>
 
@@ -765,7 +765,7 @@ export default function HistoryScreen() {
                               if (datePickerTarget === 'start') setDatePickerTarget(null);
                             }}
                             hitSlop={6}>
-                            <MaterialIcons name="close" size={14} color={c.textHint} />
+                            <Icon name="close" size={14} color={c.textHint} />
                           </Pressable>
                         ) : null}
                       </View>
@@ -797,7 +797,7 @@ export default function HistoryScreen() {
                               if (datePickerTarget === 'end') setDatePickerTarget(null);
                             }}
                             hitSlop={6}>
-                            <MaterialIcons name="close" size={14} color={c.textHint} />
+                            <Icon name="close" size={14} color={c.textHint} />
                           </Pressable>
                         ) : null}
                       </View>
@@ -964,7 +964,7 @@ export default function HistoryScreen() {
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel="Close location picker">
-                  <MaterialIcons name="close" size={20} color={c.textHint} />
+                  <Icon name="close" size={20} color={c.textHint} />
                 </Pressable>
               </View>
               <TextInput
@@ -990,7 +990,7 @@ export default function HistoryScreen() {
                       locations: allLocationsSelected ? [] : null,
                     }))
                   }>
-                  <MaterialIcons
+                  <Icon
                     name={allLocationsSelected ? 'check-box' : 'check-box-outline-blank'}
                     size={18}
                     color={allLocationsSelected ? c.accent : c.textHint}
@@ -1013,7 +1013,7 @@ export default function HistoryScreen() {
                             : [...(prev.locations ?? []), locationName],
                         }))
                       }>
-                      <MaterialIcons
+                      <Icon
                         name={selected ? 'check-box' : 'check-box-outline-blank'}
                         size={18}
                         color={selected ? c.accent : c.textHint}

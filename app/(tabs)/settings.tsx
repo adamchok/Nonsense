@@ -9,7 +9,7 @@ import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon, type IconName } from '@/components/icon';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -153,7 +153,7 @@ export default function SettingsScreen() {
               accessibilityLabel="Edit avatar emoji">
               <Text style={styles.avatarEmoji}>{playerProfile?.avatarEmoji ?? '🙂'}</Text>
               <View style={[styles.avatarEditBadge, { backgroundColor: t.accent, borderColor: t.border }]}>
-                <MaterialIcons name="edit" size={13} color="#fff" />
+                <Icon name="edit" size={13} color="#fff" />
               </View>
             </Pressable>
             <Pressable
@@ -168,7 +168,7 @@ export default function SettingsScreen() {
                   ellipsizeMode="tail">
                   {playerProfile?.name ?? 'Guest'}
                 </Text>
-                <MaterialIcons name="edit" size={16} color={t.muted} />
+                <Icon name="edit" size={16} color={t.muted} />
               </View>
               <Text style={[styles.displayHint, { color: t.muted }]}>Display name</Text>
             </Pressable>
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
             onPress={() => router.push('../qr-code')}
             accessibilityRole="button"
             accessibilityLabel="Open QR code">
-            <MaterialIcons name="qr-code" size={18} color="#fff" />
+            <Icon name="qr-code" size={18} color="#fff" />
             <Text style={styles.primaryBtnLabel}>QR Code</Text>
           </Pressable>
           <View style={styles.secondaryBtnRow}>
@@ -192,7 +192,7 @@ export default function SettingsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Saved locations">
               <View style={styles.secondaryBtnContent}>
-                <MaterialIcons name="location-on" size={18} color={t.text} />
+                <Icon name="location-on" size={18} color={t.text} />
                 <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
               </View>
             </Pressable>
@@ -206,7 +206,7 @@ export default function SettingsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Open statistics">
               <View style={styles.secondaryBtnContent}>
-                <MaterialIcons name="bar-chart" size={18} color={t.text} />
+                <Icon name="bar-chart" size={18} color={t.text} />
                 <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Statistics</Text>
               </View>
             </Pressable>
@@ -224,7 +224,7 @@ export default function SettingsScreen() {
               style={styles.linkedRow}
               accessible
               accessibilityLabel={`Backed up with Google${linkedEmail ? `, ${linkedEmail}` : ''}`}>
-              <MaterialIcons name="check-circle" size={22} color={c.accentText} />
+              <Icon name="check-circle" size={22} color={c.accentText} />
               <View style={styles.linkedTextCol}>
                 <Text style={[styles.linkedText, { color: t.text }]}>Backed up with Google</Text>
                 {linkedEmail ? (
@@ -301,7 +301,7 @@ export default function SettingsScreen() {
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel="Close statistics">
-                  <MaterialIcons name="close" size={22} color={t.muted} />
+                  <Icon name="close" size={22} color={t.muted} />
                 </Pressable>
               </View>
               {!user ? (
@@ -546,7 +546,7 @@ function ThemeOption({
   t,
   showDivider,
 }: {
-  icon: keyof typeof MaterialIcons.glyphMap;
+  icon: IconName;
   label: string;
   description: string;
   selected: boolean;
@@ -569,14 +569,14 @@ function ThemeOption({
         pressBg(c, state, selected ? t.selectedBg : t.card),
       ]}>
       <View style={[styles.themeIconWrap, { backgroundColor: t.chipBg }]}>
-        <MaterialIcons name={icon} size={18} color={t.text} />
+        <Icon name={icon} size={18} color={t.text} />
       </View>
       <View style={styles.themeText}>
         <Text style={[styles.themeLabel, { color: t.text }]}>{label}</Text>
         <Text style={[styles.themeDesc, { color: t.muted }]}>{description}</Text>
       </View>
       {selected ? (
-        <MaterialIcons name="check-circle" size={22} color={t.accent} />
+        <Icon name="check-circle" size={22} color={t.accent} />
       ) : (
         <View style={[styles.radioOuter, { borderColor: t.border }]}>
           <View style={styles.radioInner} />

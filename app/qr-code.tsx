@@ -10,7 +10,7 @@ import {
   subscribeOutgoingFriendRequests,
 } from '@/lib/firestore';
 import type { FriendRecord, FriendRequestRecord, PlayerProfile } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
@@ -383,7 +383,7 @@ export default function QrCodeScreen() {
               disabled={!refCode}
               accessibilityRole="button"
               accessibilityLabel="Copy referral code">
-              <MaterialIcons
+              <Icon
                 name={copied ? 'check' : 'content-copy'}
                 size={20}
                 color={copied ? c.profit : c.textMuted}
@@ -400,7 +400,7 @@ export default function QrCodeScreen() {
                 disabled={!refCode || sharingQr}
                 accessibilityRole="button"
                 accessibilityLabel="Share QR code as image">
-                <MaterialIcons name="share" size={20} color="#fff" />
+                <Icon name="share" size={20} color="#fff" />
                 <Text style={styles.toolbarBtnPrimaryLabel}>
                   {sharingQr ? 'Sharing…' : 'Share'}
                 </Text>
@@ -444,7 +444,7 @@ export default function QrCodeScreen() {
               {pickingGalleryImage ? (
                 <ActivityIndicator size="small" color={c.blue} />
               ) : (
-                <MaterialIcons name="photo-library" size={22} color={c.blue} />
+                <Icon name="photo-library" size={22} color={c.blue} />
               )}
               <Text style={[styles.scanGalleryBtnLabel, { color: c.text }]}>
                 {pickingGalleryImage ? 'Reading…' : 'Choose from gallery'}

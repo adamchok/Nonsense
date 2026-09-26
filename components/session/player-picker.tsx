@@ -1,7 +1,7 @@
 import { useAppColors } from '@/lib/app-theme';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { FriendRecord } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 type Props = {
@@ -41,7 +41,7 @@ export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, picke
                     },
                   ]}
                   onPress={() => onPick(p.playerId, p.name)}>
-                  {picked ? <MaterialIcons name="check" size={14} color={c.accentText} /> : null}
+                  {picked ? <Icon name="check" size={14} color={c.accentText} /> : null}
                   <Text style={[styles.chipText, { color: picked ? c.accentText : c.chipText }]}>
                     {p.name}
                     {isMe ? ' (You)' : ''}
@@ -73,7 +73,7 @@ export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, picke
                     },
                   ]}
                   onPress={() => onPick(f.playerId, f.name)}>
-                  <MaterialIcons
+                  <Icon
                     name={picked ? 'check' : 'person-add'}
                     size={14}
                     color={picked ? c.accentText : c.blue}

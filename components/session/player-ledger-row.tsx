@@ -4,7 +4,7 @@ import { formatSessionAmountValue } from '@/lib/currency-format';
 import { text as type, pressBg, ui } from '@/lib/ui';
 import { ledgerRowValues, type LedgerPlayer } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { memo } from 'react';
 import {
   Pressable,
@@ -165,7 +165,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             style={[styles.iconBtn, { backgroundColor: c.blueBg }]}
             hitSlop={4}
             onPress={() => onCashOut(player)}>
-            <MaterialIcons name="account-balance-wallet" size={20} color={c.blue} />
+            <Icon name="account-balance-wallet" size={20} color={c.blue} />
           </Pressable>
           <Pressable
             style={[styles.iconBtn, { borderColor: c.borderDanger }, styles.iconBtnOutline]}
@@ -175,13 +175,13 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             {isRemoving ? (
               <Text style={[styles.removeLabel, { color: c.lossLight }]}>…</Text>
             ) : (
-              <MaterialIcons name="delete-outline" size={20} color={c.lossLight} />
+              <Icon name="delete-outline" size={20} color={c.lossLight} />
             )}
           </Pressable>
         </View>
       ) : null}
       {canAct && isCashedOut ? (
-        <MaterialIcons name="chevron-right" size={22} color={c.textMuted} importantForAccessibility="no" />
+        <Icon name="chevron-right" size={22} color={c.textMuted} importantForAccessibility="no" />
       ) : null}
     </>
   );

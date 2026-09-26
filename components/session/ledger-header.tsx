@@ -1,5 +1,5 @@
 import { useAppColors } from '@/lib/app-theme';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icon } from '@/components/icon';
 import { text as type } from '@/lib/ui';
 import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
 
@@ -36,7 +36,7 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
       </View>
       {dollarsToggle ? (
         <View style={styles.switchRow}>
-          <MaterialCommunityIcons
+          <Icon
             name="poker-chip"
             size={14}
             color={c.textMuted}

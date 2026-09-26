@@ -1,5 +1,5 @@
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Icon } from '@/components/icon';
 import { WebContentColumn } from '@/components/web/web-app-frame';
 import { WebSidebar } from '@/components/web/web-sidebar';
 import { Colors } from '@/constants/theme';
@@ -66,7 +66,9 @@ const tabScreens = [
     name="index"
     options={{
       title: 'Home',
-      tabBarIcon: ({ color, size }) => <IconSymbol size={isWeb ? size : 28} name="house.fill" color={color} />,
+      tabBarIcon: ({ color, size, focused }) => (
+        <Icon size={isWeb ? size : 28} name="home" color={color} weight={focused ? 'fill' : 'regular'} />
+      ),
     }}
   />,
   <Tabs.Screen
@@ -74,7 +76,9 @@ const tabScreens = [
     name="history"
     options={{
       title: 'History',
-      tabBarIcon: ({ color, size }) => <IconSymbol size={isWeb ? size : 28} name="clock.fill" color={color} />,
+      tabBarIcon: ({ color, size, focused }) => (
+        <Icon size={isWeb ? size : 28} name="history" color={color} weight={focused ? 'fill' : 'regular'} />
+      ),
     }}
   />,
   <Tabs.Screen
@@ -82,7 +86,9 @@ const tabScreens = [
     name="friends"
     options={{
       title: 'Friends',
-      tabBarIcon: ({ color, size }) => <IconSymbol size={isWeb ? size : 28} name="person.2.fill" color={color} />,
+      tabBarIcon: ({ color, size, focused }) => (
+        <Icon size={isWeb ? size : 28} name="people" color={color} weight={focused ? 'fill' : 'regular'} />
+      ),
     }}
   />,
   <Tabs.Screen
@@ -90,7 +96,9 @@ const tabScreens = [
     name="settings"
     options={{
       title: 'Settings',
-      tabBarIcon: ({ color, size }) => <IconSymbol size={isWeb ? size : 28} name="gearshape.fill" color={color} />,
+      tabBarIcon: ({ color, size, focused }) => (
+        <Icon size={isWeb ? size : 28} name="settings" color={color} weight={focused ? 'fill' : 'regular'} />
+      ),
     }}
   />,
 ];

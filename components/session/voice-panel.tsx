@@ -1,6 +1,6 @@
 import type { VoiceSession } from '@/hooks/use-voice-session';
 import { useAppColors } from '@/lib/app-theme';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function VoiceMicButton({ voice }: { voice: VoiceSession }) {
@@ -21,7 +21,7 @@ export function VoiceMicButton({ voice }: { voice: VoiceSession }) {
           transform: [{ scale: pressed ? 0.98 : 1 }],
         },
       ]}>
-      <MaterialIcons
+      <Icon
         name={voice.isListening ? 'stop' : 'mic'}
         size={20}
         color={voice.isListening ? c.loss : c.accentText}
@@ -41,7 +41,7 @@ export function VoiceBanner({ voice }: { voice: VoiceSession }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <View style={[styles.banner, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
-        <MaterialIcons name="mic" size={20} color={c.accentText} importantForAccessibility="no" />
+        <Icon name="mic" size={20} color={c.accentText} importantForAccessibility="no" />
         <View style={styles.bannerText}>
           {voice.transcript ? (
             // No live region here: partial results update many times a second and TalkBack would chatter.

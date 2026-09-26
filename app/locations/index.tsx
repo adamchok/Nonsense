@@ -3,7 +3,7 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { addSavedLocation, getSavedLocations, removeSavedLocation } from '@/lib/firestore';
 import type { SavedLocation } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -105,7 +105,7 @@ export default function SavedLocationsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Save location"
             disabled={isSaving || !newLocation.trim()}>
-            <MaterialIcons name="add" size={20} color="#fff" />
+            <Icon name="add" size={20} color="#fff" />
           </Pressable>
         </View>
       </View>
@@ -127,7 +127,7 @@ export default function SavedLocationsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Delete saved location ${item.name}`}
                 onPress={() => onDeleteLocation(item)}>
-                <MaterialIcons name="delete-outline" size={20} color={c.lossLight} />
+                <Icon name="delete-outline" size={20} color={c.lossLight} />
               </Pressable>
             </View>
           ))

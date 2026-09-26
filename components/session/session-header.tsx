@@ -1,5 +1,5 @@
 import { useAppColors } from '@/lib/app-theme';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -34,7 +34,7 @@ export function SessionHeader({ title, hostActions }: Props) {
                 transform: [{ scale: pressed ? 0.98 : 1 }],
               },
             ]}>
-            <MaterialIcons name="add" size={18} color="#fff" importantForAccessibility="no" />
+            <Icon name="add" size={18} color="#fff" importantForAccessibility="no" />
             <Text style={styles.buyInLabel}>Buy-In</Text>
           </Pressable>
         </View>

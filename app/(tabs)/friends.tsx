@@ -29,7 +29,7 @@ import {
 } from '@/lib/firestore';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { FriendRecord, FriendRequestRecord, GroupMember, PokerGroup } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -479,7 +479,7 @@ export default function FriendsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Refresh friends">
                 <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-                  <MaterialIcons name="refresh" size={20} color={c.textMuted} />
+                  <Icon name="refresh" size={20} color={c.textMuted} />
                 </Animated.View>
               </Pressable>
               <Pressable
@@ -487,7 +487,7 @@ export default function FriendsScreen() {
                 onPress={() => router.push('../qr-code?tab=scan')}
                 accessibilityRole="button"
                 accessibilityLabel="Scan a friend's QR code">
-                <MaterialIcons name="qr-code-scanner" size={20} color={c.blue} />
+                <Icon name="qr-code-scanner" size={20} color={c.blue} />
               </Pressable>
               <Pressable
                 style={[styles.addBtn, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
@@ -495,7 +495,7 @@ export default function FriendsScreen() {
                 hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel="Add friend">
-                <MaterialIcons name="person-add" size={20} color={c.profit} />
+                <Icon name="person-add" size={20} color={c.profit} />
                 <Text style={[styles.addBtnLabel, { color: c.profit }]}>Add</Text>
               </Pressable>
             </View>
@@ -558,7 +558,7 @@ export default function FriendsScreen() {
                           appAlert('Error', userMessage(e, 'Failed to decline.'));
                         }
                       }}>
-                      <MaterialIcons name="close" size={22} color={c.textHint} />
+                      <Icon name="close" size={22} color={c.textHint} />
                     </Pressable>
                   </View>
                 </View>
@@ -653,7 +653,7 @@ export default function FriendsScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`Remove ${item.name} from friends`}
                     onPress={() => handleRemoveFriend(item.playerId, item.name)}>
-                    <MaterialIcons name="close" size={20} color={c.textHint} />
+                    <Icon name="close" size={20} color={c.textHint} />
                   </Pressable>
                 </View>
               ))}
@@ -680,7 +680,7 @@ export default function FriendsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Refresh groups">
                 <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-                  <MaterialIcons name="refresh" size={20} color={c.textMuted} />
+                  <Icon name="refresh" size={20} color={c.textMuted} />
                 </Animated.View>
               </Pressable>
               <Pressable
@@ -695,7 +695,7 @@ export default function FriendsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="New group"
                 accessibilityState={{ disabled: !canCreateGroup }}>
-                <MaterialIcons name="group-add" size={20} color={c.profit} />
+                <Icon name="group-add" size={20} color={c.profit} />
                 <Text style={[styles.addBtnLabel, { color: c.profit }]}>New</Text>
               </Pressable>
             </View>
@@ -737,7 +737,7 @@ export default function FriendsScreen() {
                     <Pressable
                       style={styles.groupHeaderLeft}
                       onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
-                      <MaterialIcons name="group" size={20} color={c.textMuted} />
+                      <Icon name="group" size={20} color={c.textMuted} />
                       <Text style={[styles.groupName, { color: c.text }]}>{group.name}</Text>
                       <Text style={[styles.groupCount, { color: c.textHint }]}>
                         {group.memberCount ?? 0} {(group.memberCount ?? 0) === 1 ? 'player' : 'players'}
@@ -751,14 +751,14 @@ export default function FriendsScreen() {
                             accessibilityRole="button"
                             accessibilityLabel={`Rename group ${group.name}`}
                             onPress={() => openRenameGroupModal(group)}>
-                            <MaterialIcons name="edit" size={20} color={c.textHint} />
+                            <Icon name="edit" size={20} color={c.textHint} />
                           </Pressable>
                           <Pressable
                             hitSlop={8}
                             accessibilityRole="button"
                             accessibilityLabel={`Delete group ${group.name}`}
                             onPress={() => handleDeleteGroup(group.id, group.name)}>
-                            <MaterialIcons name="delete-outline" size={20} color={c.textHint} />
+                            <Icon name="delete-outline" size={20} color={c.textHint} />
                           </Pressable>
                         </>
                       ) : (
@@ -767,7 +767,7 @@ export default function FriendsScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={`Leave group ${group.name}`}
                           onPress={() => handleLeaveGroup(group.id, group.name)}>
-                          <MaterialIcons name="logout" size={20} color={c.textHint} />
+                          <Icon name="logout" size={20} color={c.textHint} />
                         </Pressable>
                       )}
                       <Pressable
@@ -775,7 +775,7 @@ export default function FriendsScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={isExpanded ? `Collapse group ${group.name}` : `Expand group ${group.name}`}
                         onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}>
-                        <MaterialIcons
+                        <Icon
                           name={isExpanded ? 'expand-less' : 'expand-more'}
                           size={22}
                           color={c.textMuted}
@@ -838,7 +838,7 @@ export default function FriendsScreen() {
                             { backgroundColor: c.accentBg, borderColor: c.accentBorder },
                           ]}
                           onPress={() => router.push(`../group/${group.id}/members`)}>
-                          <MaterialIcons name={isGroupOwner ? 'edit' : 'people'} size={16} color={c.profit} />
+                          <Icon name={isGroupOwner ? 'edit' : 'people'} size={16} color={c.profit} />
                           <Text style={[styles.manageBtnLabel, { color: c.profit }]}>
                             {isGroupOwner ? 'Manage Members' : 'View Members'}
                           </Text>
@@ -853,7 +853,7 @@ export default function FriendsScreen() {
                             setGroupLeaderboardModalGroup(group);
                             setShowGroupLeaderboardModal(true);
                           }}>
-                          <MaterialIcons name="leaderboard" size={16} color={c.blue} />
+                          <Icon name="leaderboard" size={16} color={c.blue} />
                           <Text style={[styles.manageBtnLabel, { color: c.blue }]}>Leaderboard</Text>
                         </Pressable>
                       </View>
@@ -882,14 +882,14 @@ export default function FriendsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Refresh leaderboard">
                 <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-                  <MaterialIcons name="refresh" size={20} color={c.textMuted} />
+                  <Icon name="refresh" size={20} color={c.textMuted} />
                 </Animated.View>
               </Pressable>
               <View style={styles.lbSortWrap}>
               <Pressable
                 style={[styles.lbSortBtnLabeled, { backgroundColor: c.cardAlt, borderColor: c.border }]}
                 onPress={() => setShowLeaderboardSortDropdown((prev) => !prev)}>
-                <MaterialIcons name="sort" size={20} color={c.textMuted} />
+                <Icon name="sort" size={20} color={c.textMuted} />
                 <Text style={[styles.lbSortBtnText, { color: c.textMuted }]}>
                   {leaderboardSortBy === 'profit' ? 'Profit' : 'Name'} ({leaderboardSortDirection === 'asc' ? 'Asc' : 'Desc'})
                 </Text>
@@ -906,7 +906,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Profit</Text>
-                    {leaderboardSortBy === 'profit' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortBy === 'profit' ? <Icon name="check" size={16} color={c.accent} /> : null}
                   </Pressable>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortBy === 'name' && { backgroundColor: c.accentBg }]}
@@ -917,7 +917,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Name</Text>
-                    {leaderboardSortBy === 'name' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortBy === 'name' ? <Icon name="check" size={16} color={c.accent} /> : null}
                   </Pressable>
                   <View style={[styles.lbSortDivider, { backgroundColor: c.border }]} />
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Direction</Text>
@@ -930,7 +930,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Descending</Text>
-                    {leaderboardSortDirection === 'desc' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortDirection === 'desc' ? <Icon name="check" size={16} color={c.accent} /> : null}
                   </Pressable>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortDirection === 'asc' && { backgroundColor: c.accentBg }]}
@@ -941,7 +941,7 @@ export default function FriendsScreen() {
                       setShowLeaderboardSortDropdown(false);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Ascending</Text>
-                    {leaderboardSortDirection === 'asc' ? <MaterialIcons name="check" size={16} color={c.accent} /> : null}
+                    {leaderboardSortDirection === 'asc' ? <Icon name="check" size={16} color={c.accent} /> : null}
                   </Pressable>
                 </View>
               ) : null}
@@ -1081,7 +1081,7 @@ export default function FriendsScreen() {
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel="Close leaderboard">
-                  <MaterialIcons name="close" size={20} color={c.textHint} />
+                  <Icon name="close" size={20} color={c.textHint} />
                 </Pressable>
               </View>
 

@@ -7,7 +7,7 @@ import { formatDateTimeDMY } from '@/lib/date-format';
 import { getEarlyCashOuts, getPlayerProfile, getResults, getSessionMeta } from '@/lib/firestore';
 import { computeSettlements } from '@/lib/settlement';
 import type { EarlyCashOut, SessionAmountUnit, SessionResult } from '@/types';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Icon } from '@/components/icon';
 import { useNavigation } from '@react-navigation/native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
@@ -193,7 +193,7 @@ export default function SessionSummaryScreen() {
           style={styles.headerBackBtn}
           accessibilityRole="button"
           accessibilityLabel="Back to history">
-          <MaterialCommunityIcons name="arrow-left" size={20} color={c.text} />
+          <Icon name="arrow-left" size={20} color={c.text} />
         </Pressable>
       ),
       headerRight: () => (
@@ -203,7 +203,7 @@ export default function SessionSummaryScreen() {
           style={styles.headerShareBtn}
           accessibilityRole="button"
           accessibilityLabel="Share on WhatsApp">
-          <MaterialCommunityIcons name="whatsapp" size={16} color="#fff" />
+          <Icon name="whatsapp" size={16} color="#fff" />
         </Pressable>
       ),
     });
@@ -222,7 +222,7 @@ export default function SessionSummaryScreen() {
     return (
       <View style={[styles.screen, styles.emptyScreen, { backgroundColor: c.bg }]}>
         <View style={[styles.emptyIconWrap, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
-          <MaterialCommunityIcons name="clipboard-text-outline" size={40} color={c.accent} />
+          <Icon name="clipboard-text-outline" size={40} color={c.accent} />
         </View>
         <Text style={[styles.emptyTitle, { color: c.text }]}>
           {loadError ? "Couldn't load summary" : 'No results yet'}
@@ -261,7 +261,7 @@ export default function SessionSummaryScreen() {
           <View style={styles.metaGridRow}>
             <View style={styles.metaGridCell}>
               <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
-                <MaterialCommunityIcons name="map-marker-outline" size={16} color={c.green} />
+                <Icon name="map-marker-outline" size={16} color={c.green} />
               </View>
               <View style={styles.metaItemText}>
                 <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
@@ -272,7 +272,7 @@ export default function SessionSummaryScreen() {
             </View>
             <View style={styles.metaGridCell}>
               <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
-                <MaterialCommunityIcons name="crown-outline" size={16} color={c.yellow} />
+                <Icon name="crown-outline" size={16} color={c.yellow} />
               </View>
               <View style={styles.metaItemText}>
                 <Text style={[styles.metaLabel, { color: c.textMuted }]}>Host</Text>
@@ -285,7 +285,7 @@ export default function SessionSummaryScreen() {
           <View style={styles.metaGridRow}>
             <View style={styles.metaGridCell}>
               <View style={[styles.metaIconWrapSmall, { backgroundColor: c.blueBg }]}>
-                <MaterialCommunityIcons name="clock-outline" size={16} color={c.blue} />
+                <Icon name="clock-outline" size={16} color={c.blue} />
               </View>
               <View style={styles.metaItemText}>
                 <Text style={[styles.metaLabel, { color: c.textMuted }]}>Duration</Text>
@@ -300,7 +300,7 @@ export default function SessionSummaryScreen() {
                   styles.metaIconWrapSmall,
                   { backgroundColor: c.chipBg, borderColor: c.chipBorder, borderWidth: 1 },
                 ]}>
-                <MaterialCommunityIcons name="cash-multiple" size={16} color={c.chipText} />
+                <Icon name="cash-multiple" size={16} color={c.chipText} />
               </View>
               <View style={styles.metaItemText}>
                 <Text style={[styles.metaLabel, { color: c.textMuted }]}>Blinds</Text>
@@ -315,7 +315,7 @@ export default function SessionSummaryScreen() {
 
       <View style={styles.resultsBlock}>
         <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="trophy-outline" size={20} color={c.warning} />
+          <Icon name="trophy-outline" size={20} color={c.warning} />
           <Text style={[styles.sectionTitle, { color: c.text }]}>Standings</Text>
         </View>
         {results.map((item, index) => {
@@ -381,7 +381,7 @@ export default function SessionSummaryScreen() {
                     <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>In</Text>
                     <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.totalBuyIn)}</Text>
                   </View>
-                  <MaterialCommunityIcons name="arrow-right" size={14} color={c.textHint} />
+                  <Icon name="arrow-right" size={14} color={c.textHint} />
                   <View style={[styles.amountChip, { backgroundColor: c.chipPlusBg, borderColor: c.border }]}>
                     <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>Out</Text>
                     <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.cashOut)}</Text>
@@ -395,7 +395,7 @@ export default function SessionSummaryScreen() {
 
       <View style={styles.settlementBlock}>
         <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="bank-transfer" size={26} color={c.green} />
+          <Icon name="bank-transfer" size={26} color={c.green} />
           <Text style={[styles.sectionTitle, { color: c.text }]}>Settlement</Text>
         </View>
         {settlements.length > 0 ? (
@@ -412,7 +412,7 @@ export default function SessionSummaryScreen() {
                       {s.from}
                     </Text>
                     <View style={styles.settlementFlow}>
-                      <MaterialCommunityIcons name="arrow-right-bold" size={14} color={c.textMuted} />
+                      <Icon name="arrow-right-bold" size={14} color={c.textMuted} />
                       <Text style={[styles.settlementTo, { color: c.textSecondary }]} numberOfLines={1}>
                         {s.to}
                       </Text>
@@ -427,7 +427,7 @@ export default function SessionSummaryScreen() {
           </View>
         ) : (
           <View style={[styles.settlementEmpty, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-            <MaterialCommunityIcons name="check-circle-outline" size={28} color={c.accent} />
+            <Icon name="check-circle-outline" size={28} color={c.accent} />
             <Text style={[styles.settlementEmptyTitle, { color: c.text }]}>All square</Text>
             <Text style={[styles.settlementEmptySub, { color: c.textMuted }]}>
               No transfers needed — chip counts already match.

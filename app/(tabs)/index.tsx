@@ -6,7 +6,7 @@ import { formatDateTimeDMY } from '@/lib/date-format';
 import { getBuyIns, getRecentSessionsForPlayer } from '@/lib/firestore';
 import { useResolvedColorScheme } from '@/lib/theme-context';
 import type { SessionRecord } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, type AppStateStatus, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -155,7 +155,7 @@ export default function HomeScreen() {
         style={[ui.button, { backgroundColor: c.accent }]}
         accessibilityRole="button"
         onPress={() => router.push('../session/new')}>
-        <MaterialIcons name="add" size={20} color="#fff" importantForAccessibility="no" />
+        <Icon name="add" size={20} color="#fff" importantForAccessibility="no" />
         <Text style={[type.button, styles.ctaText]}>Start New Session</Text>
       </Pressable>
 
@@ -174,7 +174,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Refresh active sessions">
             <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-              <MaterialIcons name="refresh" size={18} color={c.textMuted} />
+              <Icon name="refresh" size={18} color={c.textMuted} />
             </Animated.View>
           </Pressable>
         </View>
@@ -211,7 +211,7 @@ export default function HomeScreen() {
                   pressBg(c, state, c.card),
                 ]}>
                 <View style={[ui.tile, { backgroundColor: c.accentBg }]}>
-                  <MaterialIcons name="style" size={18} color={c.accentText} />
+                  <Icon name="style" size={18} color={c.accentText} />
                 </View>
                 <View style={ui.rowBody}>
                   <Text style={[type.rowTitle, { color: c.text }]} numberOfLines={1}>
@@ -223,7 +223,7 @@ export default function HomeScreen() {
                     </Text>
                     <Text style={[styles.sessionMeta, { color: c.textMuted }]}> • </Text>
                     <View style={styles.sessionMetaWithIcon}>
-                      <MaterialIcons name="person" size={14} color={c.textMuted} />
+                      <Icon name="person" size={14} color={c.textMuted} />
                       <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
                         {sessionMetaById[session.id]?.playerCount ?? 0}
                       </Text>
@@ -236,7 +236,7 @@ export default function HomeScreen() {
                 <View style={[styles.liveBadge, { backgroundColor: c.badge.live }]}>
                   <Text style={styles.liveBadgeText}>LIVE</Text>
                 </View>
-                <MaterialIcons name="chevron-right" size={20} color={c.textMuted} importantForAccessibility="no" />
+                <Icon name="chevron-right" size={20} color={c.textMuted} importantForAccessibility="no" />
               </Pressable>
               );
             })

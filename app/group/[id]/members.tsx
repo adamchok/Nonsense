@@ -10,7 +10,7 @@ import {
   subscribeGroups,
 } from '@/lib/firestore';
 import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -168,7 +168,7 @@ export default function GroupMembersScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Add me (${playerProfile.name})`}
                   onPress={handleAddSelf}>
-                  <MaterialIcons name="person" size={16} color={c.profit} />
+                  <Icon name="person" size={16} color={c.profit} />
                   <Text style={[styles.chipText, { color: c.profit }]}>Me ({playerProfile.name})</Text>
                 </Pressable>
               )}
@@ -179,7 +179,7 @@ export default function GroupMembersScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Add ${f.name}`}
                   onPress={() => handleAddFriend(f)}>
-                  <MaterialIcons name="person-add" size={14} color={c.blue} />
+                  <Icon name="person-add" size={14} color={c.blue} />
                   <Text style={[styles.chipText, { color: c.blue }]}>{f.name}</Text>
                 </Pressable>
               ))}
@@ -258,7 +258,7 @@ export default function GroupMembersScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`Remove ${member.name} from group`}
                       onPress={() => handleRemove(member.id, member.name)}>
-                      <MaterialIcons name="close" size={20} color={c.textHint} />
+                      <Icon name="close" size={20} color={c.textHint} />
                     </Pressable>
                   ) : (
                     <View style={{ width: 20 }} />

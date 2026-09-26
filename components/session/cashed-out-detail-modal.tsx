@@ -3,7 +3,7 @@ import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { useAppColors } from '@/lib/app-theme';
 import { formatCashOutTimestamp } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -63,7 +63,7 @@ export function CashedOutDetailModal({ detail, unit, canBuyBack, onClose, onBuyB
               accessibilityRole="button"
               accessibilityLabel={`Buy ${detail.name} back in`}
               accessibilityHint="Opens the buy-in form for their new chips">
-              <MaterialIcons name="replay" size={18} color={c.warning} />
+              <Icon name="replay" size={18} color={c.warning} />
               <Text style={[styles.buyBackLabel, { color: c.warning }]}>Buy Back In</Text>
             </Pressable>
           ) : null}

@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
 import { parseAmount } from '@/lib/parse-amount';
 import type { GroupMember, PokerGroup, SavedLocation, SessionAmountUnit } from '@/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Icon } from '@/components/icon';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -278,7 +278,7 @@ export default function NewSessionScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag">
             <View style={styles.locationSection}>
-              <MaterialIcons name="place" size={20} color={c.textMuted} style={styles.icons} />
+              <Icon name="place" size={20} color={c.textMuted} style={styles.icons} />
               <Text style={[styles.locationSectionTitle, { color: c.textMuted }]}>Location (Optional)</Text>
             </View>
             {hasSavedLocations ? (
@@ -287,13 +287,13 @@ export default function NewSessionScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Location: ${locationMode === 'saved' ? getSelectedSavedLocationName() ?? 'not selected' : 'Other'}. Change`}
                 onPress={() => setShowLocationPicker(true)}>
-                <MaterialIcons name="place" size={18} color={c.textMuted} />
+                <Icon name="place" size={18} color={c.textMuted} />
                 <Text style={[styles.locationPickerText, { color: c.text }]}>
                   {locationMode === 'saved'
                     ? getSelectedSavedLocationName() ?? 'Select a saved location'
                     : 'Other'}
                 </Text>
-                <MaterialIcons name="expand-more" size={20} color={c.textMuted} />
+                <Icon name="expand-more" size={20} color={c.textMuted} />
               </Pressable>
             ) : null}
 
@@ -320,7 +320,7 @@ export default function NewSessionScreen() {
 
             <View style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={styles.amountModeHeader}>
-                <MaterialIcons name="tune" size={20} color={c.textMuted} style={styles.icons} />
+                <Icon name="tune" size={20} color={c.textMuted} style={styles.icons} />
                 <Text style={[styles.amountModeTitle, { color: c.textMuted }]}>Amounts</Text>
               </View>
               <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
@@ -380,7 +380,7 @@ export default function NewSessionScreen() {
             </View>
 
             <View style={styles.blindsSection}>
-              <MaterialIcons name="payments" size={20} color={c.textMuted} style={styles.icons} />
+              <Icon name="payments" size={20} color={c.textMuted} style={styles.icons} />
               <View style={styles.labelWithRequired}>
                 <Text style={[styles.blindsSectionTitle, { color: c.textMuted }]}>
                   Blinds{isChipsMode ? ' (chips)' : ''}
@@ -428,7 +428,7 @@ export default function NewSessionScreen() {
             {groups.length > 0 && (
               <View style={[styles.groupSection, { backgroundColor: c.card, borderColor: c.border }]}>
                 <View style={styles.groupSectionHeader}>
-                  <MaterialIcons name="group" size={20} color={c.textMuted} style={styles.icons} />
+                  <Icon name="group" size={20} color={c.textMuted} style={styles.icons} />
                   <Text style={[styles.groupSectionTitle, { color: c.textMuted }]}>Play with a group (Optional)</Text>
                 </View>
                 <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
@@ -438,7 +438,7 @@ export default function NewSessionScreen() {
                 {selectedGroup ? (
                   <View style={styles.selectedGroupRow}>
                     <View style={styles.selectedGroupInfo}>
-                      <MaterialIcons name="group" size={20} color={c.profit} />
+                      <Icon name="group" size={20} color={c.profit} />
                       <Text style={[styles.selectedGroupName, { color: c.text }]}>
                         {selectedGroup.name}
                       </Text>
@@ -451,7 +451,7 @@ export default function NewSessionScreen() {
                       onPress={clearGroup}
                       accessibilityRole="button"
                       accessibilityLabel="Remove selected group">
-                      <MaterialIcons name="close" size={20} color={c.textHint} />
+                      <Icon name="close" size={20} color={c.textHint} />
                     </Pressable>
                   </View>
                 ) : (
@@ -460,7 +460,7 @@ export default function NewSessionScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Select group"
                     onPress={() => setShowGroupPicker(true)}>
-                    <MaterialIcons name="group" size={18} color={c.textMuted} />
+                    <Icon name="group" size={18} color={c.textMuted} />
                     <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
                   </Pressable>
                 )}
@@ -500,7 +500,7 @@ export default function NewSessionScreen() {
                 <View style={styles.joinRow}>
                   <View style={styles.joinTextCol}>
                     <View style={styles.joinTextRow}>
-                      <MaterialIcons name="person" size={20} color={c.textMuted} style={styles.icons} />
+                      <Icon name="person" size={20} color={c.textMuted} style={styles.icons} />
                       <Text style={[styles.joinTitle, { color: c.textMuted }]}>Join as player</Text>
                       {joinSelf ? (
                         <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
@@ -583,7 +583,7 @@ export default function NewSessionScreen() {
                     style={[styles.pickerRow, { borderColor: c.border }]}
                     accessibilityRole="button"
                     onPress={() => handleSelectGroup(g)}>
-                    <MaterialIcons name="group" size={20} color={c.textMuted} />
+                    <Icon name="group" size={20} color={c.textMuted} />
                     <Text style={[styles.pickerRowText, { color: c.text }]}>{g.name}</Text>
                   </Pressable>
                 ))}
@@ -623,7 +623,7 @@ export default function NewSessionScreen() {
                     style={[styles.pickerRow, { borderColor: c.border }]}
                     accessibilityRole="button"
                     onPress={() => onSelectSavedLocation(item)}>
-                    <MaterialIcons name="place" size={18} color={c.textMuted} />
+                    <Icon name="place" size={18} color={c.textMuted} />
                     <Text style={[styles.pickerRowText, { color: c.text }]}>{item.name}</Text>
                   </Pressable>
                 ))}
@@ -632,7 +632,7 @@ export default function NewSessionScreen() {
                 style={[styles.pickerRow, { borderColor: c.border }]}
                 accessibilityRole="button"
                 onPress={onSelectOtherLocation}>
-                <MaterialIcons name="edit-location-alt" size={18} color={c.textMuted} />
+                <Icon name="edit-location-alt" size={18} color={c.textMuted} />
                 <Text style={[styles.pickerRowText, { color: c.text }]}>Other</Text>
               </Pressable>
               <Pressable
