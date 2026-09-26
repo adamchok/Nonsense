@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 10,
   },
-  headerSelected: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  headerSelected: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerLink: { fontSize: 12, fontWeight: '600' },
   headerValue: {
     fontSize: 16,
