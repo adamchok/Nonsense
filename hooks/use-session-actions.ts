@@ -17,6 +17,7 @@ import {
 } from '@/lib/firestore';
 import { parseAmount } from '@/lib/parse-amount';
 import { isValidBlinds, sessionBlindsAreSet, type SessionView } from '@/lib/session-view';
+import { userMessage } from '@/lib/user-message';
 
 type Options = {
   id: string | undefined;
@@ -29,9 +30,6 @@ type Options = {
   openBlindsEditor: () => void;
 };
 
-function errorMessage(e: unknown, fallback: string): string {
-  return e instanceof Error ? e.message : fallback;
-}
 
 /** Host-only writes for the live session screen. Each guards host status and shows its own errors. */
 export function useSessionActions({
@@ -63,7 +61,7 @@ export function useSessionActions({
             setRemovingPlayerId(playerId);
             await removePlayerBuyIns(id, playerId);
           } catch (e) {
-            appAlert('Error', errorMessage(e, 'Could not remove player.'));
+            appAlert('Error', userMessage(e, 'Could not remove player.'));
           } finally {
             setRemovingPlayerId(null);
           }
@@ -90,7 +88,7 @@ export function useSessionActions({
       Keyboard.dismiss();
       closeModal();
     } catch (e) {
-      appAlert('Error', errorMessage(e, 'Failed to save cash-out.'));
+      appAlert('Error', userMessage(e, 'Failed to save cash-out.'));
     }
   }
 
@@ -132,7 +130,7 @@ export function useSessionActions({
               router.replace('/(tabs)');
             } catch (e) {
               setIsDeletingSession(false);
-              appAlert('Error', errorMessage(e, 'Failed to delete session.'));
+              appAlert('Error', userMessage(e, 'Failed to delete session.'));
             }
           },
         },
@@ -147,7 +145,7 @@ export function useSessionActions({
       Keyboard.dismiss();
       closeModal();
     } catch (e) {
-      appAlert('Error', errorMessage(e, 'Failed to update location.'));
+      appAlert('Error', userMessage(e, 'Failed to update location.'));
     }
   }
 
@@ -166,7 +164,7 @@ export function useSessionActions({
       Keyboard.dismiss();
       closeModal();
     } catch (e) {
-      appAlert('Error', errorMessage(e, 'Failed to update dollars per chip.'));
+      appAlert('Error', userMessage(e, 'Failed to update dollars per chip.'));
     }
   }
 
@@ -186,7 +184,7 @@ export function useSessionActions({
       Keyboard.dismiss();
       closeModal();
     } catch (e) {
-      appAlert('Error', errorMessage(e, 'Failed to update blinds.'));
+      appAlert('Error', userMessage(e, 'Failed to update blinds.'));
     }
   }
 
@@ -202,7 +200,7 @@ export function useSessionActions({
       Keyboard.dismiss();
       closeModal();
     } catch (e) {
-      appAlert('Error', errorMessage(e, 'Failed to update buy-in.'));
+      appAlert('Error', userMessage(e, 'Failed to update buy-in.'));
     }
   }
 

@@ -35,6 +35,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 /** Only one Modal is ever on screen, so a single discriminated state drives them all. */
 type ActiveModal =
@@ -108,7 +109,7 @@ export default function ActiveSessionScreen() {
     void target.buyInId.then((buyInId) => {
       if (!buyInId) return;
       return deleteBuyInEntry(id, buyInId).catch((e) =>
-        appAlert('Undo failed', e instanceof Error ? e.message : 'Could not remove that buy-in.')
+        appAlert('Undo failed', userMessage(e, 'Could not remove that buy-in.'))
       );
     });
   }

@@ -9,6 +9,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, type AppStateStatus, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 export default function HomeScreen() {
   const c = useAppColors();
@@ -51,7 +52,7 @@ export default function HomeScreen() {
         if (opts?.signal?.aborted) {
           return;
         }
-        setError(e instanceof Error ? e.message : 'Failed to load sessions.');
+        setError(userMessage(e, 'Failed to load sessions.'));
       }
     },
     [playerProfile]

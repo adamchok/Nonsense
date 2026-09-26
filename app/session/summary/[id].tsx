@@ -21,6 +21,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 export default function SessionSummaryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -81,8 +82,8 @@ export default function SessionSummaryScreen() {
         }
       } catch (e) {
         if (cancelled) return;
-        setLoadError(e instanceof Error ? e.message : 'Failed to load results.');
-        appAlert('Error', e instanceof Error ? e.message : 'Failed to load results.');
+        setLoadError(userMessage(e, 'Failed to load results.'));
+        appAlert('Error', userMessage(e, 'Failed to load results.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -160,7 +161,7 @@ export default function SessionSummaryScreen() {
       }
       await Share.share({ message });
     } catch (e) {
-      appAlert('Share failed', e instanceof Error ? e.message : 'Could not open share options.');
+      appAlert('Share failed', userMessage(e, 'Could not open share options.'));
     }
   }, [buildSettlementMessage]);
 

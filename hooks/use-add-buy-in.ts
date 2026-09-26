@@ -9,6 +9,7 @@ import { getFirestoreDb } from '@/lib/firebase';
 import { addBuyIn } from '@/lib/firestore';
 import { parseAmount } from '@/lib/parse-amount';
 import type { PlayerProfile } from '@/types';
+import { userMessage } from '@/lib/user-message';
 
 export type BuyInDraft = {
   playerName: string;
@@ -79,7 +80,7 @@ export function useAddBuyIn(
         appAlert(
           'Buy-in not saved',
           `${name}'s buy-in of ${parsedAmount} failed: ${
-            e instanceof Error ? e.message : 'unknown error'
+            userMessage(e, 'unknown error')
           }. Add it again.`
         );
         return null;

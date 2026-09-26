@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot, { captureRef } from 'react-native-view-shot';
+import { userMessage } from '@/lib/user-message';
 
 type Tab = 'my' | 'scan';
 
@@ -111,7 +112,7 @@ export default function QrCodeScreen() {
         dialogTitle: 'Share your Nonsense code',
       });
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Could not share QR image.');
+      appAlert('Error', userMessage(e, 'Could not share QR image.'));
     } finally {
       setSharingQr(false);
     }
@@ -170,7 +171,7 @@ export default function QrCodeScreen() {
       }
       await handleBarCodeScanned({ data: barcodes[0].data });
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Could not read that image.');
+      appAlert('Error', userMessage(e, 'Could not read that image.'));
     } finally {
       setPickingGalleryImage(false);
     }
@@ -232,7 +233,7 @@ export default function QrCodeScreen() {
                 appAlert('Added!', `${found.name} is now your friend.`);
                 router.replace('/(tabs)/friends');
               } catch (e) {
-                appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                appAlert('Error', userMessage(e, 'Failed to accept.'));
               } finally {
                 releaseWithCooldown();
               }
@@ -252,7 +253,7 @@ export default function QrCodeScreen() {
       setPendingFriend(found);
       setPendingRefCode(code);
     } catch (e) {
-      alertThenRelease('Error', e instanceof Error ? e.message : 'Failed to add friend.');
+      alertThenRelease('Error', userMessage(e, 'Failed to add friend.'));
     }
   }
 
@@ -288,7 +289,7 @@ export default function QrCodeScreen() {
       router.replace('/(tabs)/friends');
       dismissAddFriendModal();
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to send request.');
+      appAlert('Error', userMessage(e, 'Failed to send request.'));
       dismissAddFriendModal();
     } finally {
       setAddingFriend(false);

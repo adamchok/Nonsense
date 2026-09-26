@@ -7,6 +7,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 export default function SavedLocationsScreen() {
   const c = useAppColors();
@@ -23,7 +24,7 @@ export default function SavedLocationsScreen() {
       const data = await getSavedLocations(user.uid);
       setLocations(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load saved locations.');
+      setError(userMessage(e, 'Failed to load saved locations.'));
     }
   }, [user]);
 
@@ -37,7 +38,7 @@ export default function SavedLocationsScreen() {
           const data = await getSavedLocations(user.uid);
           if (active) setLocations(data);
         } catch (e) {
-          if (active) setError(e instanceof Error ? e.message : 'Failed to load saved locations.');
+          if (active) setError(userMessage(e, 'Failed to load saved locations.'));
         }
       })();
       return () => {
@@ -54,7 +55,7 @@ export default function SavedLocationsScreen() {
       setNewLocation('');
       await load();
     } catch (e) {
-      appAlert('Unable to save location', e instanceof Error ? e.message : 'Please try again.');
+      appAlert('Unable to save location', userMessage(e, 'Please try again.'));
     } finally {
       setIsSaving(false);
     }
@@ -72,7 +73,7 @@ export default function SavedLocationsScreen() {
             await removeSavedLocation(user.uid, item.id);
             await load();
           } catch (e) {
-            appAlert('Error', e instanceof Error ? e.message : 'Failed to delete location.');
+            appAlert('Error', userMessage(e, 'Failed to delete location.'));
           }
         },
       },

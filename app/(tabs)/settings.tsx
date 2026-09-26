@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 function formatPlayTime(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000);
@@ -67,7 +68,7 @@ export default function SettingsScreen() {
       })
       .catch((e) => {
         if (!cancelled) {
-          setStatsError(e instanceof Error ? e.message : 'Failed to load statistics.');
+          setStatsError(userMessage(e, 'Failed to load statistics.'));
         }
       })
       .finally(() => {
@@ -107,7 +108,7 @@ export default function SettingsScreen() {
         );
         return;
       }
-      appAlert('Backup failed', e instanceof Error ? e.message : 'Please try again.');
+      appAlert('Backup failed', userMessage(e, 'Please try again.'));
     } finally {
       setIsLinking(false);
     }
@@ -121,7 +122,7 @@ export default function SettingsScreen() {
       await saveAvatarEmoji(emoji);
       setShowAvatarPicker(false);
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to save avatar.');
+      appAlert('Error', userMessage(e, 'Failed to save avatar.'));
     } finally {
       setSavingAvatar(false);
       setPendingAvatarEmoji(null);
@@ -213,9 +214,14 @@ export default function SettingsScreen() {
             accessible
             accessibilityLabel={`Backed up with Google${linkedEmail ? `, ${linkedEmail}` : ''}`}>
             <MaterialIcons name="check-circle" size={22} color={c.accentText} />
-            <Text style={[styles.linkedText, { color: t.text }]} numberOfLines={1} ellipsizeMode="middle">
-              Backed up{linkedEmail ? ` · ${linkedEmail}` : ''}
-            </Text>
+            <View style={styles.linkedTextCol}>
+              <Text style={[styles.linkedText, { color: t.text }]}>Backed up with Google</Text>
+              {linkedEmail ? (
+                <Text style={[styles.linkedEmail, { color: t.muted }]} numberOfLines={1} ellipsizeMode="middle">
+                  {linkedEmail}
+                </Text>
+              ) : null}
+            </View>
           </View>
         ) : (
           <>
@@ -697,10 +703,16 @@ const styles = StyleSheet.create({
     gap: 10,
     minHeight: 44,
   },
-  linkedText: {
+  linkedTextCol: {
     flex: 1,
+    gap: 2,
+  },
+  linkedText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  linkedEmail: {
+    fontSize: 13,
   },
   primaryBtnLabel: {
     color: '#fff',

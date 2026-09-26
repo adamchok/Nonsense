@@ -21,6 +21,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 const CHIP_AMOUNTS = [5, 10, 25, 50];
 const NEGATIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => b - a);
@@ -129,8 +130,8 @@ export default function CashOutScreen() {
         );
       } catch (e) {
         if (cancelled) return;
-        setLoadError(e instanceof Error ? e.message : 'Failed to load buy-ins.');
-        appAlert('Error', e instanceof Error ? e.message : 'Failed to load buy-ins.');
+        setLoadError(userMessage(e, 'Failed to load buy-ins.'));
+        appAlert('Error', userMessage(e, 'Failed to load buy-ins.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -332,7 +333,7 @@ export default function CashOutScreen() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       router.replace(`../../session/summary/${id}`);
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to save results.');
+      appAlert('Error', userMessage(e, 'Failed to save results.'));
     } finally {
       setSaving(false);
     }

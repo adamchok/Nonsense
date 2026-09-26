@@ -45,6 +45,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 type LeaderboardEntry = { playerId: string; name: string; avatarEmoji?: string; totalProfit: number };
 type FriendsSectionTab = 'friends' | 'leaderboard' | 'groups';
@@ -282,7 +283,7 @@ export default function FriendsScreen() {
       setRenameGroupTarget(null);
       setRenameGroupName('');
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to rename group.');
+      appAlert('Error', userMessage(e, 'Failed to rename group.'));
     } finally {
       setRenameGroupSaving(false);
     }
@@ -300,7 +301,7 @@ export default function FriendsScreen() {
             if (expandedGroupId === groupId) setExpandedGroupId(null);
             await deleteGroup(user.uid, groupId);
           } catch (e) {
-            appAlert('Error', e instanceof Error ? e.message : 'Failed to delete group.');
+            appAlert('Error', userMessage(e, 'Failed to delete group.'));
           }
         },
       },
@@ -320,7 +321,7 @@ export default function FriendsScreen() {
             if (expandedGroupId === groupId) setExpandedGroupId(null);
             await leaveGroup(user.uid, groupId);
           } catch (e) {
-            appAlert('Error', e instanceof Error ? e.message : 'Failed to leave group.');
+            appAlert('Error', userMessage(e, 'Failed to leave group.'));
           }
         },
       },
@@ -372,7 +373,7 @@ export default function FriendsScreen() {
                   setShowAddModal(false);
                   appAlert('Added!', `${found.name} is now your friend.`);
                 } catch (e) {
-                  appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                  appAlert('Error', userMessage(e, 'Failed to accept.'));
                 }
               },
             },
@@ -401,7 +402,7 @@ export default function FriendsScreen() {
         appAlert('Request sent', `${found.name} will see your request.`);
       }
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to send request.');
+      appAlert('Error', userMessage(e, 'Failed to send request.'));
     } finally {
       setAdding(false);
     }
@@ -418,7 +419,7 @@ export default function FriendsScreen() {
           try {
             await removeFriend(user.uid, friendId);
           } catch (e) {
-            appAlert('Error', e instanceof Error ? e.message : 'Failed to remove friend.');
+            appAlert('Error', userMessage(e, 'Failed to remove friend.'));
           }
         },
       },
@@ -529,7 +530,7 @@ export default function FriendsScreen() {
                         try {
                           await acceptFriendRequest(user.uid, req.playerId);
                         } catch (e) {
-                          appAlert('Error', e instanceof Error ? e.message : 'Failed to accept.');
+                          appAlert('Error', userMessage(e, 'Failed to accept.'));
                         }
                       }}>
                       <Text style={styles.requestAcceptLabel}>Accept</Text>
@@ -543,7 +544,7 @@ export default function FriendsScreen() {
                         try {
                           await declineFriendRequest(user.uid, req.playerId);
                         } catch (e) {
-                          appAlert('Error', e instanceof Error ? e.message : 'Failed to decline.');
+                          appAlert('Error', userMessage(e, 'Failed to decline.'));
                         }
                       }}>
                       <MaterialIcons name="close" size={22} color={c.textHint} />
@@ -583,7 +584,7 @@ export default function FriendsScreen() {
                             try {
                               await cancelOutgoingFriendRequest(user.uid, req.playerId);
                             } catch (e) {
-                              appAlert('Error', e instanceof Error ? e.message : 'Failed to cancel.');
+                              appAlert('Error', userMessage(e, 'Failed to cancel.'));
                             }
                           },
                         },

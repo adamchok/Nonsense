@@ -23,6 +23,7 @@ import {
   TextInput,
   View
 } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 export default function GroupMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -80,7 +81,7 @@ export default function GroupMembersScreen() {
         avatarEmoji: friend.avatarEmoji,
       });
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to add member.');
+      appAlert('Error', userMessage(e, 'Failed to add member.'));
     }
   }
 
@@ -94,7 +95,7 @@ export default function GroupMembersScreen() {
         avatarEmoji: playerProfile.avatarEmoji,
       });
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to add yourself.');
+      appAlert('Error', userMessage(e, 'Failed to add yourself.'));
     }
   }
 
@@ -110,7 +111,7 @@ export default function GroupMembersScreen() {
       await addGroupMember(user.uid, id, { id: memberId, name, isRegistered: false });
       setGuestName('');
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to add guest.');
+      appAlert('Error', userMessage(e, 'Failed to add guest.'));
     }
   }
 
@@ -127,7 +128,7 @@ export default function GroupMembersScreen() {
             try {
               await removeGroupMember(uid, id, memberId);
             } catch (e) {
-              appAlert('Error', e instanceof Error ? e.message : 'Failed to remove member.');
+              appAlert('Error', userMessage(e, 'Failed to remove member.'));
             }
           })();
         },

@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { userMessage } from '@/lib/user-message';
 
 export default function NameScreen() {
   const c = useAppColors();
@@ -89,7 +90,7 @@ export default function NameScreen() {
     } catch (error) {
       appAlert(
         'Unable to save name',
-        error instanceof Error ? error.message : 'Please try again.'
+        userMessage(error, 'Please try again.')
       );
     } finally {
       setIsSaving(false);
@@ -106,7 +107,7 @@ export default function NameScreen() {
       if (error instanceof AccountLinkError && error.code === 'cancelled') return;
       appAlert(
         'Unable to sign in',
-        error instanceof Error ? error.message : 'Please try again.'
+        userMessage(error, 'Please try again.')
       );
     } finally {
       setIsSigningIn(false);

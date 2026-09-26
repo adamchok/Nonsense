@@ -104,7 +104,7 @@ Versions follow `MAJOR.MINOR.PATCH`, kept in sync in `app.json` (`expo.version`)
 
 | Change | Bump | Ship with |
 |---|---|---|
-| JS/UI-only fix | PATCH | `eas update --branch preview` (OTA) |
+| JS/UI-only fix | PATCH, in the update message only (don't edit `app.json`: `version` is part of the fingerprint, so bumping it would stop the update reaching installed builds) | `npm run update:preview` (OTA) |
 | New feature, or any native change (new native module, `app.json` plugin/permission) | MINOR | new EAS build |
 | Breaking data/rules change | MAJOR | new EAS build |
 
@@ -117,7 +117,7 @@ Channels map 1:1 to branches of the same name: `development`, `preview` (APK bui
 ```bash
 # native release (bump MINOR in app.json + package.json first)
 npm run build:preview
-# OTA fix (bump PATCH first; message starts with the version)
+# OTA fix (leave app.json alone; the message carries the patch version)
 npm run update:preview -- "v1.1.1: <what changed>"
 ```
 

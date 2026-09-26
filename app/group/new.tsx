@@ -5,6 +5,7 @@ import { createGroup } from '@/lib/firestore';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 export default function NewGroupScreen() {
   const c = useAppColors();
@@ -22,7 +23,7 @@ export default function NewGroupScreen() {
       const groupId = await createGroup(playerProfile.id, name);
       router.replace(`./${groupId}/members`);
     } catch (e) {
-      appAlert('Error', e instanceof Error ? e.message : 'Failed to create group.');
+      appAlert('Error', userMessage(e, 'Failed to create group.'));
     } finally {
       setIsSaving(false);
     }

@@ -23,6 +23,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { userMessage } from '@/lib/user-message';
 
 const SCREEN_CONTENT_PADDING_BOTTOM = 32;
 
@@ -253,7 +254,7 @@ export default function NewSessionScreen() {
     } catch (error) {
       appAlert(
         'Unable to create session',
-        error instanceof Error ? error.message : 'Please try again.'
+        userMessage(error, 'Please try again.')
       );
     } finally {
       setIsSaving(false);

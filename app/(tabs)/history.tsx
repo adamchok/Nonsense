@@ -17,6 +17,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { userMessage } from '@/lib/user-message';
 
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
 type SortKey = 'datetime' | 'buyIn' | 'profit' | 'duration';
@@ -154,7 +155,7 @@ export default function HistoryScreen() {
       setHasMoreHistory(page.hasMore);
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
-      setError(e instanceof Error ? e.message : 'Failed to load history.');
+      setError(userMessage(e, 'Failed to load history.'));
     } finally {
       if (generation === loadGenerationRef.current) {
         setLoading(false);
@@ -182,7 +183,7 @@ export default function HistoryScreen() {
       setHasMoreHistory(page.hasMore);
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
-      setError(e instanceof Error ? e.message : 'Failed to load more history.');
+      setError(userMessage(e, 'Failed to load more history.'));
     } finally {
       setLoadingMore(false);
     }
@@ -347,7 +348,7 @@ export default function HistoryScreen() {
                   await leaveSession(sessionId, playerId);
                   await loadHistory();
                 } catch (e) {
-                  appAlert('Error', e instanceof Error ? e.message : 'Failed to remove session.');
+                  appAlert('Error', userMessage(e, 'Failed to remove session.'));
                 }
               })();
             },
