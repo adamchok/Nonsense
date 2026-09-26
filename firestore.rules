@@ -51,7 +51,8 @@ service cloud.firestore {
       return signedIn()
         && request.auth.uid != resource.data.hostId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds'])
-        && resource.data.participantIds.removeAll([request.auth.uid])
+        // get(): legacy sessions predate the mirror; arrayRemove there writes [].
+        && resource.data.get('participantIds', []).removeAll([request.auth.uid])
           == request.resource.data.participantIds;
     }
 
