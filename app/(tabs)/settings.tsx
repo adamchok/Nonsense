@@ -50,6 +50,8 @@ export default function SettingsScreen() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [stats, setStats] = useState<PlayerAppStatistics | null>(null);
+  const [isSignOutHovered, setIsSignOutHovered] = useState(false);
+  const signOutColor = isSignOutHovered ? c.loss : t.text;
 
   useEffect(() => {
     if (!showStatsModal || !user) return;
@@ -214,17 +216,22 @@ export default function SettingsScreen() {
                 </Text>
               ) : null}
             </View>
+            <PressableScale
+              style={[
+                styles.signOutBtn,
+                { borderColor: isSignOutHovered ? c.loss : c.inputBorder, backgroundColor: t.card },
+              ]}
+              onPress={onSignOut}
+              onHoverIn={() => setIsSignOutHovered(true)}
+              onHoverOut={() => setIsSignOutHovered(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Sign out">
+              <View style={styles.secondaryBtnContent}>
+                <Icon name="logout" size={18} color={signOutColor} />
+                <Text style={[styles.signOutLabel, { color: signOutColor }]}>Sign out</Text>
+              </View>
+            </PressableScale>
           </View>
-          <PressableScale
-            style={[styles.secondaryBtn, { borderColor: c.inputBorder, backgroundColor: t.card }]}
-            onPress={onSignOut}
-            accessibilityRole="button"
-            accessibilityLabel="Sign out">
-            <View style={styles.secondaryBtnContent}>
-              <Icon name="logout" size={18} color={c.destructive} />
-              <Text style={[styles.secondaryBtnLabel, { color: c.destructive }]}>Sign out</Text>
-            </View>
-          </PressableScale>
         </View>
       </View>
 
@@ -232,7 +239,6 @@ export default function SettingsScreen() {
         <Text style={[styles.cardLabel, { color: t.muted }]} accessibilityRole="header">
           Appearance
         </Text>
-        <Text style={[styles.sectionHint, { color: t.muted }]}>Choose light, dark, or match your device.</Text>
         <LayoutAnimationConfig skipEntering>
         <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
           <ThemeOption
@@ -478,11 +484,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     paddingHorizontal: 4,
   },
-  sectionHint: {
-    fontSize: 13,
-    lineHeight: 18,
-    paddingHorizontal: 4,
-  },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -584,6 +585,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+  },
+  signOutBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  signOutLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   secondaryBtnLabel: {
     fontSize: 15,
