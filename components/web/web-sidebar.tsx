@@ -37,8 +37,8 @@ export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps
         <Image
           source={
             scheme === 'dark'
-              ? require('@/assets/images/logo.png')
-              : require('@/assets/images/logo-light.png')
+              ? require('@/assets/images/logo-mark.png')
+              : require('@/assets/images/logo-mark-light.png')
           }
           style={styles.logo}
           resizeMode="contain"
@@ -142,8 +142,8 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   logo: {
-    width: 28,
-    height: 28,
+    width: 40,
+    height: 40,
   },
   brandName: {
     fontSize: 17,
