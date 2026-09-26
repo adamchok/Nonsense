@@ -125,57 +125,54 @@ export function BuyInModal({
               onPress={() => pick(playerProfile.id, playerProfile.name)}
               accessibilityRole="button"
               accessibilityLabel={`Add myself, ${playerProfile.name}`}>
-              <Text style={[styles.quickAddLabel, { color: c.accentText }]}>
-                + Add myself ({playerProfile.name})
-              </Text>
+              <Text style={[styles.quickAddLabel, { color: c.accentText }]}>+ Add myself ({playerProfile.name})</Text>
             </PressableScale>
           )}
           <View>
+            {/* Each field is a column so its error sits right under it. */}
             <View style={styles.inputRow}>
-              <TextInput
-                value={draft.playerName}
-                onChangeText={(text) => setName(text, null)}
-                editable={!draft.isBuyBack}
-                autoFocus={!draft.pickedPlayerId && !draft.playerName}
-                returnKeyType="next"
-                onSubmitEditing={() => amountInputRef.current?.focus()}
-                submitBehavior="submit"
-                placeholder="Player name"
-                placeholderTextColor={c.placeholder}
-                accessibilityLabel="Player name"
-                onFocus={() => scrollModalFieldToTop(scrollRef)}
-                style={[
-                  formStyles.input,
-                  styles.nameInput,
-                  inputColors,
-                  errorBorder(c, nameError),
-                  { color: c.text },
-                ]}
-                {...invalidProps(nameError)}
-              />
-              <SessionAmountInputRow
-                unit={unit}
-                color={c.textMuted}
-                iconSize={16}
-                style={[formStyles.amountInputWrap, inputColors, errorBorder(c, amountError)]}>
+              <View style={styles.nameCol}>
                 <TextInput
-                  ref={amountInputRef}
-                  value={draft.amount}
-                  onChangeText={(text) => setAmount(sanitizeAmountInput(text))}
-                  autoFocus={Boolean(draft.pickedPlayerId) && !draft.amount}
-                  returnKeyType="done"
-                  onSubmitEditing={() => void submit()}
-                  placeholder={unit === 'chips' ? 'Chips' : '0.00'}
+                  value={draft.playerName}
+                  onChangeText={(text) => setName(text, null)}
+                  editable={!draft.isBuyBack}
+                  autoFocus={!draft.pickedPlayerId && !draft.playerName}
+                  returnKeyType="next"
+                  onSubmitEditing={() => amountInputRef.current?.focus()}
+                  submitBehavior="submit"
+                  placeholder="Player name"
                   placeholderTextColor={c.placeholder}
-                  accessibilityLabel={unit === 'chips' ? 'Buy-in chips' : 'Buy-in amount'}
-                  keyboardType="numeric"
-                  style={[formStyles.amountInput, { color: c.text }]}
-                  {...invalidProps(amountError)}
+                  accessibilityLabel="Player name"
+                  onFocus={() => scrollModalFieldToTop(scrollRef)}
+                  style={[formStyles.input, inputColors, errorBorder(c, nameError), { color: c.text }]}
+                  {...invalidProps(nameError)}
                 />
-              </SessionAmountInputRow>
+                <FieldError message={nameError} />
+              </View>
+              <View style={styles.amountCol}>
+                <SessionAmountInputRow
+                  unit={unit}
+                  color={c.textMuted}
+                  iconSize={16}
+                  style={[formStyles.amountInputWrap, inputColors, errorBorder(c, amountError)]}>
+                  <TextInput
+                    ref={amountInputRef}
+                    value={draft.amount}
+                    onChangeText={(text) => setAmount(sanitizeAmountInput(text))}
+                    autoFocus={Boolean(draft.pickedPlayerId) && !draft.amount}
+                    returnKeyType="done"
+                    onSubmitEditing={() => void submit()}
+                    placeholder={unit === 'chips' ? 'Chips' : '0.00'}
+                    placeholderTextColor={c.placeholder}
+                    accessibilityLabel={unit === 'chips' ? 'Buy-in chips' : 'Buy-in amount'}
+                    keyboardType="numeric"
+                    style={[formStyles.amountInput, { color: c.text }]}
+                    {...invalidProps(amountError)}
+                  />
+                </SessionAmountInputRow>
+                <FieldError message={amountError} />
+              </View>
             </View>
-            <FieldError message={nameError} />
-            <FieldError message={amountError} />
           </View>
           {quickAmounts.length > 0 ? (
             <View style={styles.quickAmounts}>
@@ -213,9 +210,9 @@ export function BuyInModal({
 const PRESET_AMOUNTS = [100, 200, 300, 500, 1000];
 
 function buyInAmountError(amount: string): string | null {
-  if (!amount.trim()) return 'Enter an amount, like 50';
+  if (!amount.trim()) return 'Enter an amount';
   const parsed = parseAmount(amount);
-  if (parsed == null) return 'Enter a number, like 50 or 12.5';
+  if (parsed == null) return 'Enter a number';
   return parsed > 0 ? null : 'Must be more than 0';
 }
 
@@ -247,10 +244,15 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 8,
   },
-  nameInput: {
+  nameCol: {
     flex: 2,
+    minWidth: 0,
+  },
+  amountCol: {
+    flex: 1,
     minWidth: 0,
   },
   quickAmounts: {
