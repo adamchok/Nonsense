@@ -12,7 +12,11 @@
     "test:auth": "firebase emulators:exec --only auth,firestore --project demo-nonsense \"node --test --test-concurrency=1 test/auth/*.test.ts\"",
     "test:rules": "firebase emulators:exec --only firestore --project demo-nonsense \"node --test --test-concurrency=1 test/rules/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "eas-build-pre-install": "node scripts/check-firebase-env.js"
+    "eas-build-pre-install": "node scripts/check-firebase-env.js",
+    "build:preview": "eas build -p android --profile preview",
+    "build:production": "eas build -p android --profile production",
+    "update:preview": "eas update --branch preview --platform android --message",
+    "update:production": "eas update --branch production --platform android --message"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

@@ -112,11 +112,13 @@ Versions follow `MAJOR.MINOR.PATCH`, kept in sync in `app.json` (`expo.version`)
 - Android `versionCode` is managed remotely by EAS (`appVersionSource: remote`) and auto-increments on every preview/production build.
 - Tag each build's commit: `git tag v1.1.0 && git push --tags`.
 
+Channels map 1:1 to branches of the same name: `development`, `preview` (APK builds on your phone), `production`. Updates are Android-only.
+
 ```bash
-# native release
-eas build -p android --profile preview
-# OTA fix (same native fingerprint)
-eas update --branch preview --message "v1.1.1: <what changed>"
+# native release (bump MINOR in app.json + package.json first)
+npm run build:preview
+# OTA fix (bump PATCH first; message starts with the version)
+npm run update:preview -- "v1.1.1: <what changed>"
 ```
 
 ## Firestore setup notes
