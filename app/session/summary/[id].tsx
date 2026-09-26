@@ -366,7 +366,7 @@ export default function SessionSummaryScreen() {
           <Pressable
             onPress={() => void handleCopyResults()}
             hitSlop={8}
-            style={[styles.headerCopyBtn, { backgroundColor: c.cardAlt, borderColor: c.border }]}
+            style={[styles.headerCopyBtn, { backgroundColor: c.card, borderColor: c.inputBorder }]}
             accessibilityRole="button"
             accessibilityLabel={isCopied ? 'Results copied' : 'Copy results'}>
             <Icon name={isCopied ? 'check' : 'content-copy'} size={16} color={isCopied ? c.profit : c.text} />
@@ -390,8 +390,8 @@ export default function SessionSummaryScreen() {
     isCopied,
     goToHistory,
     c.text,
-    c.cardAlt,
-    c.border,
+    c.card,
+    c.inputBorder,
     c.profit,
     layout.gutter,
   ]);
