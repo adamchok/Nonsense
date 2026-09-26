@@ -33,6 +33,6 @@ export function invalidProps(message?: string | null): object {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 6 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 10 },
   text: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

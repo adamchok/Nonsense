@@ -2,6 +2,7 @@ import { ModalBackdrop } from '@/components/modal-backdrop';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
+import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -36,6 +37,14 @@ const AMOUNT_UNIT_TABS: readonly SegmentedTab<SessionAmountUnit>[] = [
 
 const SCREEN_CONTENT_PADDING_BOTTOM = 32;
 
+type FormErrors = {
+  dollarsPerChip?: string;
+  smallBlind?: string;
+  bigBlind?: string;
+  groupBuyIn?: string;
+  buyIn?: string;
+};
+
 export default function NewSessionScreen() {
   const c = useAppColors();
   const { gutter } = usePageLayout();
@@ -61,6 +70,7 @@ export default function NewSessionScreen() {
   const [bigBlindStr, setBigBlindStr] = useState('');
   const [amountUnit, setAmountUnit] = useState<SessionAmountUnit>('cash');
   const [dollarsPerChipStr, setDollarsPerChipStr] = useState('');
+  const [errors, setErrors] = useState<FormErrors>({});
   const hasSavedLocations = savedLocations.length > 0;
   const isChipsMode = amountUnit === 'chips';
 
@@ -123,6 +133,16 @@ export default function NewSessionScreen() {
     });
   }
 
+  function clearError(key: keyof FormErrors) {
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  }
+
+  /** Messages are worded for the unit (cash vs chips), so switching units clears them. */
+  function onChangeAmountUnit(unit: SessionAmountUnit) {
+    setAmountUnit(unit);
+    setErrors({});
+  }
+
   function onSelectSavedLocation(item: SavedLocation) {
     setLocationMode('saved');
     setSelectedSavedLocationId(item.id);
@@ -156,6 +176,7 @@ export default function NewSessionScreen() {
     setSelectedGroup(null);
     setGroupMembers([]);
     setGroupBuyIn('');
+    clearError('groupBuyIn');
   }
 
   async function onCreate() {
@@ -185,66 +206,70 @@ export default function NewSessionScreen() {
     // Validated amounts are snapshotted here and used for the write — never re-read from
     // the still-editable inputs after an await.
     const initialBuyIns: { playerId: string; playerName: string; amount: number }[] = [];
+    // Validate every field at once so each mistake shows inline, not one alert at a time.
+    const nextErrors: FormErrors = {};
+
+    let dollarsPerChip: number | undefined;
+    if (isChipsMode) {
+      const dpc = parseAmount(dollarsPerChipStr.trim());
+      if (dpc == null || dpc <= 0) {
+        nextErrors.dollarsPerChip = 'Enter what one chip is worth, like 0.50';
+      } else {
+        dollarsPerChip = dpc;
+      }
+    }
+
+    const sb = parseAmount(smallBlindStr.trim());
+    const bb = parseAmount(bigBlindStr.trim());
+    if (sb == null || sb <= 0) {
+      nextErrors.smallBlind = 'Enter the small blind';
+    }
+    if (bb == null || bb <= 0) {
+      nextErrors.bigBlind = 'Enter the big blind';
+    } else if (sb != null && sb > 0 && bb < sb) {
+      nextErrors.bigBlind = 'Big blind must be at least the small blind';
+    }
 
     if (shouldAddGroupMembers) {
       const parsed = parseAmount(groupBuyIn);
       if (parsed == null || parsed <= 0) {
-        appAlert(
-          'Invalid buy-in',
-          isChipsMode ? 'Enter a valid chip buy-in for the group.' : 'Enter a valid buy-in amount for the group.'
-        );
-        return;
-      }
-      for (const member of membersForCreate) {
-        initialBuyIns.push({ playerId: member.id, playerName: member.name, amount: parsed });
+        nextErrors.groupBuyIn = isChipsMode
+          ? 'Enter the chips each player buys in for'
+          : 'Enter the buy-in per player, like 50';
+      } else {
+        for (const member of membersForCreate) {
+          initialBuyIns.push({ playerId: member.id, playerName: member.name, amount: parsed });
+        }
       }
     }
 
     if (shouldAddSelf) {
       const parsed = parseAmount(buyInAmount);
       if (parsed == null || parsed <= 0) {
-        appAlert(
-          'Invalid buy-in',
-          isChipsMode ? 'Enter a valid chip amount to join the session.' : 'Enter a valid buy-in amount to join the session.'
-        );
-        return;
+        nextErrors.buyIn = isChipsMode ? 'Enter your chip buy-in, like 100' : 'Enter your buy-in, like 50';
+      } else {
+        initialBuyIns.push({
+          playerId: playerProfile.id,
+          playerName: playerProfile.name,
+          amount: parsed,
+        });
       }
-      initialBuyIns.push({
-        playerId: playerProfile.id,
-        playerName: playerProfile.name,
-        amount: parsed,
-      });
+    }
+
+    setErrors(nextErrors);
+    if (sb == null || bb == null || Object.keys(nextErrors).length > 0) {
+      if (nextErrors.dollarsPerChip || nextErrors.smallBlind || nextErrors.bigBlind) {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      } else {
+        scrollLowerFormIntoView();
+      }
+      return;
     }
 
     const selectedLocation =
       hasSavedLocations && locationMode === 'saved'
         ? (getSelectedSavedLocationName() ?? '')
         : otherLocation.trim();
-
-    const sbTrim = smallBlindStr.trim();
-    const bbTrim = bigBlindStr.trim();
-    const sb = parseAmount(sbTrim);
-    const bb = parseAmount(bbTrim);
-    if (sb == null || bb == null || sb <= 0 || bb < sb) {
-      appAlert(
-        'Blinds required',
-        'Enter small and big blind amounts, with big blind at least equal to the small blind.'
-      );
-      return;
-    }
-
-    let dollarsPerChip: number | undefined;
-    if (isChipsMode) {
-      const dpc = parseAmount(dollarsPerChipStr.trim());
-      if (dpc == null || dpc <= 0) {
-        appAlert(
-          'Chip value',
-          'Enter how much each chip is worth in dollars (e.g. 0.50 for a $50 buy-in of 100 chips).'
-        );
-        return;
-      }
-      dollarsPerChip = dpc;
-    }
 
     try {
       setIsSaving(true);
@@ -300,7 +325,7 @@ export default function NewSessionScreen() {
                 variant="radio"
                 tabs={AMOUNT_UNIT_TABS}
                 value={amountUnit}
-                onChange={setAmountUnit}
+                onChange={onChangeAmountUnit}
               />
               {isChipsMode ? (
                 <Animated.View entering={fadeIn} exiting={fadeOut} layout={layoutTransition} style={styles.chipValueBlock}>
@@ -312,14 +337,23 @@ export default function NewSessionScreen() {
                     <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
                     <TextInput
                       value={dollarsPerChipStr}
-                      onChangeText={(t) => setDollarsPerChipStr(sanitizeAmountInput(t))}
+                      onChangeText={(t) => {
+                        setDollarsPerChipStr(sanitizeAmountInput(t));
+                        clearError('dollarsPerChip');
+                      }}
                       accessibilityLabel="Dollars per chip"
                       placeholder="0.50"
                       placeholderTextColor={c.placeholder}
                       keyboardType="decimal-pad"
-                      style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
+                      {...invalidProps(errors.dollarsPerChip)}
+                      style={[
+                        styles.buyInInput,
+                        { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                        errorBorder(c, errors.dollarsPerChip),
+                      ]}
                     />
                   </View>
+                  <FieldError message={errors.dollarsPerChip} />
                   <Text style={[styles.groupSectionHint, { color: c.textHint }]}>
                     Example: 100 chips for a $50 buy-in → $0.50 per chip.
                   </Text>
@@ -346,14 +380,23 @@ export default function NewSessionScreen() {
                 <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={smallBlindStr}
-                    onChangeText={(t) => setSmallBlindStr(sanitizeAmountInput(t))}
+                    onChangeText={(t) => {
+                      setSmallBlindStr(sanitizeAmountInput(t));
+                      clearError('smallBlind');
+                    }}
                     accessibilityLabel="Small blind"
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
-                    style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
+                    {...invalidProps(errors.smallBlind)}
+                    style={[
+                      styles.buyInInput,
+                      { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                      errorBorder(c, errors.smallBlind),
+                    ]}
                   />
                 </SessionAmountInputRow>
+                <FieldError message={errors.smallBlind} />
               </View>
               <View style={styles.blindField}>
                 <View style={styles.labelWithRequired}>
@@ -363,14 +406,23 @@ export default function NewSessionScreen() {
                 <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                   <TextInput
                     value={bigBlindStr}
-                    onChangeText={(t) => setBigBlindStr(sanitizeAmountInput(t))}
+                    onChangeText={(t) => {
+                      setBigBlindStr(sanitizeAmountInput(t));
+                      clearError('bigBlind');
+                    }}
                     accessibilityLabel="Big blind"
                     placeholder="0"
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
-                    style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
+                    {...invalidProps(errors.bigBlind)}
+                    style={[
+                      styles.buyInInput,
+                      { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                      errorBorder(c, errors.bigBlind),
+                    ]}
                   />
                 </SessionAmountInputRow>
+                <FieldError message={errors.bigBlind} />
               </View>
             </View>
             </Animated.View>
@@ -437,15 +489,24 @@ export default function NewSessionScreen() {
                     <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                       <TextInput
                         value={groupBuyIn}
-                        onChangeText={(t) => setGroupBuyIn(sanitizeAmountInput(t))}
+                        onChangeText={(t) => {
+                          setGroupBuyIn(sanitizeAmountInput(t));
+                          clearError('groupBuyIn');
+                        }}
                         accessibilityLabel={isChipsMode ? 'Chip buy-in per group player' : 'Buy-in per group player'}
                         placeholder={isChipsMode ? 'Chips per player' : 'Buy-in per player'}
                         placeholderTextColor={c.placeholder}
                         keyboardType="numeric"
                         onFocus={scrollLowerFormIntoView}
-                        style={[styles.buyInInput, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
+                        {...invalidProps(errors.groupBuyIn)}
+                        style={[
+                          styles.buyInInput,
+                          { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                          errorBorder(c, errors.groupBuyIn),
+                        ]}
                       />
                     </SessionAmountInputRow>
+                    <FieldError message={errors.groupBuyIn} />
                   </Animated.View>
                 )}
               </Animated.View>
@@ -471,7 +532,10 @@ export default function NewSessionScreen() {
                   <AppSwitch
                     accessibilityLabel="Join as player"
                     value={joinSelf}
-                    onValueChange={setJoinSelf}
+                    onValueChange={(value) => {
+                      setJoinSelf(value);
+                      clearError('buyIn');
+                    }}
                   />
                 </View>
                 {joinSelf && (
@@ -479,18 +543,24 @@ export default function NewSessionScreen() {
                   <SessionAmountInputRow unit={amountUnit} color={c.textMuted} iconSize={18} style={styles.buyInRow}>
                     <TextInput
                       value={buyInAmount}
-                      onChangeText={(t) => setBuyInAmount(sanitizeAmountInput(t))}
+                      onChangeText={(t) => {
+                        setBuyInAmount(sanitizeAmountInput(t));
+                        clearError('buyIn');
+                      }}
                       accessibilityLabel={isChipsMode ? 'Your chip buy-in' : 'Your buy-in amount'}
                       placeholder={isChipsMode ? 'Chips' : '0.00'}
                       placeholderTextColor={c.placeholder}
                       keyboardType="numeric"
                       onFocus={scrollLowerFormIntoView}
+                      {...invalidProps(errors.buyIn)}
                       style={[
                         styles.buyInInput,
                         { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
+                        errorBorder(c, errors.buyIn),
                       ]}
                     />
                   </SessionAmountInputRow>
+                  <FieldError message={errors.buyIn} />
                   </Animated.View>
                 )}
               </Animated.View>
