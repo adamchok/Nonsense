@@ -56,6 +56,7 @@ import { UserPlusIcon } from 'phosphor-react-native/src/icons/UserPlus';
 import { UsersIcon } from 'phosphor-react-native/src/icons/Users';
 import { UsersThreeIcon } from 'phosphor-react-native/src/icons/UsersThree';
 import { WalletIcon } from 'phosphor-react-native/src/icons/Wallet';
+import { WarningCircleIcon } from 'phosphor-react-native/src/icons/WarningCircle';
 import { WhatsappLogoIcon } from 'phosphor-react-native/src/icons/WhatsappLogo';
 import { XIcon } from 'phosphor-react-native/src/icons/X';
 import type { Icon as PhosphorIcon } from 'phosphor-react-native';
@@ -136,6 +137,7 @@ const ICONS = {
   'wb-sunny': SunIcon,
   'nights-stay': MoonIcon,
   whatsapp: WhatsappLogoIcon,
+  'error-outline': WarningCircleIcon,
 } satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;

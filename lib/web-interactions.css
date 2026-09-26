@@ -195,7 +195,7 @@
 /* Focus recolours the field's own border rather than drawing a ring outside it: an outer
  * ring gets clipped on some sides inside modals/scroll views with overflow hidden.
  * !important is needed because react-native-web writes border colours inline. */
-:is(input, textarea)[class*='r-borderWidth']:not([readonly]):focus {
+:is(input, textarea)[class*='r-borderWidth']:not([readonly], [aria-invalid='true']):focus {
   border-color: var(--accent) !important;
 }
 
@@ -207,8 +207,13 @@
 /* Borderless inputs inside a bordered wrapper (e.g. "$ [amount]" fields): ring the wrapper,
  * not the bare input. react-native-web emits atomic `r-borderWidth-*` classes only when a
  * border is set, which is how a bordered input is told apart from a bare one. */
-:has(> :is(input, textarea):not([class*='r-borderWidth'], [readonly]):focus) {
+:has(> :is(input, textarea):not([class*='r-borderWidth'], [readonly], [aria-invalid='true']):focus) {
   border-color: var(--accent) !important;
+}
+
+/* Fields in error (components/field-error.tsx) keep their red border while focused. */
+:is(input, textarea)[aria-invalid='true'] {
+  outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
