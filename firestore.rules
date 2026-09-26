@@ -85,6 +85,104 @@ service cloud.firestore {
         || get(/databases/$(database)/documents/refCodes/$(request.resource.data.refCode)).data.playerId == playerId;
     }
 
+    function validName(v) {
+      return v is string && v.size() > 0 && v.size() <= 64;
+    }
+
+    function guestLinkPath(guestId) {
+      return /databases/$(database)/documents/guest_links/$(request.auth.uid + '_' + guestId);
+    }
+
+    function validNewGuestLink(linkId) {
+      let d = request.resource.data;
+      let fields = ['ownerId', 'ownerName', 'guestId', 'guestName', 'targetId', 'targetName', 'status',
+        'sessionCount', 'net', 'sessions', 'createdAt'];
+      return d.keys().hasAll(fields)
+        && d.keys().hasOnly(fields)
+        && d.ownerId == request.auth.uid
+        && d.guestId is string
+        && d.guestId.matches('^[^/]{1,64}$')
+        && !d.guestId.matches('^[.]{1,2}$|^__.*__$')
+        && d.targetId is string
+        && d.targetId.size() > 0
+        && linkId == d.ownerId + '_' + d.guestId
+        && d.status == 'pending'
+        && d.targetId != d.ownerId
+        && d.guestId != d.targetId
+        && d.guestId != d.ownerId
+        && validName(d.ownerName)
+        && validName(d.guestName)
+        && validName(d.targetName)
+        && d.sessions is map
+        && d.sessions.size() <= 300
+        && d.sessionCount is int
+        && d.sessionCount == d.sessions.size()
+        && validSignedAmount(d.net)
+        && d.createdAt == request.time
+        && exists(/databases/$(database)/documents/players/$(d.ownerId)/friends/$(d.targetId))
+        && !exists(/databases/$(database)/documents/players/$(d.guestId));
+    }
+
+    function linkAccepted(guestId, targetId) {
+      return signedIn()
+        && guestId is string
+        && targetId is string
+        && guestId != targetId
+        && exists(guestLinkPath(guestId))
+        && get(guestLinkPath(guestId)).data.status == 'accepted'
+        && get(guestLinkPath(guestId)).data.ownerId == request.auth.uid
+        && get(guestLinkPath(guestId)).data.guestId == guestId
+        && get(guestLinkPath(guestId)).data.targetId == targetId;
+    }
+
+    function guestMigratable(sessionId, guestId, targetId, playerName) {
+      return sessionData(sessionId).status == 'finished'
+        && linkAccepted(guestId, targetId)
+        && sessionId in get(guestLinkPath(guestId)).data.sessions
+        && guestId in sessionData(sessionId).get('participantIds', [])
+        && !(targetId in sessionData(sessionId).get('participantIds', []))
+        && playerName == get(guestLinkPath(guestId)).data.targetName;
+    }
+
+    function sameField(a, b, key) {
+      return a.get(key, null) == b.get(key, null);
+    }
+
+    function migratedResultValid(sessionId, targetId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['playerName', 'totalBuyIn', 'cashOut', 'profit', 'settledAt', 'migratedFrom'])
+        && d.migratedFrom is string
+        && guestMigratable(sessionId, d.migratedFrom, targetId, d.playerName)
+        && d.get('profit', null) == get(guestLinkPath(d.migratedFrom)).data.sessions[sessionId]
+        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'totalBuyIn')
+        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'cashOut')
+        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'profit')
+        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'settledAt');
+    }
+
+    function migratedEarlyCashOutValid(sessionId, targetId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['playerName', 'amount', 'cashedOutAt', 'migratedFrom'])
+        && d.migratedFrom is string
+        && guestMigratable(sessionId, d.migratedFrom, targetId, d.playerName)
+        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/early_cashouts/$(d.migratedFrom)).data, 'amount')
+        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/early_cashouts/$(d.migratedFrom)).data, 'cashedOutAt');
+    }
+
+    function migratedBuyInValid(sessionId) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playerId', 'playerName'])
+        && guestMigratable(sessionId, resource.data.playerId, request.resource.data.playerId,
+          request.resource.data.playerName);
+    }
+
+    function validLiveResult(sessionId) {
+      return sessionData(sessionId).status == 'active'
+        && request.resource.data.playerName is string
+        && validNonNegativeAmount(request.resource.data.totalBuyIn)
+        && validNonNegativeAmount(request.resource.data.cashOut)
+        && validSignedAmount(request.resource.data.profit);
+    }
+
     match /players/{playerId} {
       allow get: if signedIn();
       allow list: if false;
@@ -270,13 +368,18 @@ service cloud.firestore {
           && validAmount(request.resource.data.amount)
           && request.resource.data.playerId is string
           && request.resource.data.playerName is string;
-        allow update: if false;
+        allow update: if isSessionHost(sessionId) && migratedBuyInValid(sessionId);
         allow delete: if isSessionHost(sessionId);
       }
 
       match /early_cashouts/{cashOutPlayerId} {
         allow read: if canReadSession(sessionId);
-        allow create, update: if isSessionHost(sessionId)
+        allow create: if isSessionHost(sessionId)
+          && (
+            (sessionActiveAfter(sessionId) && validNonNegativeAmount(request.resource.data.amount))
+            || migratedEarlyCashOutValid(sessionId, cashOutPlayerId)
+          );
+        allow update: if isSessionHost(sessionId)
           && sessionActiveAfter(sessionId)
           && validNonNegativeAmount(request.resource.data.amount);
         allow delete: if isSessionHost(sessionId);
@@ -284,12 +387,9 @@ service cloud.firestore {
 
       match /results/{resultPlayerId} {
         allow read: if canReadSession(sessionId);
-        allow create, update: if isSessionHost(sessionId)
-          && sessionData(sessionId).status == 'active'
-          && request.resource.data.playerName is string
-          && validNonNegativeAmount(request.resource.data.totalBuyIn)
-          && validNonNegativeAmount(request.resource.data.cashOut)
-          && validSignedAmount(request.resource.data.profit);
+        allow create: if isSessionHost(sessionId)
+          && (validLiveResult(sessionId) || migratedResultValid(sessionId, resultPlayerId));
+        allow update: if isSessionHost(sessionId) && validLiveResult(sessionId);
         allow delete: if isSessionHost(sessionId)
           || (signedIn()
             && resultPlayerId == request.auth.uid
@@ -303,6 +403,23 @@ service cloud.firestore {
         allow delete: if isSessionHost(sessionId)
           || (signedIn() && participantId == request.auth.uid);
       }
+    }
+
+    match /guest_links/{linkId} {
+      allow read: if signedIn()
+        && (resource.data.ownerId == request.auth.uid || resource.data.targetId == request.auth.uid);
+
+      allow create: if signedIn() && validNewGuestLink(linkId);
+
+      allow update: if signedIn()
+        && resource.data.targetId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'accepted'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
+        && request.resource.data.acceptedAt == request.time;
+
+      allow delete: if signedIn()
+        && (resource.data.ownerId == request.auth.uid || resource.data.targetId == request.auth.uid);
     }
   }
 }

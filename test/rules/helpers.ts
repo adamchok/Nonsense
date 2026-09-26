@@ -6,7 +6,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, setDoc, setLogLevel } from 'firebase/firestore';
 import type { Firestore } from 'firebase/firestore';
 
-export const PROJECT_ID = 'demo-nonsense';
+export const PROJECT_ID = 'demo-nonsense-rules';
 
 export const HOST = 'host-uid';
 export const PLAYER = 'player-uid';

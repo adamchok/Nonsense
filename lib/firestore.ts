@@ -1093,7 +1093,7 @@ export async function getResults(sessionId: string): Promise<SessionResult[]> {
 const GROUPS_COLLECTION = 'groups';
 const GROUP_MEMBERSHIPS_SUB = 'group_memberships';
 
-async function syncGroupMembershipDocs(groupId: string): Promise<void> {
+export async function syncGroupMembershipDocs(groupId: string): Promise<void> {
   const db = getFirestoreDb();
   const groupRef = doc(db, GROUPS_COLLECTION, groupId);
   const groupSnap = await getDoc(groupRef);
