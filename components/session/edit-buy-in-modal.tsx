@@ -1,3 +1,4 @@
+import { errorBorder, FieldError, invalidProps } from '@/components/field-error';
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { SessionAmountDisplay, SessionAmountInputRow } from '@/components/session-amount-ui';
@@ -5,7 +6,7 @@ import { useAppColors } from '@/lib/app-theme';
 import type { SessionAmountUnit } from '@/types';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { sanitizeAmountInput } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 
 export type EditBuyInTarget = {
   playerId: string;
@@ -26,9 +27,20 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
   const c = useAppColors();
   const [amount, setAmount] = useState(target ? String(target.currentTotal) : '');
   const [isSaving, setIsSaving] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
 
   async function save() {
     if (!target) return;
+    const parsed = parseAmount(amount);
+    const error = !amount.trim()
+      ? 'Enter an amount, like 50'
+      : parsed == null
+        ? 'Enter a number, like 50 or 12.5'
+        : parsed <= 0
+          ? 'Must be more than 0'
+          : null;
+    setAmountError(error);
+    if (error) return;
     setIsSaving(true);
     try {
       await onSubmit(target, amount);
@@ -45,7 +57,7 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
       primary={{
         label: 'Save',
         onPress: () => void save(),
-        disabled: isSaving || !amount.trim(),
+        disabled: isSaving,
         busy: isSaving,
       }}>
       {target ? (
@@ -74,10 +86,14 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
                 formStyles.amountInputWrap,
                 formStyles.amountInputWrapFull,
                 { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+                errorBorder(c, amountError),
               ]}>
               <TextInput
                 value={amount}
-                onChangeText={(t) => setAmount(sanitizeAmountInput(t))}
+                onChangeText={(t) => {
+                  setAmount(sanitizeAmountInput(t));
+                  setAmountError(null);
+                }}
                 placeholder={unit === 'chips' ? 'Chips' : '0.00'}
                 placeholderTextColor={c.placeholder}
                 keyboardType="numeric"
@@ -85,9 +101,11 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
                 autoFocus
                 selectTextOnFocus
                 accessibilityLabel={`New buy-in total for ${target.playerName}`}
+                {...invalidProps(amountError)}
               />
             </SessionAmountInputRow>
           </View>
+          <FieldError message={amountError} />
         </>
       ) : null}
     </ModalShell>

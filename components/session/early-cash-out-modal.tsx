@@ -1,3 +1,4 @@
+import { errorBorder, FieldError, invalidProps } from '@/components/field-error';
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { SessionAmountDisplay, SessionAmountInputRow } from '@/components/session-amount-ui';
@@ -5,7 +6,7 @@ import { useAppColors } from '@/lib/app-theme';
 import type { SessionAmountUnit } from '@/types';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { sanitizeAmountInput } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 
 export type CashOutTarget = {
   playerId: string;
@@ -26,9 +27,20 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
   const c = useAppColors();
   const [amount, setAmount] = useState(initialAmount);
   const [isSaving, setIsSaving] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
 
   async function confirm() {
-    if (!target || isSaving || !amount.trim()) return;
+    if (!target || isSaving) return;
+    const parsed = parseAmount(amount);
+    const error = !amount.trim()
+      ? 'Enter an amount, like 120 (0 if they lost it all)'
+      : parsed == null
+        ? 'Enter a number, like 120 or 12.5'
+        : parsed < 0
+          ? 'Must be 0 or more'
+          : null;
+    setAmountError(error);
+    if (error) return;
     setIsSaving(true);
     try {
       await onSubmit(target, amount);
@@ -45,7 +57,6 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
       primary={{
         label: 'Confirm',
         onPress: () => void confirm(),
-        disabled: !amount.trim(),
         busy: isSaving,
       }}>
       {target ? (
@@ -70,10 +81,14 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
                 formStyles.amountInputWrap,
                 formStyles.amountInputWrapFull,
                 { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+                errorBorder(c, amountError),
               ]}>
               <TextInput
                 value={amount}
-                onChangeText={(t) => setAmount(sanitizeAmountInput(t))}
+                onChangeText={(t) => {
+                  setAmount(sanitizeAmountInput(t));
+                  setAmountError(null);
+                }}
                 placeholder={unit === 'chips' ? 'Chips' : '0.00'}
                 placeholderTextColor={c.placeholder}
                 keyboardType="numeric"
@@ -82,9 +97,11 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
                 onSubmitEditing={() => void confirm()}
                 accessibilityLabel={`Cash-out ${unit === 'chips' ? 'chips' : 'amount'} for ${target.playerName}`}
                 style={[formStyles.amountInput, { color: c.text }]}
+                {...invalidProps(amountError)}
               />
             </SessionAmountInputRow>
           </View>
+          <FieldError message={amountError} />
         </>
       ) : null}
     </ModalShell>

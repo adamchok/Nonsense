@@ -31,7 +31,10 @@ type Options = {
 };
 
 
-/** Host-only writes for the live session screen. Each guards host status and shows its own errors. */
+/**
+ * Host-only writes for the live session screen. Each guards host status and alerts on save
+ * failures; the modals show invalid input inline before calling these, so bad input just returns.
+ */
 export function useSessionActions({
   id,
   session,
@@ -73,10 +76,7 @@ export function useSessionActions({
   async function saveCashOut(target: CashOutTarget, amount: string) {
     if (!requireHost('cash out players') || !id) return;
     const parsed = parseAmount(amount);
-    if (parsed == null || parsed < 0) {
-      appAlert('Invalid amount', 'Enter zero or a positive number, like 120 or 12.5.');
-      return;
-    }
+    if (parsed == null || parsed < 0) return;
     try {
       await saveEarlyCashOut(id, {
         playerId: target.playerId,
@@ -152,13 +152,7 @@ export function useSessionActions({
   async function saveChipValue(value: string) {
     if (!requireHost('edit dollars per chip') || !id) return;
     const dpc = parseAmount(value);
-    if (dpc == null || dpc <= 0) {
-      appAlert(
-        'Chip value required',
-        'Enter how much each chip is worth in dollars (e.g. 0.50 for a $50 buy-in of 100 chips).'
-      );
-      return;
-    }
+    if (dpc == null || dpc <= 0) return;
     try {
       await updateSessionDollarsPerChip(id, dpc);
       Keyboard.dismiss();
@@ -172,13 +166,7 @@ export function useSessionActions({
     if (!requireHost('edit blinds') || !id) return;
     const sb = parseAmount(smallBlind);
     const bb = parseAmount(bigBlind);
-    if (sb == null || bb == null || !isValidBlinds(sb, bb)) {
-      appAlert(
-        'Blinds required',
-        'Enter small and big blind amounts, with big blind at least equal to the small blind.'
-      );
-      return;
-    }
+    if (sb == null || bb == null || !isValidBlinds(sb, bb)) return;
     try {
       await updateSessionBlinds(id, { smallBlind: sb, bigBlind: bb });
       Keyboard.dismiss();
@@ -191,10 +179,7 @@ export function useSessionActions({
   async function saveEditBuyIn(target: EditBuyInTarget, amount: string) {
     if (!viewerIsHost || !id) return;
     const parsed = parseAmount(amount);
-    if (parsed == null || parsed <= 0) {
-      appAlert('Invalid amount', 'Enter a positive number, like 50 or 12.5.');
-      return;
-    }
+    if (parsed == null || parsed <= 0) return;
     try {
       await updatePlayerBuyInTotal(id, target.playerId, target.playerName, parsed);
       Keyboard.dismiss();

@@ -1,3 +1,4 @@
+import { errorBorder, FieldError, invalidProps } from '@/components/field-error';
 import { PressableScale } from '@/components/motion';
 import { ModalShell } from '@/components/session/modal-shell';
 import { PlayerPicker } from '@/components/session/player-picker';
@@ -11,7 +12,7 @@ import type { LedgerPlayer } from '@/lib/session-view';
 import type { FriendRecord, PlayerProfile, SessionAmountUnit } from '@/types';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { sanitizeAmountInput } from '@/lib/parse-amount';
+import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 
 type Props = {
   visible: boolean;
@@ -46,6 +47,8 @@ export function BuyInModal({
   const c = useAppColors();
   const [draft, setDraft] = useState<BuyInDraft>(initialDraft);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [amountError, setAmountError] = useState<string | null>(null);
   const amountInputRef = useRef<TextInput>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -53,7 +56,6 @@ export function BuyInModal({
   const sessionPlayerIds = new Set(players.map((p) => p.playerId));
   const activePlayers = players.filter((p) => !cashedOutIds.has(p.playerId));
   const friendsNotInSession = friends.filter((f) => !sessionPlayerIds.has(f.playerId));
-  const canSubmit = Boolean(draft.playerName.trim() && draft.amount.trim());
 
   const lastAmount = draft.pickedPlayerId ? lastAmountByPlayer.get(draft.pickedPlayerId) : undefined;
   // Player's last + session's most common first, then fixed presets; duplicates dropped.
@@ -61,13 +63,28 @@ export function BuyInModal({
     (v, i, all): v is number => v != null && all.indexOf(v) === i
   );
 
+  function setName(playerName: string, pickedPlayerId: string | null) {
+    setDraft((d) => ({ ...d, playerName, pickedPlayerId }));
+    setNameError(null);
+  }
+
+  function setAmount(amount: string) {
+    setDraft((d) => ({ ...d, amount }));
+    setAmountError(null);
+  }
+
   function pick(playerId: string, name: string) {
-    setDraft((d) => ({ ...d, playerName: name, pickedPlayerId: playerId }));
+    setName(name, playerId);
     requestAnimationFrame(() => amountInputRef.current?.focus());
   }
 
   async function submit() {
-    if (!canSubmit || isSubmitting) return;
+    if (isSubmitting) return;
+    const nextNameError = draft.playerName.trim() ? null : 'Enter a name';
+    const nextAmountError = buyInAmountError(draft.amount);
+    setNameError(nextNameError);
+    setAmountError(nextAmountError);
+    if (nextNameError || nextAmountError) return;
     setIsSubmitting(true);
     try {
       await onSubmit(draft);
@@ -85,7 +102,7 @@ export function BuyInModal({
       onClose={onClose}
       title={title}
       cardStyle={styles.card}
-      primary={{ label: 'Add', onPress: () => void submit(), disabled: !canSubmit, busy: isSubmitting }}>
+      primary={{ label: 'Add', onPress: () => void submit(), busy: isSubmitting }}>
       <Text style={[formStyles.sub, { color: c.textMuted }]}>
         {draft.isBuyBack
           ? 'Enter the chips they are buying back in with. This clears their early cash-out.'
@@ -113,40 +130,52 @@ export function BuyInModal({
               </Text>
             </PressableScale>
           )}
-          <View style={styles.inputRow}>
-            <TextInput
-              value={draft.playerName}
-              onChangeText={(text) => setDraft((d) => ({ ...d, playerName: text, pickedPlayerId: null }))}
-              editable={!draft.isBuyBack}
-              autoFocus={!draft.pickedPlayerId && !draft.playerName}
-              returnKeyType="next"
-              onSubmitEditing={() => amountInputRef.current?.focus()}
-              submitBehavior="submit"
-              placeholder="Player name"
-              placeholderTextColor={c.placeholder}
-              accessibilityLabel="Player name"
-              onFocus={() => scrollModalFieldToTop(scrollRef)}
-              style={[formStyles.input, styles.nameInput, inputColors, { color: c.text }]}
-            />
-            <SessionAmountInputRow
-              unit={unit}
-              color={c.textMuted}
-              iconSize={16}
-              style={[formStyles.amountInputWrap, inputColors]}>
+          <View>
+            <View style={styles.inputRow}>
               <TextInput
-                ref={amountInputRef}
-                value={draft.amount}
-                onChangeText={(text) => setDraft((d) => ({ ...d, amount: sanitizeAmountInput(text) }))}
-                autoFocus={Boolean(draft.pickedPlayerId) && !draft.amount}
-                returnKeyType="done"
-                onSubmitEditing={() => void submit()}
-                placeholder={unit === 'chips' ? 'Chips' : '0.00'}
+                value={draft.playerName}
+                onChangeText={(text) => setName(text, null)}
+                editable={!draft.isBuyBack}
+                autoFocus={!draft.pickedPlayerId && !draft.playerName}
+                returnKeyType="next"
+                onSubmitEditing={() => amountInputRef.current?.focus()}
+                submitBehavior="submit"
+                placeholder="Player name"
                 placeholderTextColor={c.placeholder}
-                accessibilityLabel={unit === 'chips' ? 'Buy-in chips' : 'Buy-in amount'}
-                keyboardType="numeric"
-                style={[formStyles.amountInput, { color: c.text }]}
+                accessibilityLabel="Player name"
+                onFocus={() => scrollModalFieldToTop(scrollRef)}
+                style={[
+                  formStyles.input,
+                  styles.nameInput,
+                  inputColors,
+                  errorBorder(c, nameError),
+                  { color: c.text },
+                ]}
+                {...invalidProps(nameError)}
               />
-            </SessionAmountInputRow>
+              <SessionAmountInputRow
+                unit={unit}
+                color={c.textMuted}
+                iconSize={16}
+                style={[formStyles.amountInputWrap, inputColors, errorBorder(c, amountError)]}>
+                <TextInput
+                  ref={amountInputRef}
+                  value={draft.amount}
+                  onChangeText={(text) => setAmount(sanitizeAmountInput(text))}
+                  autoFocus={Boolean(draft.pickedPlayerId) && !draft.amount}
+                  returnKeyType="done"
+                  onSubmitEditing={() => void submit()}
+                  placeholder={unit === 'chips' ? 'Chips' : '0.00'}
+                  placeholderTextColor={c.placeholder}
+                  accessibilityLabel={unit === 'chips' ? 'Buy-in chips' : 'Buy-in amount'}
+                  keyboardType="numeric"
+                  style={[formStyles.amountInput, { color: c.text }]}
+                  {...invalidProps(amountError)}
+                />
+              </SessionAmountInputRow>
+            </View>
+            <FieldError message={nameError} />
+            <FieldError message={amountError} />
           </View>
           {quickAmounts.length > 0 ? (
             <View style={styles.quickAmounts}>
@@ -156,7 +185,7 @@ export function BuyInModal({
                   <PressableScale
                     pressedScale={0.95}
                     key={v}
-                    onPress={() => setDraft((d) => ({ ...d, amount: String(v) }))}
+                    onPress={() => setAmount(String(v))}
                     accessibilityRole="button"
                     accessibilityLabel={`Amount ${label}${unit === 'chips' ? ' chips' : ''}`}
                     style={[styles.quickAmount, { backgroundColor: c.chipBg, borderColor: c.chipBorder }]}>
@@ -182,6 +211,13 @@ export function BuyInModal({
 }
 
 const PRESET_AMOUNTS = [100, 200, 300, 500, 1000];
+
+function buyInAmountError(amount: string): string | null {
+  if (!amount.trim()) return 'Enter an amount, like 50';
+  const parsed = parseAmount(amount);
+  if (parsed == null) return 'Enter a number, like 50 or 12.5';
+  return parsed > 0 ? null : 'Must be more than 0';
+}
 
 const styles = StyleSheet.create({
   card: {

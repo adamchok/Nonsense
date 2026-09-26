@@ -97,13 +97,10 @@ export function useAddBuyIn(
       appAlert('Host only', 'Only the host can add buy-ins.');
       return false;
     }
+    // The form shows missing / invalid name and amount inline before calling this.
     const name = draft.playerName.trim();
-    if (!id || !name || !draft.amount.trim()) return false;
     const parsed = parseAmount(draft.amount);
-    if (parsed == null || parsed <= 0) {
-      appAlert('Invalid amount', 'Enter a positive number, like 50 or 12.5.');
-      return false;
-    }
+    if (!id || !name || parsed == null || parsed <= 0) return false;
 
     const resolvedId = resolvePlayerId(draft, playerProfile);
     if (live.earlyCashOutMap.has(resolvedId) && !draft.isBuyBack) {

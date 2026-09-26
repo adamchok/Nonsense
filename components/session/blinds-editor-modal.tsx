@@ -1,10 +1,10 @@
+import { errorBorder, FieldError, invalidProps } from '@/components/field-error';
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { useAppColors } from '@/lib/app-theme';
 import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
-import { isValidBlinds } from '@/lib/session-view';
 import type { SessionAmountUnit } from '@/types';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -30,11 +30,20 @@ export function BlindsEditorModal({
   const [smallBlind, setSmallBlind] = useState(initialSmallBlind);
   const [bigBlind, setBigBlind] = useState(initialBigBlind);
   const [isSaving, setIsSaving] = useState(false);
+  const [smallBlindError, setSmallBlindError] = useState<string | null>(null);
+  const [bigBlindError, setBigBlindError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  const isValid = isValidBlinds(parseAmount(smallBlind), parseAmount(bigBlind));
-
   async function save() {
+    const sbError = blindError(smallBlind, 'small');
+    const bb = parseAmount(bigBlind);
+    const sb = parseAmount(smallBlind);
+    const bbError =
+      blindError(bigBlind, 'big') ??
+      (sb != null && bb != null && bb < sb ? 'Big blind must be at least the small blind' : null);
+    setSmallBlindError(sbError);
+    setBigBlindError(bbError);
+    if (sbError || bbError) return;
     setIsSaving(true);
     try {
       await onSubmit(smallBlind, bigBlind);
@@ -51,7 +60,7 @@ export function BlindsEditorModal({
       primary={{
         label: 'Save',
         onPress: () => void save(),
-        disabled: isSaving || !isValid,
+        disabled: isSaving,
         busy: isSaving,
       }}>
       <Text style={[formStyles.hint, { color: c.textMuted }]}>
@@ -69,14 +78,24 @@ export function BlindsEditorModal({
           <BlindField
             label="Small blind"
             value={smallBlind}
-            onChange={setSmallBlind}
+            onChange={(v) => {
+              setSmallBlind(v);
+              setSmallBlindError(null);
+              // "Big blind must be at least the small blind" may no longer hold.
+              setBigBlindError(null);
+            }}
+            error={smallBlindError}
             unit={unit}
             onFocus={() => scrollModalFieldToTop(scrollRef)}
           />
           <BlindField
             label="Big blind"
             value={bigBlind}
-            onChange={setBigBlind}
+            onChange={(v) => {
+              setBigBlind(v);
+              setBigBlindError(null);
+            }}
+            error={bigBlindError}
             unit={unit}
             onFocus={() => scrollModalFieldToEnd(scrollRef)}
           />
@@ -92,12 +111,14 @@ function BlindField({
   onChange,
   unit,
   onFocus,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   unit: SessionAmountUnit;
   onFocus: () => void;
+  error: string | null;
 }) {
   const c = useAppColors();
   return (
@@ -110,7 +131,11 @@ function BlindField({
         unit={unit}
         color={c.textMuted}
         iconSize={16}
-        style={[formStyles.compactAmountWrap, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}>
+        style={[
+          formStyles.compactAmountWrap,
+          { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+          errorBorder(c, error),
+        ]}>
         <TextInput
           value={value}
           onChangeText={(t) => onChange(sanitizeAmountInput(t))}
@@ -120,10 +145,19 @@ function BlindField({
           keyboardType="decimal-pad"
           onFocus={onFocus}
           style={[formStyles.compactTextInput, { color: c.text }]}
+          {...invalidProps(error)}
         />
       </SessionAmountInputRow>
+      <FieldError message={error} />
     </View>
   );
+}
+
+function blindError(value: string, which: 'small' | 'big'): string | null {
+  if (!value.trim()) return `Enter the ${which} blind`;
+  const parsed = parseAmount(value);
+  if (parsed == null) return 'Enter a number, like 1 or 0.5';
+  return parsed > 0 ? null : 'Must be more than 0';
 }
 
 const styles = StyleSheet.create({

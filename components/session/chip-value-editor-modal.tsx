@@ -1,3 +1,4 @@
+import { errorBorder, FieldError, invalidProps } from '@/components/field-error';
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { useAppColors } from '@/lib/app-theme';
@@ -17,12 +18,20 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
   const c = useAppColors();
   const [draft, setDraft] = useState(initialValue);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  const parsed = parseAmount(draft);
-  const isValid = parsed != null && parsed > 0;
-
   async function save() {
+    const parsed = parseAmount(draft);
+    const nextError = !draft.trim()
+      ? 'Enter a chip value, like 0.50'
+      : parsed == null
+        ? 'Enter a number, like 0.50'
+        : parsed <= 0
+          ? 'Must be more than 0'
+          : null;
+    setError(nextError);
+    if (nextError) return;
     setIsSaving(true);
     try {
       await onSubmit(draft);
@@ -39,7 +48,7 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
       primary={{
         label: 'Save',
         onPress: () => void save(),
-        disabled: isSaving || !isValid,
+        disabled: isSaving,
         busy: isSaving,
       }}>
       <Text style={[formStyles.hint, { color: c.textMuted }]}>
@@ -57,19 +66,29 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
             <Text style={[formStyles.fieldLabel, { color: c.textMuted }]}>Dollar per chip</Text>
             <Text style={[formStyles.requiredMark, { color: c.loss }]}>*</Text>
           </View>
-          <View style={[formStyles.compactAmountWrap, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}>
+          <View
+            style={[
+              formStyles.compactAmountWrap,
+              { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+              errorBorder(c, error),
+            ]}>
             <Text style={[styles.dollarSign, { color: c.textMuted }]}>$</Text>
             <TextInput
               value={draft}
-              onChangeText={(t) => setDraft(sanitizeAmountInput(t))}
+              onChangeText={(t) => {
+                setDraft(sanitizeAmountInput(t));
+                setError(null);
+              }}
               placeholder="0.50"
               accessibilityLabel="Dollars per chip"
               placeholderTextColor={c.placeholder}
               keyboardType="decimal-pad"
               onFocus={() => scrollModalFieldToTop(scrollRef)}
               style={[formStyles.compactTextInput, { color: c.text }]}
+              {...invalidProps(error)}
             />
           </View>
+          <FieldError message={error} />
           <Text style={[styles.example, { color: c.textHint }]}>
             Example: 100 chips for a $50 buy-in → $0.50 per chip.
           </Text>
