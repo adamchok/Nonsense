@@ -89,10 +89,6 @@ service cloud.firestore {
       return v is string && v.size() > 0 && v.size() <= 64;
     }
 
-    function guestLinkPath(guestId) {
-      return /databases/$(database)/documents/guest_links/$(request.auth.uid + '_' + guestId);
-    }
-
     function validNewGuestLink(linkId) {
       let d = request.resource.data;
       let fields = ['ownerId', 'ownerName', 'guestId', 'guestName', 'targetId', 'targetName', 'status',
@@ -121,66 +117,6 @@ service cloud.firestore {
         && d.createdAt == request.time
         && exists(/databases/$(database)/documents/players/$(d.ownerId)/friends/$(d.targetId))
         && !exists(/databases/$(database)/documents/players/$(d.guestId));
-    }
-
-    function linkAccepted(guestId, targetId) {
-      return signedIn()
-        && guestId is string
-        && targetId is string
-        && guestId != targetId
-        && exists(guestLinkPath(guestId))
-        && get(guestLinkPath(guestId)).data.status == 'accepted'
-        && get(guestLinkPath(guestId)).data.ownerId == request.auth.uid
-        && get(guestLinkPath(guestId)).data.guestId == guestId
-        && get(guestLinkPath(guestId)).data.targetId == targetId;
-    }
-
-    function guestMigratable(sessionId, guestId, targetId, playerName) {
-      return sessionData(sessionId).status == 'finished'
-        && linkAccepted(guestId, targetId)
-        && sessionId in get(guestLinkPath(guestId)).data.sessions
-        && guestId in sessionData(sessionId).get('participantIds', [])
-        && !(targetId in sessionData(sessionId).get('participantIds', []))
-        && playerName == get(guestLinkPath(guestId)).data.targetName;
-    }
-
-    function sameField(a, b, key) {
-      return a.get(key, null) == b.get(key, null);
-    }
-
-    function migratedResultValid(sessionId, targetId) {
-      let d = request.resource.data;
-      return d.keys().hasOnly(['playerName', 'totalBuyIn', 'cashOut', 'profit', 'settledAt', 'migratedFrom'])
-        && d.migratedFrom is string
-        && guestMigratable(sessionId, d.migratedFrom, targetId, d.playerName)
-        && d.get('profit', null) == get(guestLinkPath(d.migratedFrom)).data.sessions[sessionId]
-        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'totalBuyIn')
-        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'cashOut')
-        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'profit')
-        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/results/$(d.migratedFrom)).data, 'settledAt');
-    }
-
-    function migratedEarlyCashOutValid(sessionId, targetId) {
-      let d = request.resource.data;
-      return d.keys().hasOnly(['playerName', 'amount', 'cashedOutAt', 'migratedFrom'])
-        && d.migratedFrom is string
-        && guestMigratable(sessionId, d.migratedFrom, targetId, d.playerName)
-        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/early_cashouts/$(d.migratedFrom)).data, 'amount')
-        && sameField(d, get(/databases/$(database)/documents/sessions/$(sessionId)/early_cashouts/$(d.migratedFrom)).data, 'cashedOutAt');
-    }
-
-    function migratedBuyInValid(sessionId) {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playerId', 'playerName'])
-        && guestMigratable(sessionId, resource.data.playerId, request.resource.data.playerId,
-          request.resource.data.playerName);
-    }
-
-    function validLiveResult(sessionId) {
-      return sessionData(sessionId).status == 'active'
-        && request.resource.data.playerName is string
-        && validNonNegativeAmount(request.resource.data.totalBuyIn)
-        && validNonNegativeAmount(request.resource.data.cashOut)
-        && validSignedAmount(request.resource.data.profit);
     }
 
     match /players/{playerId} {
@@ -368,18 +304,13 @@ service cloud.firestore {
           && validAmount(request.resource.data.amount)
           && request.resource.data.playerId is string
           && request.resource.data.playerName is string;
-        allow update: if isSessionHost(sessionId) && migratedBuyInValid(sessionId);
+        allow update: if false;
         allow delete: if isSessionHost(sessionId);
       }
 
       match /early_cashouts/{cashOutPlayerId} {
         allow read: if canReadSession(sessionId);
-        allow create: if isSessionHost(sessionId)
-          && (
-            (sessionActiveAfter(sessionId) && validNonNegativeAmount(request.resource.data.amount))
-            || migratedEarlyCashOutValid(sessionId, cashOutPlayerId)
-          );
-        allow update: if isSessionHost(sessionId)
+        allow create, update: if isSessionHost(sessionId)
           && sessionActiveAfter(sessionId)
           && validNonNegativeAmount(request.resource.data.amount);
         allow delete: if isSessionHost(sessionId);
@@ -387,9 +318,12 @@ service cloud.firestore {
 
       match /results/{resultPlayerId} {
         allow read: if canReadSession(sessionId);
-        allow create: if isSessionHost(sessionId)
-          && (validLiveResult(sessionId) || migratedResultValid(sessionId, resultPlayerId));
-        allow update: if isSessionHost(sessionId) && validLiveResult(sessionId);
+        allow create, update: if isSessionHost(sessionId)
+          && sessionData(sessionId).status == 'active'
+          && request.resource.data.playerName is string
+          && validNonNegativeAmount(request.resource.data.totalBuyIn)
+          && validNonNegativeAmount(request.resource.data.cashOut)
+          && validSignedAmount(request.resource.data.profit);
         allow delete: if isSessionHost(sessionId)
           || (signedIn()
             && resultPlayerId == request.auth.uid

@@ -11,6 +11,7 @@
     "test": "node --test \"test/lib/**/*.test.ts\"",
     "test:auth": "firebase emulators:exec --only auth,firestore --project demo-nonsense \"node --test --test-concurrency=1 test/auth/*.test.ts\"",
     "test:rules": "firebase emulators:exec --only firestore --project demo-nonsense \"node --test --test-concurrency=1 test/rules/*.test.ts\"",
+    "test:functions": "firebase emulators:exec --only firestore --project demo-nonsense \"node --test --test-concurrency=1 test/functions/*.test.mjs\"",
     "typecheck": "tsc --noEmit",
     "eas-build-pre-install": "node scripts/check-firebase-env.js",
     "build:preview": "eas build -p android --profile preview",

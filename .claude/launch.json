@@ -14,7 +14,7 @@
       "name": "web-emulator",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
-        "firebase", "emulators:exec", "--only", "auth,firestore", "--project", "demo-nonsense",
+        "firebase", "emulators:exec", "--only", "auth,firestore,functions", "--project", "demo-nonsense",
         "npx expo start --web --port 8081"
       ],
       "env": {

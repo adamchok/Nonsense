@@ -23,7 +23,6 @@ import {
   acceptGuestLinkIn,
   declineGuestLinkIn,
   guestLinkId,
-  migrateGuestLinkIn,
   parseGuestLink,
   requestGuestLinkIn,
   summarizeGuestIn,
@@ -253,149 +252,6 @@ test('target can decline, owner can cancel, a stranger cannot delete', async () 
   await assertSucceeds(deleteDoc(doc(dbAs(env, HOST), 'guest_links', cancelled.id)));
 });
 
-test('host cannot attach guest history to anyone without an accepted link', async () => {
-  const noLink = nextGuest();
-  const id1 = await seedGuestSession(noLink);
-  await assertFails(migrationBatch(dbAs(env, HOST), id1, noLink).commit());
-  await assertFails(
-    setDoc(doc(dbAs(env, HOST), 'sessions', id1, 'results', TARGET), {
-      totalBuyIn: 100,
-      cashOut: 250.5,
-      profit: 150.5,
-      settledAt: SETTLED_AT,
-      playerName: 'Bryan Real',
-      migratedFrom: noLink,
-    })
-  );
-
-  const pending = nextGuest();
-  const id2 = await seedGuestSession(pending);
-  await seedLink(pending, 'pending', { [id2]: 150.5 });
-  await assertFails(migrationBatch(dbAs(env, HOST), id2, pending).commit());
-});
-
-test('host cannot change numbers, names, keys or the target while migrating', async () => {
-  const guest = nextGuest();
-  const id = await seedGuestSession(guest);
-  await seedLink(guest, 'accepted', { [id]: 150.5 });
-  const host = dbAs(env, HOST);
-  await assertFails(migrationBatch(host, id, guest, { profit: 999 }).commit());
-  await assertFails(migrationBatch(host, id, guest, { totalBuyIn: 0 }).commit());
-  await assertFails(migrationBatch(host, id, guest, { settledAt: Timestamp.now() }).commit());
-  await assertFails(migrationBatch(host, id, guest, { playerName: 'Someone' }).commit());
-  await assertFails(migrationBatch(host, id, guest, { note: 'x' }).commit());
-  await assertFails(migrationBatch(host, id, guest, { migratedFrom: OTHER_PLAYER }).commit());
-  await assertFails(
-    setDoc(doc(host, 'sessions', id, 'results', STRANGER), {
-      totalBuyIn: 100,
-      cashOut: 250.5,
-      profit: 150.5,
-      settledAt: SETTLED_AT,
-      playerName: 'Bryan Real',
-      migratedFrom: guest,
-    })
-  );
-  await assertFails(
-    setDoc(doc(host, 'sessions', id, 'early_cashouts', TARGET), {
-      amount: 9999,
-      cashedOutAt: CASHED_OUT_AT,
-      playerName: 'Bryan Real',
-      migratedFrom: guest,
-    })
-  );
-});
-
-test('buy-in update is guarded by an accepted link and cannot touch the amount', async () => {
-  const noLink = nextGuest();
-  const id1 = await seedGuestSession(noLink);
-  const host = dbAs(env, HOST);
-  await assertFails(
-    updateDoc(doc(host, 'sessions', id1, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real' })
-  );
-
-  const guest = nextGuest();
-  const id2 = await seedGuestSession(guest);
-  await seedLink(guest, 'accepted', { [id2]: 150.5 });
-  await assertFails(
-    updateDoc(doc(host, 'sessions', id2, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real', amount: 1 })
-  );
-  await assertFails(
-    updateDoc(doc(host, 'sessions', id2, 'buy_ins', 'b0'), { playerId: STRANGER, playerName: 'Bryan Real' })
-  );
-  await assertFails(
-    updateDoc(doc(host, 'sessions', id2, 'buy_ins', 'other'), { playerId: TARGET, playerName: 'Bryan Real' })
-  );
-  await assertFails(
-    updateDoc(doc(dbAs(env, TARGET), 'sessions', id2, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real' })
-  );
-  await assertSucceeds(
-    updateDoc(doc(host, 'sessions', id2, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real' })
-  );
-});
-
-test('an accepted link does not let the host migrate sessions hosted by someone else or still active', async () => {
-  const guest = nextGuest();
-  const other = await seedGuestSession(guest, { hostId: STRANGER });
-  const active = await seedGuestSession(guest, { status: 'active' });
-  await seedLink(guest, 'accepted', { [other]: 150.5, [active]: 150.5 });
-  await assertFails(migrationBatch(dbAs(env, HOST), other, guest).commit());
-  await assertFails(
-    updateDoc(doc(dbAs(env, HOST), 'sessions', active, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real' })
-  );
-  await assertFails(
-    setDoc(doc(dbAs(env, HOST), 'sessions', active, 'early_cashouts', TARGET), {
-      amount: -5,
-      cashedOutAt: CASHED_OUT_AT,
-      playerName: 'Bryan Real',
-      migratedFrom: guest,
-    })
-  );
-});
-
-test('host can run the full per-session migration batch once the link is accepted', async () => {
-  const guest = nextGuest();
-  const id = await seedGuestSession(guest);
-  await seedLink(guest, 'accepted', { [id]: 150.5 });
-  await assertSucceeds(migrationBatch(dbAs(env, HOST), id, guest).commit());
-});
-
-test('host cannot migrate a finished session that is not in the frozen consent map', async () => {
-  const guest = nextGuest();
-  const consented = await seedGuestSession(guest);
-  const later = await seedGuestSession(guest);
-  await seedLink(guest, 'accepted', { [consented]: 150.5 });
-  const host = dbAs(env, HOST);
-  await assertFails(migrationBatch(host, later, guest).commit());
-  await assertFails(
-    updateDoc(doc(host, 'sessions', later, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real' })
-  );
-  await assertFails(
-    setDoc(doc(host, 'sessions', later, 'early_cashouts', TARGET), {
-      amount: 250.5,
-      cashedOutAt: CASHED_OUT_AT,
-      playerName: 'Bryan Real',
-      migratedFrom: guest,
-    })
-  );
-  await assertSucceeds(migrationBatch(host, consented, guest).commit());
-});
-
-test('host cannot migrate a result whose profit differs from the frozen value, even if the live doc matches', async () => {
-  const guest = nextGuest();
-  const id = await seedGuestSession(guest);
-  await seedLink(guest, 'accepted', { [id]: 10 });
-  const host = dbAs(env, HOST);
-  await assertFails(migrationBatch(host, id, guest).commit());
-  await seedDoc(env, `sessions/${id}/results/${guest}`, {
-    playerName: 'Bryan',
-    totalBuyIn: 100,
-    cashOut: 999,
-    profit: 899,
-    settledAt: SETTLED_AT,
-  });
-  await assertFails(migrationBatch(host, id, guest, { cashOut: 999, profit: 899 }).commit());
-});
-
 test('link create requires sessionCount to match the frozen map, caps its size and restricts guest ids', async () => {
   const guest = nextGuest();
   const host = dbAs(env, HOST);
@@ -434,102 +290,88 @@ test('parsed links derive sessionCount and net from the frozen map, not the stor
   assert.equal(parseGuestLink('y', { sessions: null }).net, 0);
 });
 
-test('migrateGuestLink moves sessions and groups end to end, and is idempotent', async () => {
-  const guest = nextGuest();
-  const host = dbAs(env, HOST);
-
-  const big = await seedGuestSession(guest, { buyIns: 12 });
-  const partial = await seedGuestSession(guest);
-  await seedDoc(env, `sessions/${partial}/results/${TARGET}`, {
-    totalBuyIn: 100,
-    cashOut: 250.5,
-    profit: 150.5,
-    settledAt: SETTLED_AT,
-    playerName: 'Bryan Real',
-    migratedFrom: guest,
-  });
-  const active = await seedGuestSession(guest, { status: 'active' });
-  const foreign = await seedGuestSession(guest, { hostId: STRANGER });
-  const unconsented = await seedGuestSession(guest);
-
-  await requestGuestLinkIn(host, {
-    ownerId: HOST,
-    ownerName: 'Host',
-    guestId: guest,
-    guestName: 'Bryan',
-    targetId: TARGET,
-    targetName: 'Bryan Real',
-  });
-  const requested = await getDoc(doc(host, 'guest_links', guestLinkId(HOST, guest)));
-  const frozen = parseGuestLink(requested.id, requested.data() ?? {});
-  assert.deepEqual(Object.keys(frozen.sessions).sort(), [big, partial, unconsented].sort());
-  await acceptGuestLinkIn(dbAs(env, TARGET), frozen);
-  const { [unconsented]: _dropped, ...kept } = frozen.sessions;
-  await seedDoc(env, `guest_links/${frozen.id}`, {
-    ...linkDoc(frozen),
-    status: 'accepted',
-    sessions: kept,
-    sessionCount: 2,
-    createdAt: new Date(),
-  });
-  const late = await seedGuestSession(guest);
-
-  await seedDoc(env, 'groups/g-new', { name: 'Poker', ownerId: HOST, memberCount: 2, createdAt: new Date() });
-  await seedDoc(env, `groups/g-new/members/${guest}`, { name: 'Bryan', isRegistered: false, avatarEmoji: null });
-  await seedDoc(env, 'groups/g-new/members/x', { name: 'X', isRegistered: false, avatarEmoji: null });
-  await seedDoc(env, 'groups/g-dup', { name: 'Dup', ownerId: HOST, memberCount: 2, createdAt: new Date() });
-  await seedDoc(env, `groups/g-dup/members/${guest}`, { name: 'Bryan', isRegistered: false, avatarEmoji: null });
-  await seedDoc(env, `groups/g-dup/members/${TARGET}`, { name: 'Bryan Real', isRegistered: true, avatarEmoji: null });
-
-  const result = await migrateGuestLinkIn(host, linkFor(guest, 'accepted'));
-  assert.equal(result.sessions, 2);
-  assert.equal(result.groups, 2);
-
-  await env.withSecurityRulesDisabled(async (ctx) => {
-    const db = ctx.firestore() as unknown as Firestore;
-    for (const id of [big, partial]) {
-      const s = await getDoc(doc(db, 'sessions', id));
-      assert.deepEqual(s.data()?.participantIds, [HOST, TARGET, OTHER_PLAYER]);
-      const r = await getDoc(doc(db, 'sessions', id, 'results', TARGET));
-      assert.equal(r.data()?.profit, 150.5);
-      assert.equal(r.data()?.playerName, 'Bryan Real');
-      assert.equal((await getDoc(doc(db, 'sessions', id, 'results', guest))).exists(), false);
-      const ec = await getDoc(doc(db, 'sessions', id, 'early_cashouts', TARGET));
-      assert.equal(ec.data()?.amount, 250.5);
-      assert.equal((await getDoc(doc(db, 'sessions', id, 'early_cashouts', guest))).exists(), false);
-      const sp = await getDoc(doc(db, 'sessions', id, 'session_participants', TARGET));
-      assert.equal(sp.data()?.playerId, TARGET);
-      assert.equal((await getDoc(doc(db, 'sessions', id, 'session_participants', guest))).exists(), false);
-      const leftover = await getDocs(query(collection(db, 'sessions', id, 'buy_ins'), where('playerId', '==', guest)));
-      assert.equal(leftover.size, 0);
-    }
-    const moved = await getDocs(query(collection(db, 'sessions', big, 'buy_ins'), where('playerId', '==', TARGET)));
-    assert.equal(moved.size, 12);
-    for (const id of [active, foreign, unconsented, late]) {
-      const s = await getDoc(doc(db, 'sessions', id));
-      assert.ok(s.data()?.participantIds.includes(guest));
-    }
-    const newMember = await getDoc(doc(db, 'groups/g-new/members', TARGET));
-    assert.deepEqual(newMember.data(), { name: 'Bryan Real', isRegistered: true, avatarEmoji: '🦊' });
-    assert.equal((await getDoc(doc(db, 'groups/g-new/members', guest))).exists(), false);
-    assert.equal((await getDoc(doc(db, 'groups/g-new'))).data()?.memberCount, 2);
-    assert.equal((await getDoc(doc(db, 'groups/g-dup'))).data()?.memberCount, 1);
-    const membership = await getDoc(doc(db, 'players', TARGET, 'group_memberships', 'g-new'));
-    assert.equal(membership.data()?.role, 'member');
-    assert.equal(membership.data()?.ownerId, HOST);
-    assert.equal((await getDoc(doc(db, 'guest_links', guestLinkId(HOST, guest)))).exists(), false);
-  });
-
-  assert.deepEqual(await migrateGuestLinkIn(host, linkFor(guest, 'accepted')), {
-    sessions: 0,
-    groups: 0,
-    touchedGroupIds: [],
-  });
-});
-
-test('migrateGuestLink refuses a pending link', async () => {
+test('with an accepted link the host still cannot write guest history onto the target of a finished session', async () => {
   const guest = nextGuest();
   const id = await seedGuestSession(guest);
-  await seedLink(guest, 'pending', { [id]: 150.5 });
-  await assert.rejects(migrateGuestLinkIn(dbAs(env, HOST), linkFor(guest)));
+  await seedLink(guest, 'accepted', { [id]: 150.5 });
+  const host = dbAs(env, HOST);
+  await assertFails(migrationBatch(host, id, guest).commit());
+  await assertFails(
+    setDoc(doc(host, 'sessions', id, 'results', TARGET), {
+      totalBuyIn: 100,
+      cashOut: 250.5,
+      profit: 150.5,
+      settledAt: SETTLED_AT,
+      playerName: 'Bryan Real',
+      migratedFrom: guest,
+    })
+  );
+  await assertFails(
+    setDoc(doc(host, 'sessions', id, 'results', TARGET), {
+      totalBuyIn: 100,
+      cashOut: 250.5,
+      profit: 150.5,
+      playerName: 'Bryan Real',
+    })
+  );
+  await assertFails(updateDoc(doc(host, 'sessions', id, 'results', guest), { playerName: 'Bryan Real' }));
+  await assertFails(
+    setDoc(doc(host, 'sessions', id, 'early_cashouts', TARGET), {
+      amount: 250.5,
+      cashedOutAt: CASHED_OUT_AT,
+      playerName: 'Bryan Real',
+      migratedFrom: guest,
+    })
+  );
+});
+
+test('buy-ins cannot be updated by anyone, even with an accepted link or on an active session', async () => {
+  const guest = nextGuest();
+  const finished = await seedGuestSession(guest);
+  const active = await seedGuestSession(guest, { status: 'active' });
+  await seedLink(guest, 'accepted', { [finished]: 150.5, [active]: 150.5 });
+  for (const id of [finished, active]) {
+    await assertFails(
+      updateDoc(doc(dbAs(env, HOST), 'sessions', id, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real' })
+    );
+    await assertFails(
+      updateDoc(doc(dbAs(env, TARGET), 'sessions', id, 'buy_ins', 'b0'), { playerId: TARGET, playerName: 'Bryan Real' })
+    );
+    await assertFails(updateDoc(doc(dbAs(env, HOST), 'sessions', id, 'buy_ins', 'b0'), { amount: 1 }));
+  }
+});
+
+test('live results and early cash-outs still work on an active session', async () => {
+  const id = sid();
+  await seedSession(env, id, { status: 'active' });
+  const host = dbAs(env, HOST);
+  await assertSucceeds(
+    setDoc(doc(host, 'sessions', id, 'results', PLAYER), { playerName: 'P', totalBuyIn: 100, cashOut: 50, profit: -50 })
+  );
+  await assertSucceeds(
+    updateDoc(doc(host, 'sessions', id, 'results', PLAYER), { cashOut: 60, profit: -40 })
+  );
+  await assertSucceeds(setDoc(doc(host, 'sessions', id, 'early_cashouts', PLAYER), { playerName: 'P', amount: 60 }));
+  await assertFails(setDoc(doc(dbAs(env, PLAYER), 'sessions', id, 'results', PLAYER), { playerName: 'P', totalBuyIn: 1, cashOut: 1, profit: 0 }));
+});
+
+test('clients cannot mark a link failed; a failed link stays readable and deletable by owner and target', async () => {
+  const pending = await seedLink(nextGuest(), 'pending');
+  await assertFails(updateDoc(doc(dbAs(env, TARGET), 'guest_links', pending.id), { status: 'failed' }));
+  await assertFails(updateDoc(doc(dbAs(env, HOST), 'guest_links', pending.id), { status: 'failed' }));
+  const accepted = await seedLink(nextGuest(), 'accepted');
+  await assertFails(updateDoc(doc(dbAs(env, TARGET), 'guest_links', accepted.id), { status: 'failed' }));
+
+  const failed = linkFor(nextGuest());
+  const { id: _id, ...rest } = failed;
+  await seedDoc(env, `guest_links/${failed.id}`, { ...rest, status: 'failed', createdAt: new Date(), failedAt: new Date() });
+  const read = await assertSucceeds(getDoc(doc(dbAs(env, TARGET), 'guest_links', failed.id)));
+  assert.equal(parseGuestLink(read.id, read.data() ?? {}).status, 'failed');
+  await assertSucceeds(getDoc(doc(dbAs(env, HOST), 'guest_links', failed.id)));
+  await assertFails(getDoc(doc(dbAs(env, STRANGER), 'guest_links', failed.id)));
+  await assertFails(
+    updateDoc(doc(dbAs(env, TARGET), 'guest_links', failed.id), { status: 'accepted', acceptedAt: serverTimestamp() })
+  );
+  await assertFails(deleteDoc(doc(dbAs(env, STRANGER), 'guest_links', failed.id)));
+  await assertSucceeds(deleteDoc(doc(dbAs(env, HOST), 'guest_links', failed.id)));
 });

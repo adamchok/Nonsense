@@ -1,11 +1,9 @@
 import { getFirestoreDb } from '@/lib/firebase';
-import { invalidateSessionScanCache, syncGroupMembershipDocs } from '@/lib/firestore';
 import {
   acceptGuestLinkIn,
   cancelGuestLinkIn,
   declineGuestLinkIn,
   guestLinkId,
-  migrateGuestLinkIn,
   requestGuestLinkIn,
   subscribeGuestLinksIn,
   summarizeGuestIn,
@@ -57,16 +55,4 @@ export async function acceptGuestLink(link: GuestLink): Promise<void> {
 
 export async function declineGuestLink(link: GuestLink): Promise<void> {
   await declineGuestLinkIn(getFirestoreDb(), link);
-}
-
-export async function migrateGuestLink(link: GuestLink): Promise<{ sessions: number; groups: number }> {
-  const { sessions, groups, touchedGroupIds } = await migrateGuestLinkIn(getFirestoreDb(), link);
-  const synced = await Promise.allSettled(touchedGroupIds.map((id) => syncGroupMembershipDocs(id)));
-  synced.forEach((r, i) => {
-    if (r.status === 'rejected') {
-      console.warn(`[guest-links] could not refresh membership mirrors for group ${touchedGroupIds[i]}`, r.reason);
-    }
-  });
-  invalidateSessionScanCache();
-  return { sessions, groups };
 }
