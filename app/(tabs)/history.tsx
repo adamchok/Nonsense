@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
+import { PLChart } from '@/components/pl-chart';
 import { Animated as Motion, PressableScale, layoutTransition, fadeOut, listItemEntering, webSafe } from '@/components/motion';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
@@ -594,6 +595,12 @@ export default function HistoryScreen() {
           </Text>
         </View>
       </View>
+
+      {!loading && filteredHistory.length >= 2 ? (
+        <View style={[styles.chartCard, { backgroundColor: c.card, borderColor: c.border }]}>
+          <PLChart entries={filteredHistory} />
+        </View>
+      ) : null}
 
       {error ? <Text style={[styles.historyMeta, { color: c.loss }]}>{error}</Text> : null}
 
@@ -1260,6 +1267,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     gap: 4,
+  },
+  chartCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 12,
   },
   summaryRow: {
     flexDirection: 'row',
