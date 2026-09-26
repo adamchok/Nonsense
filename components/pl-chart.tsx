@@ -373,9 +373,9 @@ const styles = StyleSheet.create({
   headerBtn: {
     flex: 1,
     gap: 10,
-    marginLeft: -12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    marginLeft: -8,
+    paddingHorizontal: 8,
+    borderRadius: 10,
   },
   headerValue: {
     fontSize: 16,
