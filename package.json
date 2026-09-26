@@ -8,7 +8,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test": "node --test \"test/lib/**/*.test.ts\"",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-nonsense \"node --test --test-concurrency=1 test/rules/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
     "eas-build-pre-install": "node scripts/check-firebase-env.js"
   },
   "dependencies": {
@@ -49,9 +51,11 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "firebase-tools": "^15.31.0",
     "typescript": "~5.9.2"
   },
   "private": true

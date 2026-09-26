@@ -1,7 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { getReactNativePersistence, initializeAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import {
+  connectAuthEmulator,
+  getAuth,
+  getReactNativePersistence,
+  initializeAuth,
+  type Auth,
+} from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -25,6 +32,16 @@ export function isFirebaseConfigured(): boolean {
       firebaseConfig.appId
   );
 }
+
+/**
+ * Local emulator suite (see `emulators` in firebase.json). Opt-in via EXPO_PUBLIC_USE_EMULATOR=1.
+ * The Android emulator reaches the host machine at 10.0.2.2, so set EXPO_PUBLIC_EMULATOR_HOST
+ * there; a physical device needs the host's LAN IP.
+ */
+const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
+const EMULATOR_HOST = process.env.EXPO_PUBLIC_EMULATOR_HOST || '127.0.0.1';
+const FIRESTORE_EMULATOR_PORT = 8080;
+const AUTH_EMULATOR_PORT = 9099;
 
 let app: FirebaseApp | undefined;
 
@@ -52,9 +69,19 @@ let auth: Auth | undefined;
 export function getFirebaseAuth(): Auth {
   if (!auth) {
     const firebaseApp = getFirebaseApp();
-    auth = initializeAuth(firebaseApp, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
+    // The web bundle resolves firebase/auth to its browser build, which has no
+    // getReactNativePersistence; getAuth() there defaults to IndexedDB/localStorage persistence.
+    auth =
+      Platform.OS === 'web'
+        ? getAuth(firebaseApp)
+        : initializeAuth(firebaseApp, {
+            persistence: getReactNativePersistence(AsyncStorage),
+          });
+    if (USE_EMULATOR) {
+      connectAuthEmulator(auth, `http://${EMULATOR_HOST}:${AUTH_EMULATOR_PORT}`, {
+        disableWarnings: true,
+      });
+    }
   }
   return auth;
 }
@@ -64,6 +91,9 @@ let db: Firestore | undefined;
 export function getFirestoreDb(): Firestore {
   if (!db) {
     db = getFirestore(getFirebaseApp());
+    if (USE_EMULATOR) {
+      connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT);
+    }
   }
   return db;
 }

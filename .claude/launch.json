@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-emulator",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
+      "env": {
+        "EXPO_PUBLIC_USE_EMULATOR": "1",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "demo-nonsense",
+        "BROWSER": "none"
+      },
+      "port": 8081
+    }
+  ]
+}

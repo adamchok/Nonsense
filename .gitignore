@@ -48,3 +48,6 @@ app-example
 
 # service account
 service-account.json
+# Firebase emulator logs
+firestore-debug.log
+firebase-debug.log
