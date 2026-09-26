@@ -2,9 +2,21 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8082"],
+      "env": {
+        "BROWSER": "none"
+      },
+      "port": 8082
+    },
+    {
       "name": "web-emulator",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
+      "runtimeArgs": [
+        "firebase", "emulators:exec", "--only", "auth,firestore", "--project", "demo-nonsense",
+        "npx expo start --web --port 8081"
+      ],
       "env": {
         "EXPO_PUBLIC_USE_EMULATOR": "1",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "demo-nonsense",
