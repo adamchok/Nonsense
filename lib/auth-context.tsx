@@ -107,7 +107,11 @@ function linkInfoOf(user: User | null): LinkInfo {
 async function loadProfile(uid: string): Promise<PlayerProfile | null> {
   const profile = await getPlayerProfile(uid);
   if (profile && !profile.refCode) {
-    return { ...profile, refCode: await ensureRefCode(uid) };
+    try {
+      return { ...profile, refCode: await ensureRefCode(uid) };
+    } catch (err) {
+      console.warn('Could not assign a friend code yet:', err);
+    }
   }
   return profile;
 }
