@@ -113,7 +113,6 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
   const c = useAppColors();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const isSheet = width < SHEET_BREAKPOINT;
   const [payload, setPayload] = useState<AlertPayload | null>(null);
 
   const show = useCallback((next: AlertPayload) => {
@@ -150,6 +149,8 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
 
   const visible = payload != null;
   const buttons = payload?.buttons ?? [];
+  // Phones: a choice (2+ buttons) docks as a bottom sheet; a plain notice (just OK) stays a centred dialog.
+  const isSheet = width < SHEET_BREAKPOINT && buttons.length > 1;
   const isStacked = buttons.length > 2;
   const cancelButton = buttons.find((b) => b.style === 'cancel');
 
