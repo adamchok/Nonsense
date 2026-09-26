@@ -175,7 +175,7 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
             onPress={() => setIsPasswordVisible((v) => !v)}
             accessibilityRole="button"
             accessibilityLabel={isPasswordVisible ? 'Hide password' : 'Show password'}
-            hitSlop={4}
+            hitSlop={8}
             style={styles.eyeButton}>
             <EyeGlyph size={20} color={c.textMuted} {...eyeA11yHidden} />
           </PressableScale>
@@ -286,12 +286,12 @@ const styles = StyleSheet.create({
   passwordInput: { paddingRight: 52 },
   eyeButton: {
     position: 'absolute',
-    right: 4,
-    width: 44,
-    height: 44,
+    right: 6,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: 18,
   },
   forgotButton: { alignSelf: 'flex-end', minHeight: 36, justifyContent: 'center', paddingHorizontal: 4, marginTop: 4 },
   forgotLabel: { fontSize: 13, fontWeight: '600' },
