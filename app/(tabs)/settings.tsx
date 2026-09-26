@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
 import { Icon, type IconName } from '@/components/icon';
-import { StatsBody } from '@/components/stats-body';
+import { StatsBody, StatsSkeleton } from '@/components/stats-body';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -312,9 +312,10 @@ export default function SettingsScreen() {
                   Sign in to see statistics.
                 </Text>
               ) : statsLoading ? (
-                <View style={styles.statsLoadingWrap}>
-                  <ActivityIndicator size="large" color={t.accentText} />
-                </View>
+                // Same scroll container as the loaded stats, so the numbers land where the bones were.
+                <ScrollView contentContainerStyle={styles.statsScrollContent}>
+                  <StatsSkeleton />
+                </ScrollView>
               ) : statsError ? (
                 <Text style={[styles.statsError, { color: '#b91c1c' }]}>{statsError}</Text>
               ) : stats ? (
@@ -729,11 +730,6 @@ const styles = StyleSheet.create({
   statsScrollContent: {
     gap: 2,
     paddingBottom: 12,
-  },
-  statsLoadingWrap: {
-    paddingVertical: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   statsError: {
     paddingVertical: 12,

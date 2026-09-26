@@ -1,5 +1,6 @@
 import { EmptyState } from '@/components/empty-state';
 import { Icon, type IconName } from '@/components/icon';
+import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
@@ -25,7 +26,8 @@ function signedColor(c: AppColors, n: number | null): string {
 const signedOrDash = (n: number | null) => (n === null ? '—' : formatSignedCurrency(n));
 const dateOrDash = (d: Date | null) => (d ? formatDateDMY(d) : '—');
 
-type Row = { label: string; value: string };
+/** A row's value; null renders a bone in its place while statistics load. */
+type Row = { label: string; value: string | null };
 
 /** Statistics content: P/L headline + win bar, key-number tiles, then grouped detail lists. */
 export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
@@ -118,6 +120,57 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
   );
 }
 
+/** Tile labels in display order, shared by the loaded grid and its skeleton. */
+const TILE_LABELS = ['Per session', 'Per hour', 'Best', 'Worst', 'Return on buy-in', 'Time played'];
+const SKELETON_SECTIONS: { title: string; icon: IconName; labels: string[] }[] = [
+  { title: 'Money', icon: 'account-balance-wallet', labels: ['Total buy-in', 'Total cash-out'] },
+  { title: 'Sessions', icon: 'history', labels: ['First', 'Latest', 'Hosted / joined'] },
+];
+
+/**
+ * StatsBody while loading: the same hero, tile grid and grouped lists with bones where the
+ * numbers go, so results land in place. Labels stay real; only data pulses.
+ */
+export function StatsSkeleton() {
+  const c = useAppColors();
+  return (
+    <SkeletonGroup label="Loading statistics" style={styles.wrap}>
+      <View style={[styles.hero, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
+        <Text style={[styles.heroLabel, { color: c.textMuted }]}>Lifetime profit / loss</Text>
+        <Skeleton width={160} height={36} radius={8} style={styles.skelHeroValue} />
+        <Skeleton width={128} height={12} style={styles.skelHeroSub} />
+        <View style={styles.winWrap}>
+          <Skeleton height={8} radius={4} />
+          <View style={styles.winLegend}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={styles.winLegendItem}>
+                <Skeleton width={8} height={8} radius={4} />
+                <Skeleton width={i === 1 ? 44 : 28} height={10} style={styles.skelLegendText} />
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.tiles}>
+        {TILE_LABELS.map((label) => (
+          <Tile key={label} c={c} label={label} value={null} color={c.text} />
+        ))}
+      </View>
+
+      {SKELETON_SECTIONS.map((sec) => (
+        <Section
+          key={sec.title}
+          title={sec.title}
+          icon={sec.icon}
+          c={c}
+          rows={sec.labels.map((label) => ({ label, value: null }))}
+        />
+      ))}
+    </SkeletonGroup>
+  );
+}
+
 function WinBar({ c, win, loss, even }: { c: AppColors; win: number; loss: number; even: number }) {
   const parts = [
     { n: win, color: c.profit, label: 'W' },
@@ -145,15 +198,19 @@ function WinBar({ c, win, loss, even }: { c: AppColors; win: number; loss: numbe
   );
 }
 
-function Tile({ c, label, value, color }: { c: AppColors; label: string; value: string; color: string }) {
+function Tile({ c, label, value, color }: { c: AppColors; label: string; value: string | null; color: string }) {
   return (
     <View style={[styles.tile, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
       <Text style={[styles.tileLabel, { color: c.textMuted }]} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={[styles.tileValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
-        {value}
-      </Text>
+      {value === null ? (
+        <Skeleton width="70%" height={14} style={styles.skelTileValue} />
+      ) : (
+        <Text style={[styles.tileValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
+          {value}
+        </Text>
+      )}
     </View>
   );
 }
@@ -173,7 +230,11 @@ function Section({ title, icon, rows, c }: { title: string; icon: IconName; rows
             {i > 0 ? <View style={[styles.divider, { backgroundColor: c.border }]} /> : null}
             <View style={styles.row}>
               <Text style={[styles.rowLabel, { color: c.textMuted }]}>{r.label}</Text>
-              <Text style={[styles.rowValue, { color: c.text }]}>{r.value}</Text>
+              {r.value === null ? (
+                <Skeleton width={72} height={14} />
+              ) : (
+                <Text style={[styles.rowValue, { color: c.text }]}>{r.value}</Text>
+              )}
             </View>
           </Fragment>
         ))}
@@ -214,5 +275,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, minHeight: 40 },
   rowLabel: { flex: 1, fontSize: 14 },
   rowValue: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  // Bone margins pad each bone out to the line height of the text it stands in for.
+  skelHeroValue: { marginVertical: 2 },
+  skelHeroSub: { marginVertical: 3 },
+  skelLegendText: { marginVertical: 3 },
+  skelTileValue: { marginVertical: 3 },
   footnote: { fontSize: 12, lineHeight: 16, textAlign: 'center' },
 });
