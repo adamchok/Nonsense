@@ -1,6 +1,7 @@
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { useAppColors } from '@/lib/app-theme';
 import { formatSessionAmountValue } from '@/lib/currency-format';
+import { text as type, pressBg, ui } from '@/lib/ui';
 import { ledgerRowValues, type LedgerPlayer } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -32,6 +33,8 @@ type Props = LedgerRowHandlers & {
   /** Host viewing an active session. */
   canAct: boolean;
   isRemoving: boolean;
+  /** Rows after the first draw a divider above themselves. */
+  showDivider: boolean;
   displayUnit: SessionAmountUnit;
   /** Set when the ledger is converting chips to dollars. */
   dollarsPerChip: number | undefined;
@@ -67,6 +70,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   isHostRow,
   canAct,
   isRemoving,
+  showDivider,
   displayUnit,
   dollarsPerChip,
   onRebuy,
@@ -81,27 +85,23 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   const resultColor = values.result >= 0 ? c.profit : c.lossLight;
   const label = rowLabel(player, isHostRow, values, isCashedOut, displayUnit);
 
-  const rowStyle: ViewStyle[] = [
-    styles.row,
-    isHostRow
-      ? { backgroundColor: c.accentBg, borderColor: c.borderAccent, borderWidth: 2 }
-      : { backgroundColor: c.card, borderColor: c.border },
-  ];
-  if (isCashedOut) {
-    rowStyle.push(styles.rowCashedOut);
-    if (!isHostRow) rowStyle.push({ borderColor: c.borderDanger });
-  }
+  const rowBg = isHostRow ? c.accentBg : c.card;
+  const rowStyle: ViewStyle[] = [ui.row, styles.row, { backgroundColor: rowBg, borderColor: c.border }];
+  if (showDivider) rowStyle.push(ui.rowDivider);
 
   const inner = (
     <>
+      <View
+        style={[ui.tile, { backgroundColor: isHostRow ? c.card : c.cardAlt, borderColor: c.border }, styles.tile]}
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden>
+        <Text style={styles.avatar}>{avatar}</Text>
+      </View>
       <View style={styles.left}>
         <View style={styles.info}>
           <View style={styles.infoInline}>
-            <Text style={styles.avatar} importantForAccessibility="no" accessibilityElementsHidden>
-              {avatar}
-            </Text>
             <Text
-              style={[styles.name, { color: isCashedOut ? c.textMuted : c.text }]}
+              style={[type.rowTitle, styles.name, { color: isCashedOut ? c.textMuted : c.text }]}
               numberOfLines={1}>
               {player.name}
             </Text>
@@ -128,7 +128,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             color={isCashedOut ? c.textMuted : c.profit}
             iconSize={14}
             valueStyle="ledger"
-            textStyle={[styles.amount, { color: isCashedOut ? c.textMuted : c.profit }]}
+            textStyle={[type.amount, { color: isCashedOut ? c.textMuted : c.profit }]}
           />
           {isCashedOut ? (
             <View style={styles.cashOutSubline}>
@@ -163,12 +163,14 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
         <View style={styles.actions} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           <Pressable
             style={[styles.iconBtn, { backgroundColor: c.blueBg }]}
+            hitSlop={4}
             onPress={() => onCashOut(player)}>
             <MaterialIcons name="account-balance-wallet" size={20} color={c.blue} />
           </Pressable>
           <Pressable
             style={[styles.iconBtn, { borderColor: c.borderDanger }, styles.iconBtnOutline]}
             disabled={isRemoving}
+            hitSlop={4}
             onPress={() => onRemove(player)}>
             {isRemoving ? (
               <Text style={[styles.removeLabel, { color: c.lossLight }]}>…</Text>
@@ -187,7 +189,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   if (canAct && isCashedOut) {
     return (
       <Pressable
-        style={({ pressed }) => [...rowStyle, pressed && { backgroundColor: c.pressedRow }]}
+        style={(state) => [...rowStyle, pressBg(c, state, rowBg)]}
         onPress={() => onOpenCashedOut(player.playerId)}
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -214,7 +216,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
     };
     return (
       <Pressable
-        style={({ pressed }) => [...rowStyle, pressed && { backgroundColor: c.pressedRow }]}
+        style={(state) => [...rowStyle, pressBg(c, state, rowBg)]}
         onPress={() => onRebuy(player)}
         onLongPress={() => onCorrectTotal(player)}
         accessibilityRole="button"
@@ -240,23 +242,15 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    marginBottom: 6,
+    gap: 12,
   },
-  /** Dashed border marks the row; no opacity, which would drop text contrast below AA. */
-  rowCashedOut: {
-    borderStyle: 'dashed',
+  tile: {
+    borderWidth: 1,
   },
   left: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     minWidth: 0,
   },
@@ -268,18 +262,13 @@ const styles = StyleSheet.create({
   infoInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
     minWidth: 0,
   },
   avatar: {
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: 20,
-    flexShrink: 0,
   },
   name: {
-    fontWeight: '600',
-    fontSize: 15,
     flexShrink: 1,
   },
   badges: {
@@ -300,10 +289,7 @@ const styles = StyleSheet.create({
   amounts: {
     alignItems: 'flex-end',
     marginLeft: 8,
-    minWidth: 92,
-  },
-  amount: {
-    fontWeight: '600',
+    minWidth: 80,
   },
   cashOutSubline: {
     flexDirection: 'row',
@@ -315,16 +301,17 @@ const styles = StyleSheet.create({
   cashOutResult: {
     fontSize: 12,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 999,
     justifyContent: 'center',
     alignItems: 'center',
   },

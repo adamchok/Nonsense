@@ -1,4 +1,5 @@
 import { appAlert } from '@/lib/app-alert';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatSessionBlindsForDisplay, formatSignedCurrency } from '@/lib/currency-format';
@@ -28,6 +29,7 @@ export default function SessionSummaryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const c = useAppColors();
+  const layout = usePageLayout(40);
   const { user } = useAuth();
   const [results, setResults] = useState<SessionResult[]>([]);
   const [earlyCashOuts, setEarlyCashOuts] = useState<EarlyCashOut[]>([]);
@@ -251,7 +253,7 @@ export default function SessionSummaryScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[layout.content, styles.scrollContent]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}>
       <View style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -477,23 +479,19 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     marginTop: 12,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
+    borderRadius: 14,
+    minHeight: 48,
+    paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 16,
-    paddingTop: 8,
-    gap: 16,
-    paddingBottom: 40,
   },
   metaCard: {
     borderRadius: 14,
     borderWidth: 1,
-    padding: 14,
+    padding: 16,
     gap: 0,
   },
   metaGrid: {
@@ -512,9 +510,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   metaIconWrapSmall: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -524,10 +522,10 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   metaLabel: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.66,
   },
   metaValue: {
     fontSize: 15,
@@ -537,28 +535,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   resultsBlock: {
-    gap: 12,
+    gap: 8,
   },
   settlementBlock: {
-    gap: 12,
+    gap: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 4,
+    paddingHorizontal: 4,
   },
   sectionTitle: {
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 17,
-    letterSpacing: -0.2,
+    lineHeight: 22,
   },
   resultRow: {
     flexDirection: 'row',
     borderRadius: 14,
     borderWidth: 1,
     overflow: 'hidden',
-    marginBottom: 8,
   },
   rankBar: {
     width: 4,
@@ -568,7 +565,8 @@ const styles = StyleSheet.create({
   },
   resultBody: {
     flex: 1,
-    padding: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     gap: 10,
     minWidth: 0,
   },
@@ -586,21 +584,23 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   rankBadge: {
-    minWidth: 28,
-    height: 28,
-    borderRadius: 8,
+    minWidth: 32,
+    height: 32,
+    borderRadius: 9,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
   rankBadgeText: {
-    fontWeight: '800',
+    fontWeight: '700',
     fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
   resultName: {
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
+    lineHeight: 20,
     flexShrink: 1,
   },
   badgesRow: {
@@ -610,9 +610,9 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   youBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   youBadgeText: {
     color: '#fff',
@@ -622,21 +622,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   earlyBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   earlyBadgeText: {
     color: '#fff',
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   resultProfit: {
-    fontWeight: '800',
+    fontWeight: '700',
     fontSize: 17,
-    letterSpacing: -0.2,
+    lineHeight: 22,
+    fontVariant: ['tabular-nums'],
   },
   amountChips: {
     flexDirection: 'row',
@@ -650,34 +651,35 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
   },
   amountChipLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.66,
   },
   amountChipValue: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   settlementCard: {
     borderRadius: 14,
     borderWidth: 1,
-    paddingVertical: 4,
-    paddingHorizontal: 14,
+    overflow: 'hidden',
+    paddingHorizontal: 16,
   },
   settlementDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginVertical: 4,
+    height: 1,
   },
   settlementRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+    minHeight: 52,
     paddingVertical: 12,
   },
   settlementNames: {
@@ -687,7 +689,8 @@ const styles = StyleSheet.create({
   },
   settlementFrom: {
     fontSize: 15,
-    fontWeight: '700',
+    lineHeight: 20,
+    fontWeight: '600',
   },
   settlementFlow: {
     flexDirection: 'row',
@@ -695,19 +698,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   settlementTo: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
     flex: 1,
   },
   settlementAmountPill: {
-    borderRadius: 10,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
   settlementAmount: {
-    fontWeight: '800',
-    fontSize: 16,
+    fontWeight: '600',
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
   settlementEmpty: {
     borderRadius: 14,
@@ -719,7 +723,7 @@ const styles = StyleSheet.create({
   },
   settlementEmptyTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   settlementEmptySub: {
     fontSize: 14,
@@ -727,23 +731,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerShareBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#25D366',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerBackBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonLabel: {
     color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
+    fontWeight: '600',
+    fontSize: 15,
   },
 });

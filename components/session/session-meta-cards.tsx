@@ -9,6 +9,7 @@ import {
 import { sessionBlindsAreSet, type SessionView } from '@/lib/session-view';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { ComponentProps, ReactNode } from 'react';
+import { pressBg } from '@/lib/ui';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 type Props = {
@@ -122,7 +123,7 @@ function MetaCard({
   return (
     <Pressable
       onPress={onEdit}
-      style={cardStyle}
+      style={(state) => [...cardStyle, pressBg(c, state)]}
       accessibilityRole="button"
       accessibilityLabel={spokenLabel}
       accessibilityHint={`Edit ${label.toLowerCase()}`}>
@@ -165,13 +166,13 @@ function BlindsMetaLine({ session }: { session: SessionView }) {
 const styles = StyleSheet.create({
   cards: {
     width: '100%',
-    gap: 10,
+    gap: 8,
   },
   row: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: 10,
+    gap: 8,
   },
   card: {
     flex: 1,
@@ -179,10 +180,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 10,
-    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minHeight: 52,
   },
   fullRow: {
     flex: 0,
@@ -200,13 +202,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontWeight: '600',
+    letterSpacing: 0.66,
   },
   value: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    lineHeight: 18,
+    lineHeight: 20,
   },
   chipsBlindsRow: {
     flexDirection: 'row',

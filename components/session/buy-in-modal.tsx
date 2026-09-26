@@ -185,13 +185,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   addSection: {
-    gap: 8,
-    borderRadius: 10,
+    gap: 12,
+    borderRadius: 14,
     borderWidth: 1,
     padding: 12,
   },
   quickAddButton: {
-    borderRadius: 8,
+    borderRadius: 9,
     borderWidth: 1,
     borderStyle: 'dashed',
     minHeight: 44,
@@ -199,6 +199,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickAddLabel: {
+    fontSize: 15,
     fontWeight: '600',
   },
   inputRow: {
@@ -224,7 +225,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quickAmountText: {
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 14,
+    fontVariant: ['tabular-nums'],
   },
 });

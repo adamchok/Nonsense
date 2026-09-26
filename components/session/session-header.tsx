@@ -48,18 +48,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 14,
-    marginBottom: 2,
+    gap: 12,
   },
   text: {
     flex: 1,
     minWidth: 0,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.72,
+    marginBottom: 2,
   },
   title: {
     fontSize: 20,
@@ -78,7 +77,8 @@ const styles = StyleSheet.create({
     gap: 6,
     minHeight: 44,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingLeft: 14,
+    paddingRight: 18,
     borderRadius: 999,
     ...Platform.select({
       ios: {
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   },
   buyInLabel: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

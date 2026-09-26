@@ -117,8 +117,8 @@ export default function SavedLocationsScreen() {
         {locations.length === 0 ? (
           <Text style={[styles.empty, { color: c.textHint }]}>No saved locations yet.</Text>
         ) : (
-          locations.map((item) => (
-            <View key={item.id} style={[styles.row, { borderColor: c.border }]}>
+          locations.map((item, i) => (
+            <View key={item.id} style={[styles.row, i > 0 && styles.rowDivider, { borderColor: c.border }]}>
               <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -143,20 +143,21 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingTop: 12,
-    gap: 10,
+    paddingTop: 16,
+    gap: 24,
     paddingBottom: 32,
   },
   card: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
-    gap: 10,
+    padding: 16,
+    gap: 12,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.72,
+    textTransform: 'uppercase',
   },
   addRow: {
     flexDirection: 'row',
@@ -164,14 +165,18 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
   },
   addBtn: {
-    width: 44,
-    borderRadius: 8,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -179,9 +184,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 10,
-    gap: 10,
+    minHeight: 52,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  rowDivider: {
+    borderTopWidth: 1,
   },
   name: {
     flex: 1,

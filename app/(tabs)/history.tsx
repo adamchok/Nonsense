@@ -1,5 +1,7 @@
 import { WebDateInput } from '@/components/web/web-date-input';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
+import { pressBg } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency,
@@ -10,7 +12,7 @@ import {
 import { parseAmount } from '@/lib/parse-amount';
 import { formatDateTimeDMY } from '@/lib/date-format';
 import { appAlert } from '@/lib/app-alert';
-import { getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
+import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE, leaveSession } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -113,6 +115,7 @@ function hasAnyFilterValue(filter: FilterState): boolean {
 
 export default function HistoryScreen() {
   const c = useAppColors();
+  const layout = usePageLayout();
   const router = useRouter();
   const { playerProfile } = useAuth();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -370,8 +373,40 @@ export default function HistoryScreen() {
     [playerProfile?.id, loadHistory]
   );
 
+  /** Host-only: deletes the whole session (ledger and every player's result) for everyone. */
+  const confirmDeleteSession = useCallback(
+    (sessionId: string) => {
+      appAlert(
+        'Delete this session?',
+        "It's removed for every player, along with its buy-ins and results, and drops out of everyone's history, statistics and leaderboards. This cannot be undone.",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                try {
+                  await deleteSession(sessionId);
+                  await loadHistory();
+                } catch (e) {
+                  appAlert('Error', userMessage(e, 'Failed to delete session.'));
+                }
+              })();
+            },
+          },
+        ]
+      );
+    },
+    [loadHistory]
+  );
+
   return (
-    <View style={[styles.screen, { backgroundColor: c.bg }]}>
+    <View
+      style={[
+        styles.screen,
+        { backgroundColor: c.bg, paddingHorizontal: layout.gutter, gap: layout.sectionGap },
+      ]}>
       <View style={styles.titleRow}>
         <Text style={[styles.title, { color: c.text }]}>My Winnings</Text>
         <View style={styles.headerActions}>
@@ -527,14 +562,14 @@ export default function HistoryScreen() {
         </View>
       </View>
 
-      {error ? <Text style={{ color: c.loss }}>{error}</Text> : null}
+      {error ? <Text style={[styles.historyMeta, { color: c.loss }]}>{error}</Text> : null}
 
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={c.textMuted} />
         </View>
       ) : filteredHistory.length === 0 ? (
-        <Text style={{ color: c.textMuted }}>
+        <Text style={[styles.emptyList, { color: c.textMuted }]}>
           {history.length === 0
             ? 'No completed sessions yet. Finish a game to see your history.'
             : 'No sessions match your current filters.'}
@@ -550,7 +585,7 @@ export default function HistoryScreen() {
                 <Pressable
                   style={[
                     styles.loadMoreBtn,
-                    { backgroundColor: c.cardAlt, borderColor: c.border },
+                    { backgroundColor: c.card, borderColor: c.inputBorder },
                     loadingMore && styles.loadMoreBtnDisabled,
                   ]}
                   onPress={() => void loadMoreHistory()}
@@ -570,8 +605,10 @@ export default function HistoryScreen() {
               null
             ) : null
           }
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const isHost = Boolean(playerProfile && item.hostId === playerProfile.id);
+            const removeLabel = isHost ? 'Delete session' : 'Remove from history';
+            const onRemove = () => (isHost ? confirmDeleteSession(item.id) : confirmLeaveSession(item.id));
             const blindsText = formatSessionBlindsForDisplay(
               item.smallBlind,
               item.bigBlind,
@@ -580,18 +617,21 @@ export default function HistoryScreen() {
             );
             return (
               <Pressable
-                style={[
+                style={(state) => [
                   styles.historyCard,
-                  { backgroundColor: c.card, borderColor: c.border },
+                  index === 0 && styles.historyCardFirst,
+                  index === sortedHistory.length - 1 && styles.historyCardLast,
+                  { borderColor: c.border },
+                  pressBg(c, state, c.card),
                 ]}
                 onPress={() => router.push(`../session/summary/${item.id}`)}
-                onLongPress={isHost ? undefined : () => confirmLeaveSession(item.id)}
+                onLongPress={onRemove}
                 accessibilityRole="button"
                 accessibilityLabel={`${formatDateTimeDMY(item.date)}, ${isHost ? 'host' : 'participant'}, ${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}, ${item.location ? item.location : 'no location'}`}
                 accessibilityHint="Opens the session summary"
-                accessibilityActions={isHost ? undefined : [{ name: 'remove', label: 'Remove from history' }]}
+                accessibilityActions={[{ name: 'remove', label: removeLabel }]}
                 onAccessibilityAction={(e) => {
-                  if (!isHost && e.nativeEvent.actionName === 'remove') confirmLeaveSession(item.id);
+                  if (e.nativeEvent.actionName === 'remove') onRemove();
                 }}>
                 <View style={styles.historyTop}>
                   <View style={styles.historyTitleRow}>
@@ -616,16 +656,14 @@ export default function HistoryScreen() {
                       ]}>
                       {formatSignedCurrency(item.profit)}
                     </Text>
-                    {!isHost ? (
-                      <Pressable
-                        onPress={() => confirmLeaveSession(item.id)}
-                        hitSlop={8}
-                        style={styles.historyMoreBtn}
-                        accessibilityRole="button"
-                        accessibilityLabel="Remove from history">
-                        <MaterialIcons name="more-vert" size={20} color={c.textMuted} />
-                      </Pressable>
-                    ) : null}
+                    <Pressable
+                      onPress={onRemove}
+                      hitSlop={8}
+                      style={styles.historyMoreBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={removeLabel}>
+                      <MaterialIcons name="more-vert" size={20} color={c.textMuted} />
+                    </Pressable>
                   </View>
                 </View>
                 <Text style={[styles.historyMeta, { color: c.textMuted }]}>
@@ -883,7 +921,7 @@ export default function HistoryScreen() {
 
               <View style={styles.filterActions}>
                 <Pressable
-                  style={[styles.actionBtnSecondary, { borderColor: c.border }]}
+                  style={[styles.actionBtnSecondary, { borderColor: c.inputBorder, backgroundColor: c.card }]}
                   onPress={clearDraftFilters}>
                   <Text style={[styles.actionBtnSecondaryLabel, { color: c.text }]}>Reset</Text>
                 </Pressable>
@@ -1001,15 +1039,14 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    padding: 20,
     paddingTop: 48,
-    gap: 16,
   },
-  /** Matches Settings tab screen title */
+  /** Matches Settings tab screen title (display 28/700). */
   title: {
     fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    lineHeight: 34,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   titleRow: {
     flexDirection: 'row',
@@ -1023,9 +1060,9 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   filterButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1039,9 +1076,9 @@ const styles = StyleSheet.create({
     top: 42,
     right: 0,
     borderWidth: 1,
-    borderRadius: 12,
-    minWidth: 190,
-    paddingVertical: 8,
+    borderRadius: 14,
+    minWidth: 200,
+    paddingVertical: 6,
     elevation: 10,
   },
   sortCurrentRow: {
@@ -1065,11 +1102,11 @@ const styles = StyleSheet.create({
   },
   sortSectionTitle: {
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
+    fontWeight: '600',
+    letterSpacing: 0.66,
     textTransform: 'uppercase',
     paddingHorizontal: 12,
-    paddingTop: 2,
+    paddingTop: 6,
     paddingBottom: 4,
   },
   sortOption: {
@@ -1077,13 +1114,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    minHeight: 44,
     paddingHorizontal: 12,
-    paddingVertical: 9,
     borderRadius: 8,
     marginHorizontal: 6,
   },
   sortOptionText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   sortDivider: {
@@ -1095,28 +1132,41 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   summaryCard: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: 'center',
     gap: 4,
   },
   summaryRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   summaryCardHalf: {
     flex: 1,
+    minWidth: 0,
   },
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.66,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
   summaryValue: {
-    fontSize: 28,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   summaryMeta: {
     fontSize: 12,
+    textAlign: 'center',
+  },
+  emptyList: {
+    fontSize: 15,
+    lineHeight: 21,
   },
   list: {
     flex: 1,
@@ -1129,9 +1179,9 @@ const styles = StyleSheet.create({
   },
   loadMoreBtn: {
     borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    borderRadius: 14,
+    minHeight: 48,
+    paddingHorizontal: 18,
     minWidth: 200,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1140,8 +1190,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   loadMoreBtnLabel: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   historyPaginationHint: {
     fontSize: 12,
@@ -1157,12 +1207,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: '20%',
   },
+  /** Rows of one card: side + top borders on every row; radius and bottom border on the ends. */
   historyCard: {
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 12,
-    gap: 4,
-    marginBottom: 8,
+    minHeight: 52,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderTopWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 2,
+  },
+  historyCardFirst: {
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  historyCardLast: {
+    borderBottomWidth: 1,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
   },
   historyTop: {
     flexDirection: 'row',
@@ -1176,8 +1238,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   historyMoreBtn: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: -6,
@@ -1190,13 +1253,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   historyLabel: {
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '600',
     flexShrink: 1,
   },
   roleBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   roleBadgeText: {
     color: '#fff',
@@ -1205,14 +1270,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   historyProfit: {
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
   historyMeta: {
     fontSize: 12,
+    lineHeight: 16,
   },
   historyDetail: {
     fontSize: 12,
+    lineHeight: 16,
+    fontVariant: ['tabular-nums'],
   },
   modalRoot: {
     flex: 1,
@@ -1221,15 +1290,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   filterCard: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 480,
     maxHeight: '80%',
     borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
+    padding: 20,
     gap: 12,
   },
   filterHeaderRow: {
@@ -1238,49 +1307,50 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   filterTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
   },
   filterBody: {
-    gap: 14,
+    gap: 16,
   },
   filterSection: {
-    gap: 8,
+    gap: 7,
   },
   filterLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '500',
   },
   dropdownTrigger: {
     borderWidth: 1,
-    borderRadius: 10,
-    minHeight: 42,
-    paddingHorizontal: 12,
+    borderRadius: 9,
+    minHeight: 48,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   dropdownTriggerText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   dropdownOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 12,
+    minHeight: 44,
+    paddingHorizontal: 12,
   },
   dropdownOptionText: {
-    fontSize: 14,
+    fontSize: 15,
   },
   locationCard: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 480,
     maxHeight: '70%',
     borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
+    padding: 20,
     gap: 12,
   },
   locationList: {
@@ -1315,17 +1385,20 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderRadius: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
   },
   dateButton: {
     flex: 1,
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: 9,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     justifyContent: 'center',
   },
@@ -1336,7 +1409,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dateButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     flex: 1,
   },
   dateClearBtn: {
@@ -1351,7 +1424,7 @@ const styles = StyleSheet.create({
   },
   pickerInlineWrap: {
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 8,
     gap: 8,
   },
@@ -1362,9 +1435,10 @@ const styles = StyleSheet.create({
   },
   inlineActionBtn: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 9,
+    minHeight: 38,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
   },
   inlineActionText: {
     fontSize: 13,
@@ -1381,26 +1455,28 @@ const styles = StyleSheet.create({
   },
   actionBtnSecondary: {
     flex: 1,
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingHorizontal: 18,
   },
   actionBtnSecondaryLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   actionBtnPrimary: {
     flex: 1,
-    borderRadius: 10,
+    minHeight: 48,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingHorizontal: 18,
   },
   actionBtnPrimaryLabel: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

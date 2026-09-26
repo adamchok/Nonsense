@@ -94,12 +94,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   group: {
-    gap: 6,
+    gap: 8,
   },
   groupLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontWeight: '600',
+    letterSpacing: 0.66,
   },
   /** Wraps rather than scrolling: a horizontal strip hides players past the fourth. */
   chips: {

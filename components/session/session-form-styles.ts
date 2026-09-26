@@ -4,10 +4,12 @@ import { Platform, StyleSheet } from 'react-native';
 export const formStyles = StyleSheet.create({
   sub: {
     fontSize: 13,
+    lineHeight: 18,
   },
   hint: {
     fontSize: 12,
-    marginBottom: 8,
+    lineHeight: 16,
+    marginBottom: 4,
   },
   totalRow: {
     flexDirection: 'row',
@@ -21,21 +23,25 @@ export const formStyles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
+  /** Text field: 48 min height, 12/14 padding, radius 9, 1px inputBorder (color at call site). */
   input: {
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
   },
   amountInputWrap: {
     flex: 1,
     // ponytail: web <input> has an intrinsic min width; without this flex rows overflow.
     minWidth: 0,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   amountInputWrapFull: {
     flex: 1,
@@ -45,14 +51,16 @@ export const formStyles = StyleSheet.create({
   amountInput: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 4,
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
   fieldsScroll: {
     width: '100%',
   },
   fieldsScrollCapped: {
-    maxHeight: 260,
+    maxHeight: 280,
     width: '100%',
   },
   fieldsScrollContent: {
@@ -64,32 +72,31 @@ export const formStyles = StyleSheet.create({
     gap: 4,
   },
   fieldLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: 13,
+    fontWeight: '500',
   },
   requiredMark: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    lineHeight: 12,
+    lineHeight: 13,
   },
   compactAmountWrap: {
     alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 9,
     borderWidth: 1,
     paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'android' ? 2 : 6,
-    minHeight: 40,
+    minHeight: 48,
   },
   compactTextInput: {
     flex: 1,
     minWidth: 0,
-    minHeight: Platform.OS === 'android' ? 34 : 30,
-    paddingVertical: Platform.OS === 'android' ? 4 : 2,
+    minHeight: 46,
+    paddingVertical: Platform.OS === 'android' ? 8 : 12,
     paddingHorizontal: 4,
-    fontSize: 13,
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
     ...(Platform.OS === 'android' ? { textAlignVertical: 'center' as const } : {}),
   },
 });

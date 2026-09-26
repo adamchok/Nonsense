@@ -1,3 +1,4 @@
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatSessionBlindsForDisplay } from '@/lib/currency-format';
@@ -9,10 +10,12 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, type AppStateStatus, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { text as type, pressBg, ui } from '@/lib/ui';
 import { userMessage } from '@/lib/user-message';
 
 export default function HomeScreen() {
   const c = useAppColors();
+  const layout = usePageLayout(40);
   const scheme = useResolvedColorScheme();
   const router = useRouter();
   const { playerProfile } = useAuth();
@@ -120,7 +123,7 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[layout.content, styles.content]}
       showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Image
@@ -149,85 +152,96 @@ export default function HomeScreen() {
       </View>
 
       <Pressable
-        style={[styles.cta, { backgroundColor: c.accent }]}
+        style={[ui.button, { backgroundColor: c.accent }]}
         accessibilityRole="button"
         onPress={() => router.push('../session/new')}>
-        <Text style={styles.ctaText}>Start New Session</Text>
+        <MaterialIcons name="add" size={20} color="#fff" importantForAccessibility="no" />
+        <Text style={[type.button, styles.ctaText]}>Start New Session</Text>
       </Pressable>
 
-      {error ? <Text style={{ color: c.loss }}>{error}</Text> : null}
+      {error ? <Text style={[type.label, { color: c.loss }]}>{error}</Text> : null}
 
-      <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-        <View style={styles.cardHeader}>
-          <Text style={[styles.cardLabel, { color: c.textMuted }]}>ACTIVE SESSIONS</Text>
+      <View style={styles.section}>
+        <View style={ui.sectionHeaderRow}>
+          <Text style={[type.section, { color: c.textMuted }]} accessibilityRole="header">
+            Active sessions
+          </Text>
           <Pressable
-            style={[styles.refreshBtn, { borderColor: c.border, backgroundColor: c.cardAlt }]}
+            style={(state) => [ui.iconButton, styles.refreshBtn, { borderColor: c.border }, pressBg(c, state, c.card)]}
             onPress={() => void handleRefresh()}
             disabled={isRefreshing}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Refresh active sessions">
             <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-              <MaterialIcons name="refresh" size={16} color={c.textMuted} />
+              <MaterialIcons name="refresh" size={18} color={c.textMuted} />
             </Animated.View>
           </Pressable>
         </View>
-        {activeSessions.length === 0 ? (
-          <Text style={[styles.empty, { color: c.textHint }]}>
-            No active sessions. Start a new game above.
-          </Text>
-        ) : (
-          activeSessions.map((session) => {
-            const blindsText = formatSessionBlindsForDisplay(
-              session.smallBlind,
-              session.bigBlind,
-              session.amountUnit,
-              session.dollarsPerChip
-            );
-            return (
-            <Pressable
-              key={session.id}
-              onPress={() => router.push(`../session/${session.id}`)}
-              accessibilityRole="button"
-              accessibilityLabel={[
-                `Live session ${formatDateTimeDMY(session.date)}`,
-                session.location ? session.location : 'No location',
-                `${sessionMetaById[session.id]?.playerCount ?? 0} players`,
-                blindsText ? `blinds ${blindsText}` : null,
-              ]
-                .filter(Boolean)
-                .join(', ')}
-              style={[
-                styles.sessionRow,
-                { borderColor: c.borderAccent, backgroundColor: c.cardAlt },
-              ]}>
-              <View style={styles.sessionTop}>
-                <Text style={[styles.sessionTitle, { color: c.text }]} numberOfLines={1}>
-                  {formatDateTimeDMY(session.date)}
-                </Text>
+        <View style={[ui.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          {activeSessions.length === 0 ? (
+            <Text style={[type.label, styles.empty, { color: c.textHint }]}>
+              No active sessions. Start a new game above.
+            </Text>
+          ) : (
+            activeSessions.map((session, index) => {
+              const blindsText = formatSessionBlindsForDisplay(
+                session.smallBlind,
+                session.bigBlind,
+                session.amountUnit,
+                session.dollarsPerChip
+              );
+              return (
+              <Pressable
+                key={session.id}
+                onPress={() => router.push(`../session/${session.id}`)}
+                accessibilityRole="button"
+                accessibilityLabel={[
+                  `Live session ${formatDateTimeDMY(session.date)}`,
+                  session.location ? session.location : 'No location',
+                  `${sessionMetaById[session.id]?.playerCount ?? 0} players`,
+                  blindsText ? `blinds ${blindsText}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+                style={(state) => [
+                  ui.row,
+                  index > 0 && ui.rowDivider,
+                  { borderColor: c.border },
+                  pressBg(c, state, c.card),
+                ]}>
+                <View style={[ui.tile, { backgroundColor: c.accentBg }]}>
+                  <MaterialIcons name="style" size={18} color={c.accentText} />
+                </View>
+                <View style={ui.rowBody}>
+                  <Text style={[type.rowTitle, { color: c.text }]} numberOfLines={1}>
+                    {formatDateTimeDMY(session.date)}
+                  </Text>
+                  <View style={styles.sessionMetaRow}>
+                    <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
+                      {session.location ? session.location : 'No location'}
+                    </Text>
+                    <Text style={[styles.sessionMeta, { color: c.textMuted }]}> • </Text>
+                    <View style={styles.sessionMetaWithIcon}>
+                      <MaterialIcons name="person" size={14} color={c.textMuted} />
+                      <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
+                        {sessionMetaById[session.id]?.playerCount ?? 0}
+                      </Text>
+                    </View>
+                    {blindsText ? (
+                      <Text style={[styles.sessionMeta, { color: c.textMuted }]}>{` • ${blindsText}`}</Text>
+                    ) : null}
+                  </View>
+                </View>
                 <View style={[styles.liveBadge, { backgroundColor: c.badge.live }]}>
                   <Text style={styles.liveBadgeText}>LIVE</Text>
                 </View>
-              </View>
-              <View style={styles.sessionMetaRow}>
-                <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
-                  {session.location ? session.location : 'No location'}
-                </Text>
-                <Text style={[styles.sessionMeta, { color: c.textMuted }]}> • </Text>
-                <View style={styles.sessionMetaWithIcon}>
-                  <MaterialIcons name="person" size={14} color={c.textMuted} />
-                  <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
-                    {sessionMetaById[session.id]?.playerCount ?? 0}
-                  </Text>
-                </View>
-                {blindsText ? (
-                  <Text style={[styles.sessionMeta, { color: c.textMuted }]}>{` • ${blindsText}`}</Text>
-                ) : null}
-              </View>
-            </Pressable>
-            );
-          })
-        )}
+                <MaterialIcons name="chevron-right" size={20} color={c.textMuted} importantForAccessibility="no" />
+              </Pressable>
+              );
+            })
+          )}
+        </View>
       </View>
     </ScrollView>
   );
@@ -238,96 +252,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
-    paddingTop: 48,
-    paddingBottom: 40,
-    gap: 16,
+    paddingTop: 32,
   },
   header: {
     alignItems: 'center',
-    gap: 8,
-    paddingBottom: 4,
+    gap: 6,
   },
   logo: {
-    width: 160,
-    height: 160,
+    width: 144,
+    height: 144,
     resizeMode: 'contain',
-    marginTop: 12,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   welcomeGreeting: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.3,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
   welcomeSub: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: -2,
-  },
-  cta: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+    fontSize: 15,
+    lineHeight: 21,
   },
   ctaText: {
     color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
   },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 18,
-    paddingTop: 14,
-    gap: 14,
-  },
-  cardHeader: {
-    position: 'relative',
-    minHeight: 28,
-    justifyContent: 'center',
-  },
-  cardLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    paddingRight: 36,
-  },
-  refreshBtn: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    borderRadius: 8,
-    borderWidth: 1,
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  empty: {
-    fontSize: 14,
-  },
-  sessionRow: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    gap: 4,
-  },
-  sessionTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  section: {
     gap: 8,
   },
-  sessionTitle: {
-    fontWeight: '600',
-    fontSize: 15,
-    flex: 1,
+  refreshBtn: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+  },
+  empty: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
   liveBadge: {
     borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   liveBadgeText: {
     fontSize: 10,
@@ -348,6 +313,6 @@ const styles = StyleSheet.create({
   },
   sessionMeta: {
     fontSize: 12,
-    fontWeight: '500',
+    lineHeight: 16,
   },
 });

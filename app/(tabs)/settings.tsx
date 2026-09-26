@@ -1,7 +1,9 @@
 import { AVATAR_EMOJIS } from '@/constants/avatar';
 import { AccountLinkError } from '@/lib/account-link';
 import { appAlert } from '@/lib/app-alert';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
+import { pressBg } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
@@ -36,6 +38,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, playerProfile, saveAvatarEmoji, isLinked, linkedEmail, linkWithGoogle } = useAuth();
   const c = useAppColors();
+  const layout = usePageLayout(40);
   const { preference, resolvedColorScheme, setPreference } = useThemePreference();
   const isDark = resolvedColorScheme === 'dark';
   // Shared surface colors come from the app-wide palette so this screen can't drift from it;
@@ -132,158 +135,169 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: t.bg }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[layout.content, styles.content]}
       showsVerticalScrollIndicator={false}>
       <Text style={[styles.title, { color: t.text }]}>Settings</Text>
 
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
-        <Text style={[styles.cardLabel, { color: t.muted }]}>PROFILE</Text>
-        <View style={styles.profileRow}>
-          <Pressable
-            style={[styles.avatar, { backgroundColor: t.avatarBg }]}
-            onPress={() => setShowAvatarPicker(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Edit avatar emoji">
-            <Text style={styles.avatarEmoji}>{playerProfile?.avatarEmoji ?? '🙂'}</Text>
-            <View style={[styles.avatarEditBadge, { backgroundColor: t.accent, borderColor: t.border }]}>
-              <MaterialIcons name="edit" size={13} color="#fff" />
-            </View>
-          </Pressable>
-          <Pressable
-            style={styles.profileText}
-            onPress={() => router.push('../(auth)/name')}
-            accessibilityRole="button"
-            accessibilityLabel="Edit display name">
-            <View style={styles.displayNameRow}>
-              <Text
-                style={[styles.displayName, styles.displayNameText, { color: t.text }]}
-                numberOfLines={1}
-                ellipsizeMode="tail">
-                {playerProfile?.name ?? 'Guest'}
-              </Text>
-              <MaterialIcons name="edit" size={16} color={t.muted} />
-            </View>
-            <Text style={[styles.displayHint, { color: t.muted }]}>Display name</Text>
-          </Pressable>
-        </View>
-        <Pressable
-          style={[styles.primaryBtn, { backgroundColor: t.accent }]}
-          onPress={() => router.push('../qr-code')}
-          accessibilityRole="button"
-          accessibilityLabel="Open QR code">
-          <MaterialIcons name="qr-code" size={18} color="#fff" />
-          <Text style={styles.primaryBtnLabel}>QR Code</Text>
-        </Pressable>
-        <View style={styles.secondaryBtnRow}>
-          <Pressable
-            style={[
-              styles.secondaryBtn,
-              styles.secondaryBtnHalf,
-              { borderColor: t.card, backgroundColor: t.avatarBg },
-            ]}
-            onPress={() => router.push('../locations')}
-            accessibilityRole="button"
-            accessibilityLabel="Saved locations">
-            <View style={styles.secondaryBtnContent}>
-              <MaterialIcons name="location-on" size={18} color={t.text} />
-              <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
-            </View>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.secondaryBtn,
-              styles.secondaryBtnHalf,
-              { borderColor: t.card, backgroundColor: t.avatarBg },
-            ]}
-            onPress={() => setShowStatsModal(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Open statistics">
-            <View style={styles.secondaryBtnContent}>
-              <MaterialIcons name="bar-chart" size={18} color={t.text} />
-              <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Statistics</Text>
-            </View>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
-        <Text style={[styles.cardLabel, { color: t.muted }]}>ACCOUNT</Text>
-        {isLinked ? (
-          <View
-            style={styles.linkedRow}
-            accessible
-            accessibilityLabel={`Backed up with Google${linkedEmail ? `, ${linkedEmail}` : ''}`}>
-            <MaterialIcons name="check-circle" size={22} color={c.accentText} />
-            <View style={styles.linkedTextCol}>
-              <Text style={[styles.linkedText, { color: t.text }]}>Backed up with Google</Text>
-              {linkedEmail ? (
-                <Text style={[styles.linkedEmail, { color: t.muted }]} numberOfLines={1} ellipsizeMode="middle">
-                  {linkedEmail}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        ) : (
-          <>
-            <Text style={[styles.appearanceHint, { color: t.muted }]}>
-              Your data is tied to this install. Back up with Google so you can restore it after
-              reinstalling or on a new phone.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                { backgroundColor: t.accent },
-                isLinking && styles.btnDisabled,
-                pressed && !isLinking && styles.btnPressed,
-              ]}
-              onPress={onBackUpWithGoogle}
-              disabled={isLinking}
-              accessibilityRole="button"
-              accessibilityLabel="Back up with Google"
-              accessibilityState={{ disabled: isLinking, busy: isLinking }}>
-              {isLinking ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <MaterialIcons name="cloud-upload" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnLabel}>Back up with Google</Text>
-                </>
-              )}
-            </Pressable>
-          </>
-        )}
-      </View>
-
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
-        <Text style={[styles.cardLabel, { color: t.muted }]}>APPEARANCE</Text>
-        <Text style={[styles.appearanceHint, { color: t.muted }]}>
-          Choose light, dark, or match your device.
+      <View style={styles.section}>
+        <Text style={[styles.cardLabel, { color: t.muted }]} accessibilityRole="header">
+          Profile
         </Text>
+        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
+          <View style={styles.profileRow}>
+            <Pressable
+              style={[styles.avatar, { backgroundColor: t.avatarBg }]}
+              onPress={() => setShowAvatarPicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Edit avatar emoji">
+              <Text style={styles.avatarEmoji}>{playerProfile?.avatarEmoji ?? '🙂'}</Text>
+              <View style={[styles.avatarEditBadge, { backgroundColor: t.accent, borderColor: t.border }]}>
+                <MaterialIcons name="edit" size={13} color="#fff" />
+              </View>
+            </Pressable>
+            <Pressable
+              style={styles.profileText}
+              onPress={() => router.push('../(auth)/name')}
+              accessibilityRole="button"
+              accessibilityLabel="Edit display name">
+              <View style={styles.displayNameRow}>
+                <Text
+                  style={[styles.displayName, styles.displayNameText, { color: t.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail">
+                  {playerProfile?.name ?? 'Guest'}
+                </Text>
+                <MaterialIcons name="edit" size={16} color={t.muted} />
+              </View>
+              <Text style={[styles.displayHint, { color: t.muted }]}>Display name</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            style={[styles.primaryBtn, { backgroundColor: t.accent }]}
+            onPress={() => router.push('../qr-code')}
+            accessibilityRole="button"
+            accessibilityLabel="Open QR code">
+            <MaterialIcons name="qr-code" size={18} color="#fff" />
+            <Text style={styles.primaryBtnLabel}>QR Code</Text>
+          </Pressable>
+          <View style={styles.secondaryBtnRow}>
+            <Pressable
+              style={[
+                styles.secondaryBtn,
+                styles.secondaryBtnHalf,
+                { borderColor: c.inputBorder, backgroundColor: t.card },
+              ]}
+              onPress={() => router.push('../locations')}
+              accessibilityRole="button"
+              accessibilityLabel="Saved locations">
+              <View style={styles.secondaryBtnContent}>
+                <MaterialIcons name="location-on" size={18} color={t.text} />
+                <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Locations</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.secondaryBtn,
+                styles.secondaryBtnHalf,
+                { borderColor: c.inputBorder, backgroundColor: t.card },
+              ]}
+              onPress={() => setShowStatsModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open statistics">
+              <View style={styles.secondaryBtnContent}>
+                <MaterialIcons name="bar-chart" size={18} color={t.text} />
+                <Text style={[styles.secondaryBtnLabel, { color: t.text }]}>Statistics</Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      </View>
 
-        <ThemeOption
-          icon="phone-iphone"
-          label="System"
-          description="Match device setting"
-          selected={preference === 'system'}
-          onPress={() => onSelectTheme('system')}
-          t={t}
-        />
-        <ThemeOption
-          icon="wb-sunny"
-          label="Light"
-          description="Always light theme"
-          selected={preference === 'light'}
-          onPress={() => onSelectTheme('light')}
-          t={t}
-        />
-        <ThemeOption
-          icon="nights-stay"
-          label="Dark"
-          description="Always dark theme"
-          selected={preference === 'dark'}
-          onPress={() => onSelectTheme('dark')}
-          t={t}
-        />
+      <View style={styles.section}>
+        <Text style={[styles.cardLabel, { color: t.muted }]} accessibilityRole="header">
+          Account
+        </Text>
+        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
+          {isLinked ? (
+            <View
+              style={styles.linkedRow}
+              accessible
+              accessibilityLabel={`Backed up with Google${linkedEmail ? `, ${linkedEmail}` : ''}`}>
+              <MaterialIcons name="check-circle" size={22} color={c.accentText} />
+              <View style={styles.linkedTextCol}>
+                <Text style={[styles.linkedText, { color: t.text }]}>Backed up with Google</Text>
+                {linkedEmail ? (
+                  <Text style={[styles.linkedEmail, { color: t.muted }]} numberOfLines={1} ellipsizeMode="middle">
+                    {linkedEmail}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.appearanceHint, { color: t.muted }]}>
+                Your data is tied to this install. Back up with Google so you can restore it after
+                reinstalling or on a new phone.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  { backgroundColor: t.accent },
+                  isLinking && styles.btnDisabled,
+                  pressed && !isLinking && styles.btnPressed,
+                ]}
+                onPress={onBackUpWithGoogle}
+                disabled={isLinking}
+                accessibilityRole="button"
+                accessibilityLabel="Back up with Google"
+                accessibilityState={{ disabled: isLinking, busy: isLinking }}>
+                {isLinking ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="cloud-upload" size={18} color="#fff" />
+                    <Text style={styles.primaryBtnLabel}>Back up with Google</Text>
+                  </>
+                )}
+              </Pressable>
+            </>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.cardLabel, { color: t.muted }]} accessibilityRole="header">
+          Appearance
+        </Text>
+        <Text style={[styles.sectionHint, { color: t.muted }]}>Choose light, dark, or match your device.</Text>
+        <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
+          <ThemeOption
+            icon="phone-iphone"
+            label="System"
+            description="Match device setting"
+            selected={preference === 'system'}
+            onPress={() => onSelectTheme('system')}
+            t={t}
+          />
+          <ThemeOption
+            icon="wb-sunny"
+            label="Light"
+            description="Always light theme"
+            selected={preference === 'light'}
+            onPress={() => onSelectTheme('light')}
+            t={t}
+            showDivider
+          />
+          <ThemeOption
+            icon="nights-stay"
+            label="Dark"
+            description="Always dark theme"
+            selected={preference === 'dark'}
+            onPress={() => onSelectTheme('dark')}
+            t={t}
+            showDivider
+          />
+        </View>
       </View>
 
       <Modal
@@ -549,6 +563,7 @@ function ThemeOption({
   selected,
   onPress,
   t,
+  showDivider,
 }: {
   icon: keyof typeof MaterialIcons.glyphMap;
   label: string;
@@ -556,26 +571,31 @@ function ThemeOption({
   selected: boolean;
   onPress: () => void;
   t: (typeof theme)['dark'];
+  /** Rows after the first draw a 1px divider above themselves. */
+  showDivider?: boolean;
 }) {
+  const c = useAppColors();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
       accessibilityLabel={`${label} theme. ${description}`}
-      style={[
+      style={(state) => [
         styles.themeRow,
-        { borderColor: t.border, backgroundColor: selected ? t.selectedBg : 'transparent' },
+        showDivider && styles.rowDivider,
+        { borderColor: t.border },
+        pressBg(c, state, selected ? t.selectedBg : t.card),
       ]}>
       <View style={[styles.themeIconWrap, { backgroundColor: t.chipBg }]}>
-        <MaterialIcons name={icon} size={22} color={t.text} />
+        <MaterialIcons name={icon} size={18} color={t.text} />
       </View>
       <View style={styles.themeText}>
         <Text style={[styles.themeLabel, { color: t.text }]}>{label}</Text>
         <Text style={[styles.themeDesc, { color: t.muted }]}>{description}</Text>
       </View>
       {selected ? (
-        <MaterialIcons name="check-circle" size={24} color={t.accent} />
+        <MaterialIcons name="check-circle" size={22} color={t.accent} />
       ) : (
         <View style={[styles.radioOuter, { borderColor: t.border }]}>
           <View style={styles.radioInner} />
@@ -617,26 +637,42 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
     paddingTop: 48,
-    paddingBottom: 40,
-    gap: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    lineHeight: 34,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  section: {
+    gap: 8,
   },
   card: {
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 18,
-    gap: 14,
+    padding: 16,
+    gap: 12,
+  },
+  listCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  rowDivider: {
+    borderTopWidth: 1,
   },
   cardLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.72,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4,
+  },
+  sectionHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    paddingHorizontal: 4,
   },
   profileRow: {
     flexDirection: 'row',
@@ -644,14 +680,14 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarEmoji: {
-    fontSize: 34,
+    fontSize: 30,
   },
   avatarEditBadge: {
     position: 'absolute',
@@ -678,6 +714,7 @@ const styles = StyleSheet.create({
   },
   displayName: {
     fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
   },
   displayHint: {
@@ -688,8 +725,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 18,
+    borderRadius: 14,
   },
   btnDisabled: {
     opacity: 0.5,
@@ -716,18 +754,20 @@ const styles = StyleSheet.create({
   },
   primaryBtnLabel: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   secondaryBtnRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   secondaryBtn: {
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 14,
+    minHeight: 48,
+    paddingHorizontal: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   secondaryBtnHalf: {
     flex: 1,
@@ -740,28 +780,25 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   secondaryBtnLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   appearanceHint: {
     fontSize: 13,
     lineHeight: 18,
-    marginTop: -4,
-    marginBottom: 4,
   },
   themeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 52,
     paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingHorizontal: 16,
     gap: 12,
   },
   themeIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -770,8 +807,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   themeLabel: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
   },
   themeDesc: {
     fontSize: 12,
@@ -795,19 +833,20 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   pickerCard: {
     width: '100%',
-    maxWidth: 360,
-    borderRadius: 12,
+    maxWidth: 400,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
-    gap: 10,
+    padding: 20,
+    gap: 12,
   },
   pickerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    lineHeight: 22,
+    fontWeight: '600',
   },
   emojiGrid: {
     flexDirection: 'row',
@@ -819,7 +858,7 @@ const styles = StyleSheet.create({
   emojiBtn: {
     width: 46,
     height: 46,
-    borderRadius: 10,
+    borderRadius: 9,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -831,15 +870,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   statsCard: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 480,
     maxHeight: '88%',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
+    padding: 20,
     gap: 8,
   },
   statsHeaderRow: {
@@ -848,9 +887,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   statsTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.3,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
   },
   statsScrollContent: {
     gap: 2,
@@ -859,9 +898,10 @@ const styles = StyleSheet.create({
   statsSectionLabel: {
     marginTop: 12,
     marginBottom: 4,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.72,
+    textTransform: 'uppercase',
   },
   statBlock: {
     marginBottom: 6,
@@ -884,11 +924,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
     lineHeight: 18,
+    fontVariant: ['tabular-nums'],
   },
   statValueStrong: {
     maxWidth: '52%',
     fontSize: 15,
-    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    fontWeight: '700',
     textAlign: 'right',
     lineHeight: 20,
   },

@@ -37,18 +37,19 @@ export function SessionFooterActions({ canManage, isFinished, onEndSession, onVi
 
 const styles = StyleSheet.create({
   actions: {
-    paddingTop: 12,
-    gap: 10,
+    gap: 12,
   },
   button: {
-    borderRadius: 8,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
     paddingVertical: 12,
+    paddingHorizontal: 18,
   },
   label: {
     color: '#fff',
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

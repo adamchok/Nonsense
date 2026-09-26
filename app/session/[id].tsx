@@ -22,8 +22,10 @@ import {
 } from '@/hooks/use-add-buy-in';
 import { useLiveSession } from '@/hooks/use-live-session';
 import { useSessionActions } from '@/hooks/use-session-actions';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useVoiceSession } from '@/hooks/use-voice-session';
 import { useAppColors } from '@/lib/app-theme';
+import { text as type, ui } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import { appAlert } from '@/lib/app-alert';
 import { getAvatarEmoji } from '@/lib/avatar';
@@ -56,6 +58,8 @@ function numberDraft(value: number | undefined): string {
 export default function ActiveSessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
+  // Room for the undo snackbar / voice banner over the last rows.
+  const layout = usePageLayout(96);
   const { playerProfile } = useAuth();
   const live = useLiveSession(id, playerProfile);
   const { session, players, earlyCashOutMap, viewerIsHost } = live;
@@ -243,75 +247,79 @@ export default function ActiveSessionScreen() {
       <Stack.Screen options={{ headerRight }} />
       <ScrollView
         style={[styles.screen, { backgroundColor: c.bg }]}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={layout.content}
         keyboardShouldPersistTaps="handled">
-        <SessionHeader
-          title={session?.date ? formatDateTimeDMY(session.date) : 'Active Session'}
-          hostActions={
-            viewerIsHost
-              ? {
-                  micSlot: <VoiceMicButton voice={voice} />,
-                  onBuyIn: () => openModal({ kind: 'buyIn', draft: EMPTY_BUY_IN }),
-                }
-              : null
-          }
-        />
-        <PotBadge total={live.totalPot} unit={unit} />
-        {live.showSessionMetaCards ? (
-          <SessionMetaCards
-            session={session}
-            canEdit={viewerIsHost}
-            onEditLocation={() => openModal({ kind: 'location' })}
-            onEditBlinds={() => openModal({ kind: 'blinds' })}
-            onEditChipValue={() => openModal({ kind: 'chipValue' })}
+        <View style={styles.group}>
+          <SessionHeader
+            title={session?.date ? formatDateTimeDMY(session.date) : 'Active Session'}
+            hostActions={
+              canAct
+                ? {
+                    micSlot: <VoiceMicButton voice={voice} />,
+                    onBuyIn: () => openModal({ kind: 'buyIn', draft: EMPTY_BUY_IN }),
+                  }
+                : null
+            }
           />
-        ) : null}
+          <PotBadge total={live.totalPot} unit={unit} />
+          {live.showSessionMetaCards ? (
+            <SessionMetaCards
+              session={session}
+              canEdit={viewerIsHost}
+              onEditLocation={() => openModal({ kind: 'location' })}
+              onEditBlinds={() => openModal({ kind: 'blinds' })}
+              onEditChipValue={() => openModal({ kind: 'chipValue' })}
+            />
+          ) : null}
+        </View>
         {live.error ? (
           <View style={styles.errorRow} accessibilityLiveRegion="polite">
             <Text style={[styles.errorText, { color: c.loss }]}>{live.error}</Text>
             <Pressable
               onPress={live.retry}
-              style={[styles.retryBtn, { borderColor: c.border }]}
+              style={[ui.button, ui.buttonSecondary, { backgroundColor: c.card, borderColor: c.inputBorder }]}
               accessibilityRole="button">
-              <Text style={[styles.retryLabel, { color: c.text }]}>Retry</Text>
+              <Text style={[type.button, { color: c.text }]}>Retry</Text>
             </Pressable>
           </View>
         ) : null}
         {live.isActive && !viewerIsHost ? (
-          <Text style={{ color: c.textMuted }}>
+          <Text style={[type.label, { color: c.textMuted }]}>
             View-only mode: only the host can add buy-ins, cash out players, edit location, blinds, dollars per
             chip, or end the session.
           </Text>
         ) : null}
 
-        <LedgerHeader
-          count={players.length}
-          showTapHint={canAct && players.length > 0}
-          pendingCount={pendingBuyIns}
-          dollarsToggle={
-            live.ledgerCanToggleDollars ? { value: ledgerShowDollars, onChange: setLedgerShowDollars } : null
-          }
-        />
-        <PlayerTotalsList
-          players={players}
-          earlyCashOutMap={earlyCashOutMap}
-          getAvatar={(playerId) => getAvatarEmoji(playerId, playerProfile, live.friendAvatarMap)}
-          hostId={session?.hostId}
-          canAct={canAct}
-          removingPlayerId={actions.removingPlayerId}
-          displayUnit={showLedgerDollars ? 'cash' : unit}
-          dollarsPerChip={showLedgerDollars ? session?.dollarsPerChip : undefined}
-          onRebuy={openRebuy}
-          onCorrectTotal={(p) =>
-            openModal({
-              kind: 'editBuyIn',
-              target: { playerId: p.playerId, playerName: p.name, currentTotal: p.total },
-            })
-          }
-          onOpenCashedOut={(playerId) => openModal({ kind: 'cashedOut', playerId })}
-          onCashOut={(p) => startEarlyCashOut(p)}
-          onRemove={(p) => actions.confirmRemovePlayer(p.playerId, p.name)}
-        />
+        <View style={styles.ledger}>
+          <LedgerHeader
+            count={players.length}
+            showTapHint={canAct && players.length > 0}
+            pendingCount={pendingBuyIns}
+            dollarsToggle={
+              live.ledgerCanToggleDollars ? { value: ledgerShowDollars, onChange: setLedgerShowDollars } : null
+            }
+          />
+          <PlayerTotalsList
+            players={players}
+            earlyCashOutMap={earlyCashOutMap}
+            getAvatar={(playerId) => getAvatarEmoji(playerId, playerProfile, live.friendAvatarMap)}
+            hostId={session?.hostId}
+            canAct={canAct}
+            removingPlayerId={actions.removingPlayerId}
+            displayUnit={showLedgerDollars ? 'cash' : unit}
+            dollarsPerChip={showLedgerDollars ? session?.dollarsPerChip : undefined}
+            onRebuy={openRebuy}
+            onCorrectTotal={(p) =>
+              openModal({
+                kind: 'editBuyIn',
+                target: { playerId: p.playerId, playerName: p.name, currentTotal: p.total },
+              })
+            }
+            onOpenCashedOut={(playerId) => openModal({ kind: 'cashedOut', playerId })}
+            onCashOut={(p) => startEarlyCashOut(p)}
+            onRemove={(p) => actions.confirmRemovePlayer(p.playerId, p.name)}
+          />
+        </View>
 
         <SessionFooterActions
           canManage={canAct}
@@ -402,12 +410,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  content: {
-    padding: 16,
-    paddingTop: 12,
-    gap: 10,
-    // Room for the undo snackbar / voice banner over the last rows.
-    paddingBottom: 96,
+  group: {
+    gap: 12,
+  },
+  ledger: {
+    gap: 8,
   },
   center: {
     alignItems: 'center',
@@ -426,15 +433,5 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-  },
-  retryBtn: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderRadius: 8,
-    justifyContent: 'center',
-  },
-  retryLabel: {
-    fontWeight: '600',
   },
 });

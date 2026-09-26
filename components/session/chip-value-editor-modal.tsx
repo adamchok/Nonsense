@@ -54,7 +54,7 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
         contentContainerStyle={formStyles.fieldsScrollContent}>
         <View style={styles.field}>
           <View style={formStyles.fieldLabelRow}>
-            <Text style={[formStyles.fieldLabel, { color: c.textHint }]}>Dollar per chip</Text>
+            <Text style={[formStyles.fieldLabel, { color: c.textMuted }]}>Dollar per chip</Text>
             <Text style={[formStyles.requiredMark, { color: c.loss }]}>*</Text>
           </View>
           <View style={[formStyles.compactAmountWrap, { borderColor: c.inputBorder, backgroundColor: c.inputBg }]}>
@@ -81,7 +81,7 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
 
 const styles = StyleSheet.create({
   field: {
-    gap: 6,
+    gap: 7,
     alignSelf: 'stretch',
   },
   dollarSign: {

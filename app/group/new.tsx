@@ -68,32 +68,39 @@ export default function NewGroupScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    padding: 20,
-    gap: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 12,
   },
   heading: {
-    fontSize: 22,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   hint: {
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 21,
   },
   input: {
-    borderRadius: 10,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 15,
   },
   nextBtn: {
     marginTop: 8,
-    borderRadius: 10,
+    minHeight: 48,
+    borderRadius: 14,
     alignItems: 'center',
-    paddingVertical: 14,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
   },
   nextLabel: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 15,
   },
   disabled: {

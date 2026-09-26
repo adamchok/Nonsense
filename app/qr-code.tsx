@@ -305,12 +305,12 @@ export default function QrCodeScreen() {
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <Stack.Screen options={{ title: 'QR code', headerBackTitle: 'Back' }} />
 
-      <View style={styles.tabsRow} accessibilityRole="tablist">
+      <View style={[styles.tabsRow, { backgroundColor: c.inputBg }]} accessibilityRole="tablist">
         <Pressable
           accessibilityRole="tab"
           accessibilityState={{ selected: activeTab === 'my' }}
           accessibilityLabel="My code"
-          style={[styles.tabBtn, activeTab === 'my' && { borderColor: c.borderAccent }]}
+          style={[styles.tabBtn, activeTab === 'my' && { backgroundColor: c.card }]}
           onPress={() => setActiveTab('my')}>
           <Text style={[styles.tabText, { color: activeTab === 'my' ? c.text : c.textMuted }]}>
             MY CODE
@@ -320,7 +320,7 @@ export default function QrCodeScreen() {
           accessibilityRole="tab"
           accessibilityState={{ selected: activeTab === 'scan' }}
           accessibilityLabel="Scan code"
-          style={[styles.tabBtn, activeTab === 'scan' && { borderColor: c.borderAccent }]}
+          style={[styles.tabBtn, activeTab === 'scan' && { backgroundColor: c.card }]}
           onPress={async () => {
             const ok = await ensureCamera();
             if (!ok) {
@@ -520,34 +520,36 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 10,
+    marginHorizontal: 16,
     marginTop: 8,
+    padding: 3,
+    gap: 2,
+    borderRadius: 9,
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderColor: 'transparent',
+    minHeight: 38,
+    borderRadius: 8,
+    borderBottomWidth: 0,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   tabText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
+    fontSize: 13,
+    fontWeight: '600',
   },
   myRoot: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 18,
-    gap: 14,
+    paddingTop: 16,
+    gap: 12,
   },
   shareShot: {
-    borderRadius: 18,
+    borderRadius: 14,
   },
   shareExportCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
     gap: 0,
   },
@@ -576,7 +578,7 @@ const styles = StyleSheet.create({
   toolbarBtn: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -587,12 +589,12 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 18,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
   },
   toolbarBtnPrimaryLabel: {
     color: '#fff',
-    fontWeight: '800',
+    fontWeight: '600',
     fontSize: 15,
   },
   nameRow: {
@@ -601,7 +603,8 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderRadius: 14,
-    padding: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   avatarCircle: {
     width: 40,
@@ -618,8 +621,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   name: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
   },
   sub: {
     fontSize: 12,
@@ -648,13 +652,13 @@ const styles = StyleSheet.create({
   scanRoot: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingTop: 16,
     gap: 12,
   },
   scanCard: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
     minHeight: 360,
   },
@@ -679,15 +683,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 14,
+    gap: 8,
+    minHeight: 48,
     paddingHorizontal: 18,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
   },
   scanGalleryBtnLabel: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '600',
   },
 
   modalRoot: {
@@ -697,24 +701,24 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 22,
+    paddingHorizontal: 16,
   },
   confirmCard: {
     width: '100%',
-    maxWidth: 380,
-    borderRadius: 16,
+    maxWidth: 400,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 18,
+    padding: 20,
     gap: 12,
   },
   confirmTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
   },
   confirmSub: {
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: '600',
   },
   friendPreview: {
     flexDirection: 'row',
@@ -722,7 +726,8 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderRadius: 14,
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   previewAvatarCircle: {
     width: 46,
@@ -736,36 +741,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   previewName: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
   },
   confirmActions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 2,
+    gap: 8,
+    marginTop: 8,
   },
   cancelBtn: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
+    minHeight: 48,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
   },
   cancelLabel: {
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '600',
+    fontSize: 15,
   },
   confirmBtn: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
+    minHeight: 48,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
   },
   confirmLabel: {
-    fontWeight: '800',
-    fontSize: 14,
     color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
   disabled: {
     opacity: 0.5,

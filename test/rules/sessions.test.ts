@@ -286,3 +286,16 @@ test(
     );
   }
 );
+
+test('the host can delete a finished session with its results; other players cannot', async () => {
+  const id = sid();
+  await seedFinishedWithResult(id, [HOST, PLAYER]);
+
+  // Same order as deleteSession(): subcollection docs first, parent doc last.
+  await assertFails(deleteDoc(doc(dbAs(env, PLAYER), 'sessions', id)));
+  const db = dbAs(env, HOST);
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'sessions', id, 'results', PLAYER));
+  batch.delete(doc(db, 'sessions', id));
+  await assertSucceeds(batch.commit());
+});

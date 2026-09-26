@@ -103,7 +103,7 @@ function BlindField({
   return (
     <View style={styles.field}>
       <View style={formStyles.fieldLabelRow}>
-        <Text style={[formStyles.fieldLabel, { color: c.textHint }]}>{label}</Text>
+        <Text style={[formStyles.fieldLabel, { color: c.textMuted }]}>{label}</Text>
         <Text style={[formStyles.requiredMark, { color: c.loss }]}>*</Text>
       </View>
       <SessionAmountInputRow
@@ -135,6 +135,6 @@ const styles = StyleSheet.create({
   field: {
     flex: 1,
     minWidth: 0,
-    gap: 8,
+    gap: 7,
   },
 });

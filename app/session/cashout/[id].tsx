@@ -1,9 +1,10 @@
 import { SessionAmountPrefix } from '@/components/session-amount-prefix';
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatChipsLedger, formatSessionAmountValue } from '@/lib/currency-format';
+import { formatChipsLedger, formatSessionAmountValue, formatSignedCurrency } from '@/lib/currency-format';
 import { getBuyIns, getEarlyCashOuts, getSessionMeta, settleSession } from '@/lib/firestore';
 import { parseAmount } from '@/lib/parse-amount';
 import type { SessionAmountUnit, SessionResult } from '@/types';
@@ -79,6 +80,7 @@ function PlayerBuyInCaption({
 export default function CashOutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
+  const { gutter } = usePageLayout();
   const { playerProfile } = useAuth();
   const [players, setPlayers] = useState<PlayerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -427,8 +429,9 @@ export default function CashOutScreen() {
                 styles.profitValue,
                 profit > 0 ? { color: c.profit } : profit < 0 ? { color: c.loss } : { color: c.textMuted },
               ]}>
-              {profit >= 0 ? '+' : ''}
-              {isChipsMode ? formatChipsLedger(profit) : `$${profit.toFixed(2)}`}
+              {isChipsMode
+                ? `${profit >= 0 ? '+' : '-'}${formatChipsLedger(Math.abs(profit))}`
+                : formatSignedCurrency(profit)}
             </Text>
           </View>
         </View>
@@ -439,7 +442,7 @@ export default function CashOutScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.screen, { backgroundColor: c.bg }]}>
+      <View style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}>
         <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
         <ActivityIndicator color={c.textMuted} accessibilityLabel="Loading" />
       </View>
@@ -448,7 +451,7 @@ export default function CashOutScreen() {
 
   if (players.length === 0) {
     return (
-      <View style={[styles.screen, { backgroundColor: c.bg }]}>
+      <View style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}>
         <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
         <Text style={[styles.meta, { color: c.textMuted }]}>
           {loadError
@@ -456,10 +459,10 @@ export default function CashOutScreen() {
             : 'No players found for this session. Add buy-ins first.'}
         </Text>
         <Pressable
-          style={[styles.backButton, { backgroundColor: c.chipBg }]}
+          style={[styles.backButton, { backgroundColor: c.card, borderColor: c.inputBorder }]}
           accessibilityRole="button"
           onPress={() => router.back()}>
-          <Text style={[styles.buttonLabel, { color: c.chipText }]}>Go Back</Text>
+          <Text style={[styles.buttonLabel, { color: c.text }]}>Go Back</Text>
         </Pressable>
       </View>
     );
@@ -467,16 +470,16 @@ export default function CashOutScreen() {
 
   if (!canEdit) {
     return (
-      <View style={[styles.screen, { backgroundColor: c.bg }]}>
+      <View style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}>
         <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
         <Text style={[styles.meta, { color: c.textMuted }]}>
           View-only mode. Only the session host can complete cash-out.
         </Text>
         <Pressable
-          style={[styles.backButton, { backgroundColor: c.chipBg }]}
+          style={[styles.backButton, { backgroundColor: c.card, borderColor: c.inputBorder }]}
           accessibilityRole="button"
           onPress={() => router.back()}>
-          <Text style={[styles.buttonLabel, { color: c.chipText }]}>Go Back</Text>
+          <Text style={[styles.buttonLabel, { color: c.text }]}>Go Back</Text>
         </Pressable>
       </View>
     );
@@ -484,7 +487,7 @@ export default function CashOutScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: c.bg }]}
+      style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 20}>
       <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
@@ -576,10 +579,10 @@ export default function CashOutScreen() {
         )}
         {!balanced && remaining < -0.01 && (
           <Pressable
-            style={[styles.trackerActionBtn, { backgroundColor: c.chipBg }]}
+            style={[styles.trackerActionBtn, styles.secondaryBtn, { backgroundColor: c.card, borderColor: c.inputBorder }]}
             accessibilityRole="button"
             onPress={trimOverageEqually}>
-            <Text style={[styles.trackerActionLabel, { color: c.chipText }]}>Trim overage equally</Text>
+            <Text style={[styles.trackerActionLabel, { color: c.text }]}>Trim overage equally</Text>
           </Pressable>
         )}
       </View>
@@ -616,22 +619,26 @@ export default function CashOutScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    padding: 16,
-    paddingTop: 12,
-    gap: 10,
+    paddingTop: 16,
+    gap: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   meta: {
     fontSize: 13,
+    lineHeight: 18,
+    marginTop: -6,
   },
   trackerCard: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
-    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 8,
   },
   trackerRow: {
     flexDirection: 'row',
@@ -640,16 +647,19 @@ const styles = StyleSheet.create({
   trackerItem: {
     alignItems: 'center',
     flex: 1,
+    gap: 2,
   },
   trackerLabel: {
     fontSize: 11,
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.66,
   },
   trackerValue: {
-    fontSize: 18,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   trackerValueRow: {
     flexDirection: 'row',
@@ -670,20 +680,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   splitHint: {
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
   },
   trackerActionBtn: {
-    borderRadius: 8,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
     paddingVertical: 10,
+    paddingHorizontal: 18,
     marginTop: 4,
   },
+  secondaryBtn: {
+    borderWidth: 1,
+  },
   trackerActionLabel: {
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '600',
+    fontSize: 15,
   },
   list: {
     flex: 1,
@@ -692,10 +706,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   playerCard: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
-    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
     marginBottom: 8,
   },
   playerCardLocked: {
@@ -705,15 +720,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
   },
   playerNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 1,
   },
   playerName: {
     fontWeight: '600',
     fontSize: 15,
+    lineHeight: 20,
+    flexShrink: 1,
   },
   earlyBadge: {
     borderRadius: 4,
@@ -721,12 +740,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   earlyBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   playerBuyIn: {
-    fontSize: 13,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
   },
   playerBuyInRow: {
     flexDirection: 'row',
@@ -738,16 +758,19 @@ const styles = StyleSheet.create({
   cashOutRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   cashOutInput: {
     flex: 1,
+    minWidth: 0,
     paddingVertical: 10,
     paddingHorizontal: 4,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   chipRow: {
     flexDirection: 'row',
@@ -756,7 +779,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipMinus: {
-    borderRadius: 6,
+    borderRadius: 8,
     minWidth: 44,
     minHeight: 44,
     alignItems: 'center',
@@ -764,7 +787,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   chipPlus: {
-    borderRadius: 6,
+    borderRadius: 8,
     minWidth: 44,
     minHeight: 44,
     alignItems: 'center',
@@ -772,39 +795,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   chipLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   profitRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    paddingTop: 6,
+    paddingTop: 8,
   },
   profitLabel: {
     fontSize: 12,
     fontWeight: '600',
+    letterSpacing: 0.72,
   },
   profitValue: {
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
   confirmButton: {
-    borderRadius: 8,
+    borderRadius: 14,
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
     paddingVertical: 12,
-    marginBottom: 14,
+    paddingHorizontal: 18,
+    marginBottom: 16,
   },
   backButton: {
-    borderRadius: 8,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: 18,
   },
   buttonLabel: {
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   disabled: {
     opacity: 0.5,

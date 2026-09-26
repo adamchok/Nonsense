@@ -1,5 +1,6 @@
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatSignedCurrency } from '@/lib/currency-format';
@@ -54,6 +55,7 @@ type SortDirection = 'desc' | 'asc';
 
 export default function FriendsScreen() {
   const c = useAppColors();
+  const layout = usePageLayout(40);
   const router = useRouter();
   const { user, playerProfile } = useAuth();
   const [friends, setFriends] = useState<FriendRecord[]>([]);
@@ -429,10 +431,12 @@ export default function FriendsScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={styles.content}>
+      contentContainerStyle={[layout.content, styles.content]}>
       <Text style={[styles.title, { color: c.text }]}>Friends</Text>
 
-      <View style={styles.tabsRow} accessibilityRole="tablist">
+      <View
+        style={[styles.tabsRow, { backgroundColor: c.inputBg, borderColor: c.border }]}
+        accessibilityRole="tablist">
         {(['friends', 'groups', 'leaderboard'] as const).map((tab) => (
           <Pressable
             key={tab}
@@ -440,8 +444,7 @@ export default function FriendsScreen() {
             accessibilityState={{ selected: activeTab === tab }}
             style={[
               styles.tabBtn,
-              { backgroundColor: c.card, borderColor: c.border },
-              activeTab === tab && [styles.tabBtnActive, { borderColor: c.borderAccent }],
+              activeTab === tab && { backgroundColor: c.card, borderColor: c.border },
             ]}
             onPress={() => {
               setActiveTab(tab);
@@ -514,12 +517,20 @@ export default function FriendsScreen() {
           {incomingRequests.length > 0 ? (
             <View style={styles.requestBlock}>
               <Text style={[styles.requestBlockTitle, { color: c.textMuted }]}>Incoming requests</Text>
-              {incomingRequests.map((req) => (
+              {incomingRequests.map((req, i) => (
                 <View
                   key={req.playerId}
-                  style={[styles.requestRow, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
+                  style={[
+                    styles.requestRow,
+                    styles.vRow,
+                    i === 0 && styles.vFirst,
+                    i === incomingRequests.length - 1 && styles.vLast,
+                    { backgroundColor: c.card, borderColor: c.borderAccent },
+                  ]}>
                   <View style={styles.friendInfo}>
-                    <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                    <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
+                      <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                    </View>
                     <Text style={[styles.friendName, { color: c.textSecondary }]}>{req.name}</Text>
                   </View>
                   <View style={styles.requestActions}>
@@ -558,12 +569,20 @@ export default function FriendsScreen() {
           {outgoingRequests.length > 0 ? (
             <View style={styles.requestBlock}>
               <Text style={[styles.requestBlockTitle, { color: c.textMuted }]}>Sent requests</Text>
-              {outgoingRequests.map((req) => (
+              {outgoingRequests.map((req, i) => (
                 <View
                   key={req.playerId}
-                  style={[styles.requestRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                  style={[
+                    styles.requestRow,
+                    styles.vRow,
+                    i === 0 && styles.vFirst,
+                    i === outgoingRequests.length - 1 && styles.vLast,
+                    { backgroundColor: c.card, borderColor: c.border },
+                  ]}>
                   <View style={styles.friendInfo}>
-                    <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                    <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
+                      <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                    </View>
                     <View>
                       <Text style={[styles.friendName, { color: c.textSecondary }]}>{req.name}</Text>
                       <Text style={[styles.pendingHint, { color: c.textHint }]}>Pending</Text>
@@ -607,12 +626,20 @@ export default function FriendsScreen() {
             </Text>
           ) : (
             <View style={styles.friendList}>
-              {filteredFriends.map((item) => (
+              {filteredFriends.map((item, i) => (
                 <View
                   key={item.playerId}
-                  style={[styles.friendRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                  style={[
+                    styles.friendRow,
+                    styles.vRow,
+                    i === 0 && styles.vFirst,
+                    i === filteredFriends.length - 1 && styles.vLast,
+                    { backgroundColor: c.card, borderColor: c.border },
+                  ]}>
                   <View style={styles.friendInfo}>
-                    <Text style={styles.friendAvatar}>{item.avatarEmoji ?? '🙂'}</Text>
+                    <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
+                      <Text style={styles.friendAvatar}>{item.avatarEmoji ?? '🙂'}</Text>
+                    </View>
                     <View style={styles.friendTextBlock}>
                       <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
                       <Text style={[styles.friendMeta, { color: c.textHint }]}>
@@ -621,7 +648,8 @@ export default function FriendsScreen() {
                     </View>
                   </View>
                   <Pressable
-                    hitSlop={8}
+                    hitSlop={4}
+                    style={styles.rowIconBtn}
                     accessibilityRole="button"
                     accessibilityLabel={`Remove ${item.name} from friends`}
                     onPress={() => handleRemoveFriend(item.playerId, item.name)}>
@@ -934,7 +962,13 @@ export default function FriendsScreen() {
               return (
                 <View
                   key={entry.playerId}
-                  style={[styles.lbRow, { backgroundColor: c.card, borderColor: isMe ? c.borderAccent : c.border }]}>
+                  style={[
+                    styles.lbRow,
+                    styles.vRow,
+                    idx === 0 && styles.vFirst,
+                    idx === sortedLeaderboard.length - 1 && styles.vLast,
+                    { backgroundColor: isMe ? c.accentBg : c.card, borderColor: c.border },
+                  ]}>
                   <View style={styles.lbLeft}>
                     <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
                     <Text style={styles.lbAvatar}>{entry.avatarEmoji ?? '🙂'}</Text>
@@ -1068,7 +1102,10 @@ export default function FriendsScreen() {
                         key={entry.playerId}
                         style={[
                           styles.lbRow,
-                          { backgroundColor: c.card, borderColor: isMe ? c.borderAccent : c.border },
+                          styles.vRow,
+                          idx === 0 && styles.vFirst,
+                          idx === groupLeaderboard.length - 1 && styles.vLast,
+                          { backgroundColor: isMe ? c.accentBg : c.card, borderColor: c.border },
                         ]}>
                         <View style={styles.lbLeft}>
                           <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
@@ -1173,39 +1210,76 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
     paddingTop: 48,
-    paddingBottom: 40,
-    gap: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    lineHeight: 34,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
+  /** Segmented control: track padding 3, gap 2, radius 9; items 38 tall, radius 8. */
   tabsRow: {
     flexDirection: 'row',
-    gap: 8,
+    padding: 3,
+    gap: 2,
+    borderRadius: 9,
+    borderWidth: 1,
   },
   tabBtn: {
     flex: 1,
+    minHeight: 38,
+    borderRadius: 8,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderColor: 'transparent',
     alignItems: 'center',
-  },
-  tabBtnActive: {
-    borderWidth: 1.5,
+    justifyContent: 'center',
   },
   tabBtnText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+  },
+  /** Rows of one card: side + top borders on every row; radius and bottom border on the ends. */
+  vRow: {
+    minHeight: 52,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderTopWidth: 1,
+    marginBottom: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  vFirst: {
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  vLast: {
+    borderBottomWidth: 1,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+  },
+  avatarTile: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -8,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 8,
   },
   sectionHeaderActions: {
     flexDirection: 'row',
@@ -1214,9 +1288,9 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   refreshBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1230,13 +1304,13 @@ const styles = StyleSheet.create({
   },
   lbSortBtnLabeled: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    height: 38,
+    height: 40,
   },
   lbSortBtnText: {
     fontSize: 14,
@@ -1246,32 +1320,32 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 40,
     right: 0,
-    minWidth: 180,
+    minWidth: 200,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 8,
+    borderRadius: 14,
+    paddingVertical: 6,
     elevation: 8,
   },
   lbSortSectionTitle: {
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
+    fontWeight: '600',
+    letterSpacing: 0.66,
     textTransform: 'uppercase',
     paddingHorizontal: 12,
-    paddingTop: 2,
+    paddingTop: 6,
     paddingBottom: 4,
   },
   lbSortOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 44,
     paddingHorizontal: 12,
-    paddingVertical: 9,
     marginHorizontal: 6,
     borderRadius: 8,
   },
   lbSortOptionText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   lbSortDivider: {
@@ -1285,8 +1359,9 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   sectionTitle: {
-    fontWeight: '700',
-    fontSize: 20,
+    fontWeight: '600',
+    fontSize: 17,
+    lineHeight: 22,
   },
   addBtnGroup: {
     flexDirection: 'row',
@@ -1294,17 +1369,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   friendSearchInput: {
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderRadius: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
   },
   scanBtn: {
-    padding: 6,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: 1,
   },
   addBtn: {
@@ -1312,27 +1389,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    minHeight: 38,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    minHeight: 40,
+    paddingLeft: 12,
+    paddingRight: 16,
+    borderRadius: 999,
     borderWidth: 1,
   },
   addBtnLabel: {
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 15,
   },
   emptyText: {
     textAlign: 'center',
     marginTop: 16,
   },
   requestBlock: {
-    gap: 8,
+    gap: 0,
   },
   requestBlockTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.72,
     textTransform: 'uppercase',
+    paddingHorizontal: 4,
+    marginBottom: 8,
   },
   requestRow: {
     flexDirection: 'row',
@@ -1350,13 +1430,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   requestAcceptBtn: {
-    borderRadius: 8,
-    paddingVertical: 8,
+    minHeight: 36,
+    justifyContent: 'center',
+    borderRadius: 999,
     paddingHorizontal: 14,
   },
   requestAcceptLabel: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 13,
   },
   pendingHint: {
@@ -1369,7 +1450,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   friendList: {
-    gap: 8,
+    gap: 0,
   },
   friendRow: {
     flexDirection: 'row',
@@ -1381,9 +1462,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   friendInfo: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   friendName: {
     fontWeight: '600',
@@ -1395,9 +1478,11 @@ const styles = StyleSheet.create({
   friendMeta: {
     marginTop: 2,
     fontSize: 12,
+    lineHeight: 16,
   },
   friendAvatar: {
-    fontSize: 20,
+    fontSize: 17,
+    lineHeight: 22,
   },
   lbRow: {
     flexDirection: 'row',
@@ -1410,14 +1495,17 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   lbLeft: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   lbRank: {
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '600',
+    fontSize: 13,
     width: 28,
+    fontVariant: ['tabular-nums'],
   },
   lbName: {
     fontWeight: '600',
@@ -1427,11 +1515,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   lbProfit: {
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
   groupCard: {
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     overflow: 'hidden',
   },
@@ -1439,7 +1528,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 14,
+    minHeight: 52,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   groupHeaderLeft: {
     flexDirection: 'row',
@@ -1466,8 +1557,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   groupBody: {
-    paddingHorizontal: 14,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     gap: 8,
   },
   groupEmpty: {
@@ -1479,8 +1570,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    minHeight: 48,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
   },
   memberInfo: {
     flexDirection: 'row',
@@ -1490,7 +1582,7 @@ const styles = StyleSheet.create({
   },
   memberName: {
     fontWeight: '500',
-    fontSize: 14,
+    fontSize: 15,
   },
   groupMemberRoleBadge: {
     borderRadius: 4,
@@ -1499,14 +1591,14 @@ const styles = StyleSheet.create({
   },
   groupMemberRoleBadgeText: {
     color: '#fff',
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   manageBtn: {
-    borderRadius: 8,
+    minHeight: 44,
+    borderRadius: 14,
     borderWidth: 1,
-    paddingVertical: 10,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1515,8 +1607,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   manageBtnLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   groupActionsRow: {
     flexDirection: 'row',
@@ -1532,13 +1624,13 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   addFriendModalKav: {
     flex: 1,
     justifyContent: 'center',
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 400,
   },
   addFriendModalFieldsScroll: {
     width: '100%',
@@ -1548,21 +1640,22 @@ const styles = StyleSheet.create({
   },
   addCard: {
     width: '100%',
-    maxWidth: 340,
-    borderRadius: 12,
+    maxWidth: 400,
+    borderRadius: 14,
     borderWidth: 1,
     padding: 20,
     gap: 12,
   },
   addCardTitle: {
-    fontWeight: '700',
-    fontSize: 18,
+    fontWeight: '600',
+    fontSize: 17,
+    lineHeight: 22,
   },
   addCardSub: {
     fontSize: 13,
   },
   codeInput: {
-    borderRadius: 8,
+    borderRadius: 9,
     borderWidth: 1,
     fontSize: 22,
     fontWeight: '700',
@@ -1572,9 +1665,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   renameGroupInput: {
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    fontSize: 16,
+    fontSize: 15,
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
@@ -1582,36 +1676,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 8,
   },
   cancelBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
   },
   cancelLabel: {
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 15,
   },
   confirmBtn: {
-    borderRadius: 8,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: 'center',
+    borderRadius: 14,
     paddingHorizontal: 18,
   },
   confirmLabel: {
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '600',
+    fontSize: 15,
   },
   disabled: {
     opacity: 0.4,
   },
   leaderboardCard: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 480,
     maxHeight: '80%',
     borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
+    padding: 20,
     gap: 12,
   },
   leaderboardHeaderRow: {
@@ -1620,13 +1716,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   leaderboardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '600',
     flex: 1,
     marginRight: 12,
   },
   leaderboardBody: {
-    gap: 8,
+    gap: 0,
     paddingBottom: 6,
   },
 });

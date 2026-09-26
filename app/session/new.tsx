@@ -1,6 +1,7 @@
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
@@ -29,6 +30,7 @@ const SCREEN_CONTENT_PADDING_BOTTOM = 32;
 
 export default function NewSessionScreen() {
   const c = useAppColors();
+  const { gutter } = usePageLayout();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -269,6 +271,7 @@ export default function NewSessionScreen() {
           contentContainerStyle={[
             styles.screenContent,
             {
+              paddingHorizontal: gutter,
               paddingBottom: SCREEN_CONTENT_PADDING_BOTTOM + keyboardHeight + insets.bottom,
             },
           ]}
@@ -323,28 +326,32 @@ export default function NewSessionScreen() {
               <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
                 Cash: track dollars. Chips: track chip stacks; set how much each chip is worth.
               </Text>
-              <View style={styles.amountModeRow} accessibilityRole="radiogroup">
+              <View
+                style={[styles.amountModeRow, { backgroundColor: c.inputBg, borderColor: c.border }]}
+                accessibilityRole="radiogroup">
                 <Pressable
                   accessibilityRole="radio"
                   accessibilityState={{ checked: !isChipsMode }}
                   style={[
                     styles.amountModeOption,
-                    { borderColor: c.border, backgroundColor: c.inputBg },
-                    !isChipsMode && { borderColor: c.accent, backgroundColor: c.accentBg },
+                    !isChipsMode && { borderColor: c.accentBorder, backgroundColor: c.accentBg },
                   ]}
                   onPress={() => setAmountUnit('cash')}>
-                  <Text style={[styles.amountModeOptionText, { color: c.text }]}>Cash</Text>
+                  <Text style={[styles.amountModeOptionText, { color: !isChipsMode ? c.accentText : c.textMuted }]}>
+                    Cash
+                  </Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="radio"
                   accessibilityState={{ checked: isChipsMode }}
                   style={[
                     styles.amountModeOption,
-                    { borderColor: c.border, backgroundColor: c.inputBg },
-                    isChipsMode && { borderColor: c.accent, backgroundColor: c.accentBg },
+                    isChipsMode && { borderColor: c.accentBorder, backgroundColor: c.accentBg },
                   ]}
                   onPress={() => setAmountUnit('chips')}>
-                  <Text style={[styles.amountModeOptionText, { color: c.text }]}>Chips</Text>
+                  <Text style={[styles.amountModeOptionText, { color: isChipsMode ? c.accentText : c.textMuted }]}>
+                    Chips
+                  </Text>
                 </Pressable>
               </View>
               {isChipsMode ? (
@@ -647,27 +654,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   screenContent: {
-    padding: 16,
-    paddingTop: 12,
+    paddingTop: 16,
     gap: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
   },
   input: {
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
   },
   locationInputGroup: {
-    gap: 4,
-    paddingBottom: 6,
+    gap: 7,
+    paddingBottom: 8,
   },
   savedLocationsLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
   },
   locationSection: {
     flexDirection: 'row',
@@ -675,8 +684,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   locationSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
   },
   blindsSection: {
     flexDirection: 'row',
@@ -685,8 +694,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   blindsSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
   },
   icons: {
     marginTop: 1,
@@ -695,20 +704,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   locationPickerText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   joinCard: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 14,
+    padding: 16,
     gap: 12,
   },
   joinRow: {
@@ -726,7 +735,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   joinTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   joinHint: {
@@ -739,11 +748,11 @@ const styles = StyleSheet.create({
   blindField: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 7,
   },
   blindFieldLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
   },
   labelWithRequired: {
     flexDirection: 'row',
@@ -767,20 +776,26 @@ const styles = StyleSheet.create({
   buyInInput: {
     flex: 1,
     minWidth: 0,
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontVariant: ['tabular-nums'],
   },
   button: {
     marginTop: 8,
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 14,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
   },
   buttonLabel: {
     color: '#fff',
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   disabled: {
     opacity: 0.7,
@@ -789,9 +804,9 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   groupSection: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 14,
+    padding: 16,
     gap: 10,
   },
   groupSectionHeader: {
@@ -800,16 +815,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   groupSectionTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   groupSectionHint: {
     fontSize: 12,
   },
   amountModeCard: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 14,
+    padding: 16,
     gap: 10,
   },
   amountModeHeader: {
@@ -818,38 +833,44 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   amountModeTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
+  /** Segmented control: track padding 3, gap 2, radius 9; items 38 tall, radius 8. */
   amountModeRow: {
     flexDirection: 'row',
-    gap: 10,
+    padding: 3,
+    gap: 2,
+    borderRadius: 9,
+    borderWidth: 1,
   },
   amountModeOption: {
     flex: 1,
+    minHeight: 38,
     borderRadius: 8,
-    borderWidth: 2,
-    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   amountModeOptionText: {
-    fontWeight: '700',
-    fontSize: 15,
+    fontWeight: '600',
+    fontSize: 13,
   },
   chipValueBlock: {
-    gap: 6,
+    gap: 7,
   },
   groupPickerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 9,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   groupPickerLabel: {
-    fontSize: 14,
+    fontSize: 15,
   },
   selectedGroupRow: {
     flexDirection: 'row',
@@ -894,27 +915,29 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   pickerCard: {
     width: '100%',
-    maxWidth: 340,
-    borderRadius: 12,
+    maxWidth: 400,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
+    padding: 20,
     gap: 4,
   },
   pickerTitle: {
-    fontWeight: '700',
-    fontSize: 18,
+    fontWeight: '600',
+    fontSize: 17,
+    lineHeight: 22,
     marginBottom: 8,
   },
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
+    minHeight: 52,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   pickerRowText: {
     fontWeight: '600',
@@ -924,12 +947,13 @@ const styles = StyleSheet.create({
     maxHeight: 360,
   },
   pickerCancel: {
-    paddingVertical: 12,
+    minHeight: 48,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
   },
   pickerCancelText: {
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 15,
   },
 });

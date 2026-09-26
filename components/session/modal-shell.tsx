@@ -1,4 +1,6 @@
 import { useAppColors } from '@/lib/app-theme';
+import { pressBg } from '@/lib/ui';
+import { BREAKPOINT_MD, gutterFor } from '@/lib/spacing';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -8,6 +10,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   type StyleProp,
   type ViewStyle,
@@ -45,6 +48,9 @@ export function ModalShell({
   cardStyle,
 }: Props) {
   const c = useAppColors();
+  const { width } = useWindowDimensions();
+  // Phones: near full width inside the gutter; tablet/desktop: a centred 480 column.
+  const frame = { maxWidth: width >= BREAKPOINT_MD ? 480 : 400 };
   const primaryDisabled = Boolean(primary?.disabled || primary?.busy);
 
   const card = (
@@ -57,11 +63,11 @@ export function ModalShell({
       {children}
       <View style={styles.actions}>
         <Pressable
-          style={styles.cancelBtn}
+          style={(state) => [styles.cancelBtn, { borderColor: c.inputBorder }, pressBg(c, state, c.card)]}
           onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel={primary ? 'Cancel' : 'Close'}>
-          <Text style={[styles.cancelLabel, { color: primary ? c.lossLight : c.textSecondary }]}>
+          <Text style={[styles.cancelLabel, { color: c.text }]}>
             {primary ? 'Cancel' : 'Close'}
           </Text>
         </Pressable>
@@ -94,16 +100,16 @@ export function ModalShell({
           importantForAccessibility="no"
           accessibilityElementsHidden
         />
-        <View pointerEvents="box-none" style={styles.centerWrap}>
+        <View pointerEvents="box-none" style={[styles.centerWrap, { paddingHorizontal: gutterFor(width) }]}>
           {avoidKeyboard ? (
             <KeyboardAvoidingView
               behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-              style={[styles.keyboard, styles.kav]}>
+              style={[styles.keyboard, frame, styles.kav]}>
               {card}
             </KeyboardAvoidingView>
           ) : (
-            <View style={styles.keyboard}>{card}</View>
+            <View style={[styles.keyboard, frame]}>{card}</View>
           )}
         </View>
       </View>
@@ -119,11 +125,9 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
   },
   keyboard: {
     width: '100%',
-    maxWidth: 360,
   },
   kav: {
     flex: 1,
@@ -131,42 +135,47 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
-    gap: 10,
+    padding: 20,
+    gap: 12,
   },
   title: {
-    fontWeight: '700',
-    fontSize: 18,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
   },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 8,
   },
   cancelBtn: {
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   cancelLabel: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
   },
   primaryBtn: {
-    minHeight: 44,
-    minWidth: 72,
+    minHeight: 48,
+    minWidth: 88,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: 14,
     paddingHorizontal: 18,
   },
   primaryLabel: {
     color: '#fff',
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   disabled: {
     opacity: 0.4,

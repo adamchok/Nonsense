@@ -2,6 +2,7 @@ import { PlayerLedgerRow, type LedgerRowHandlers } from '@/components/session/pl
 import { useAppColors } from '@/lib/app-theme';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
+import { text as type, ui } from '@/lib/ui';
 import { Text, View } from 'react-native';
 
 type Props = LedgerRowHandlers & {
@@ -32,11 +33,11 @@ export function PlayerTotalsList({
 }: Props) {
   const c = useAppColors();
   if (players.length === 0) {
-    return <Text style={{ color: c.textMuted }}>No buy-ins yet. Add a player above.</Text>;
+    return <Text style={[type.body, { color: c.textMuted }]}>No buy-ins yet. Add a player above.</Text>;
   }
   return (
-    <View>
-      {players.map((p) => (
+    <View style={[ui.card, { backgroundColor: c.card, borderColor: c.border }]}>
+      {players.map((p, i) => (
         <PlayerLedgerRow
           key={p.playerId}
           player={p}
@@ -45,6 +46,7 @@ export function PlayerTotalsList({
           isHostRow={p.playerId === hostId}
           canAct={canAct}
           isRemoving={removingPlayerId === p.playerId}
+          showDivider={i > 0}
           displayUnit={displayUnit}
           dollarsPerChip={dollarsPerChip}
           {...handlers}

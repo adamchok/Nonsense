@@ -107,14 +107,12 @@ function Amount({ value, unit, color }: { value: number; unit: SessionAmountUnit
 
 const styles = StyleSheet.create({
   card: {
-    maxWidth: 360,
-    borderRadius: 12,
     gap: 14,
   },
   subtitle: {
     fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    fontWeight: '600',
+    letterSpacing: 0.72,
     textTransform: 'uppercase',
     marginTop: -6,
   },
@@ -150,6 +148,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
     textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
   valueMuted: {
     fontSize: 13,
@@ -163,11 +162,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     minHeight: 48,
     paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 18,
+    borderRadius: 14,
     borderWidth: 1,
   },
   buyBackLabel: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

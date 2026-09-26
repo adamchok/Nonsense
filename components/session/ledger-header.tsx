@@ -1,5 +1,6 @@
 import { useAppColors } from '@/lib/app-theme';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { text as type } from '@/lib/ui';
 import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
 
 type Props = {
@@ -16,7 +17,7 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
   return (
     <View style={styles.header}>
       <View style={styles.title}>
-        <Text style={[styles.titleText, { color: c.text }]} numberOfLines={1} accessibilityRole="header">
+        <Text style={[type.section, { color: c.textMuted }]} numberOfLines={1} accessibilityRole="header">
           Buy-In Ledger ({count})
         </Text>
         {pendingCount > 0 ? (
@@ -67,17 +68,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 6,
+    paddingHorizontal: 4,
+    minHeight: 32,
   },
   title: {
     flex: 1,
     minWidth: 0,
     gap: 2,
-  },
-  titleText: {
-    fontWeight: '700',
-    fontSize: 15,
-    marginTop: 6,
   },
   syncRow: {
     flexDirection: 'row',
