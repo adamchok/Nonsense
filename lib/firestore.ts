@@ -38,6 +38,7 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { normalizeAvatarEmoji } from '@/lib/avatar-emoji';
 
 function toDate(value: unknown): Date {
   if (value instanceof Timestamp) {
@@ -49,11 +50,6 @@ function toDate(value: unknown): Date {
   return new Date();
 }
 
-function normalizeAvatarEmoji(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
 
 /**
  * Reads a numeric doc field, warning when it is missing or non-finite so a corrupted record
