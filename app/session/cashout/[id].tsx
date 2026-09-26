@@ -2,6 +2,7 @@ import { FieldError, errorBorder, invalidProps } from '@/components/field-error'
 import { Animated, PressableScale, SPRING, fadeIn, fadeOut, layoutTransition, listItemEntering, usePop } from '@/components/motion';
 import { SessionAmountPrefix } from '@/components/session-amount-prefix';
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
+import { CashOutSkeleton } from '@/components/session/session-skeletons';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
@@ -14,7 +15,6 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -505,7 +505,7 @@ export default function CashOutScreen() {
     return (
       <View style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}>
         <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
-        <ActivityIndicator color={c.textMuted} accessibilityLabel="Loading" />
+        <CashOutSkeleton />
       </View>
     );
   }

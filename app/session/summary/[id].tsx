@@ -9,6 +9,7 @@ import { computeSettlements } from '@/lib/settlement';
 import type { AppColors } from '@/lib/app-theme';
 import type { EarlyCashOut, SessionAmountUnit, SessionResult } from '@/types';
 import { Icon } from '@/components/icon';
+import { SessionSummarySkeleton } from '@/components/session/session-skeletons';
 import { ConfettiBurst, ScaleFadeIn } from '@/components/celebration';
 import { Animated, fadeIn, listItemEntering, useCountUp } from '@/components/motion';
 import { FadeIn, FadeInDown, ReduceMotion, useReducedMotion } from 'react-native-reanimated';
@@ -16,7 +17,6 @@ import { useNavigation } from '@react-navigation/native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
   Linking,
   Platform,
@@ -332,12 +332,7 @@ export default function SessionSummaryScreen() {
   }, [navigation, sessionDate, handleShareWhatsApp, goToHistory, c.text, layout.gutter]);
 
   if (loading) {
-    return (
-      <View style={[styles.screen, styles.centered, { backgroundColor: c.bg }]}>
-        <ActivityIndicator size="large" color={c.accentText} />
-        <Text style={[styles.loadingText, { color: c.textMuted }]}>Loading summary…</Text>
-      </View>
-    );
+    return <SessionSummarySkeleton contentStyle={layout.content} />;
   }
 
   if (results.length === 0) {
@@ -512,14 +507,6 @@ export default function SessionSummaryScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 14,
-  },
-  loadingText: {
-    fontSize: 15,
   },
   emptyScreen: {
     paddingHorizontal: 28,

@@ -11,6 +11,7 @@ import { PotBadge } from '@/components/session/pot-badge';
 import { SessionFooterActions } from '@/components/session/session-footer-actions';
 import { SessionHeader } from '@/components/session/session-header';
 import { SessionMetaCards } from '@/components/session/session-meta-cards';
+import { LiveSessionSkeleton } from '@/components/session/session-skeletons';
 import { hapticTap } from '@/components/session/feedback';
 import { UndoSnackbar } from '@/components/session/undo-snackbar';
 import { VoiceBanner, VoiceMicButton } from '@/components/session/voice-panel';
@@ -238,11 +239,7 @@ export default function ActiveSessionScreen() {
     : undefined;
 
   if (live.isLoading) {
-    return (
-      <View style={[styles.screen, styles.center, { backgroundColor: c.bg }]}>
-        <ActivityIndicator size="large" color={c.textMuted} accessibilityLabel="Loading session" />
-      </View>
-    );
+    return <LiveSessionSkeleton contentStyle={layout.content} />;
   }
 
   return (
@@ -418,10 +415,6 @@ const styles = StyleSheet.create({
   },
   ledger: {
     gap: 8,
-  },
-  center: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   headerIconBtn: {
     width: 44,
