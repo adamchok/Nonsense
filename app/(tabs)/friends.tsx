@@ -869,7 +869,15 @@ export default function FriendsScreen() {
             {/* ---- Leaderboard tab ---- */}
             {activeTab === 'leaderboard' && (
         <>
-          <View style={styles.sectionHeader}>
+          {showLeaderboardSortDropdown ? (
+            <Pressable
+              style={styles.menuBackdrop}
+              onPress={() => setShowLeaderboardSortDropdown(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close sort options"
+            />
+          ) : null}
+          <View style={[styles.sectionHeader, showLeaderboardSortDropdown && styles.menuAnchorRaised]}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>
             <View style={styles.sectionHeaderActions}>
               <Pressable
@@ -1316,9 +1324,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  /** Invisible layer behind an open dropdown: tapping anywhere outside the menu closes it. */
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
+  },
+  menuAnchorRaised: {
+    zIndex: 10,
+  },
   lbSortDropdown: {
     position: 'absolute',
-    top: 40,
+    top: '100%',
+    marginTop: 8,
     right: 0,
     minWidth: 200,
     borderWidth: 1,

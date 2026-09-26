@@ -407,7 +407,15 @@ export default function HistoryScreen() {
         styles.screen,
         { backgroundColor: c.bg, paddingHorizontal: layout.gutter, gap: layout.sectionGap },
       ]}>
-      <View style={styles.titleRow}>
+      {showSortDropdown ? (
+        <Pressable
+          style={styles.menuBackdrop}
+          onPress={() => setShowSortDropdown(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Close sort options"
+        />
+      ) : null}
+      <View style={[styles.titleRow, showSortDropdown && styles.menuAnchorRaised]}>
         <Text style={[styles.title, { color: c.text }]}>My Winnings</Text>
         <View style={styles.headerActions}>
           <Pressable
@@ -1071,9 +1079,18 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 40,
   },
+  /** Invisible layer behind an open dropdown: tapping anywhere outside the menu closes it. */
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
+  },
+  menuAnchorRaised: {
+    zIndex: 10,
+  },
   sortDropdown: {
     position: 'absolute',
-    top: 42,
+    top: '100%',
+    marginTop: 8,
     right: 0,
     borderWidth: 1,
     borderRadius: 14,
