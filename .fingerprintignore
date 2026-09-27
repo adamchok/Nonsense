@@ -5,3 +5,4 @@
 android/**/*
 ios/**/*
 **/android/build/**/*
+node_modules/@react-native-masked-view/masked-view/**/*
