@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Platform } from 'react-native';
+import { Platform, TurboModuleRegistry } from 'react-native';
 import {
   type AuthCredential,
   type User,
@@ -115,14 +115,13 @@ type GoogleSigninModule = typeof import('@react-native-google-signin/google-sign
 let isGoogleConfigured = false;
 
 async function loadGoogleSignin(): Promise<GoogleSigninModule> {
-  try {
-    return await import('@react-native-google-signin/google-signin');
-  } catch {
+  if (!TurboModuleRegistry.get('RNGoogleSignin')) {
     throw new AccountLinkError(
       'unknown',
       'Google sign-in is not available in Expo Go. Use email, or the installed Nonsense app.'
     );
   }
+  return import('@react-native-google-signin/google-signin');
 }
 
 function mapGoogleError(err: unknown, { isErrorWithCode, statusCodes }: GoogleSigninModule): AccountLinkError {
