@@ -20,12 +20,6 @@ import {
   signOut,
 } from 'firebase/auth';
 import {
-  GoogleSignin,
-  isCancelledResponse,
-  isErrorWithCode,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
-import {
   AccountLinkError,
   accountEmail,
   hasPasswordSignIn,
@@ -116,9 +110,22 @@ async function loadProfile(uid: string): Promise<PlayerProfile | null> {
   return profile;
 }
 
+type GoogleSigninModule = typeof import('@react-native-google-signin/google-signin');
+
 let isGoogleConfigured = false;
 
-function mapGoogleError(err: unknown): AccountLinkError {
+async function loadGoogleSignin(): Promise<GoogleSigninModule> {
+  try {
+    return await import('@react-native-google-signin/google-signin');
+  } catch {
+    throw new AccountLinkError(
+      'unknown',
+      'Google sign-in is not available in Expo Go. Use email, or the installed Nonsense app.'
+    );
+  }
+}
+
+function mapGoogleError(err: unknown, { isErrorWithCode, statusCodes }: GoogleSigninModule): AccountLinkError {
   if (err instanceof AccountLinkError) return err;
   if (isErrorWithCode(err)) {
     if (err.code === statusCodes.SIGN_IN_CANCELLED) return new AccountLinkError('cancelled');
@@ -153,6 +160,8 @@ async function getGoogleCredential(): Promise<AuthCredential> {
       'Google sign-in is not set up in this build. Please update or reinstall the app.'
     );
   }
+  const google = await loadGoogleSignin();
+  const { GoogleSignin, isCancelledResponse } = google;
   if (!isGoogleConfigured) {
     GoogleSignin.configure({ webClientId });
     isGoogleConfigured = true;
@@ -170,7 +179,7 @@ async function getGoogleCredential(): Promise<AuthCredential> {
     }
     return GoogleAuthProvider.credential(idToken);
   } catch (err) {
-    throw mapGoogleError(err);
+    throw mapGoogleError(err, google);
   } finally {
     GoogleSignin.signOut().catch(() => {});
   }

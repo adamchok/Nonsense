@@ -1,7 +1,7 @@
-# IDE files (VS Code Java/Gradle extensions) written into native package dirs.
-# They are not part of the npm packages, so EAS never sees them; ignore them so
-# the local fingerprint matches the one computed on EAS.
 **/.project
 **/.classpath
 **/.settings/**/*
 **/.gradle/**/*
+android/**/*
+ios/**/*
+**/android/build/**/*
