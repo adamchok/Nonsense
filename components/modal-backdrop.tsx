@@ -19,7 +19,6 @@ export function ModalBackdrop(props: PressableProps) {
       <BlurView
         intensity={BLUR_INTENSITY}
         tint={resolvedColorScheme === 'dark' ? 'dark' : 'light'}
-        blurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay }]} />
