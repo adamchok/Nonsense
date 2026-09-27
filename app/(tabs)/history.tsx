@@ -292,7 +292,7 @@ export default function HistoryScreen() {
       style={[
         styles.screen,
         { backgroundColor: c.bg, paddingHorizontal: layout.gutter, paddingBottom: layout.gutter, gap: layout.sectionGap },
-        layout.compactTop,
+        layout.tabTop,
       ]}>
       {showSortDropdown ? (
         <Pressable style={styles.menuBackdrop} onPress={() => setShowSortDropdown(false)} accessible={false} focusable={false} tabIndex={-1} aria-hidden />

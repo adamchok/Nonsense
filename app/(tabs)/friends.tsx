@@ -566,7 +566,7 @@ export default function FriendsScreen() {
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={[layout.content, styles.content, layout.compactTop]}>
+      contentContainerStyle={[layout.content, styles.content, layout.tabTop]}>
       <Text style={[styles.title, { color: c.text }]}>Friends</Text>
 
       <SegmentedTabs
