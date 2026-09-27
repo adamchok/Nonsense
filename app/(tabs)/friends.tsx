@@ -139,8 +139,6 @@ export default function FriendsScreen() {
     });
     return next;
   }, [leaderboard, leaderboardSortBy, leaderboardSortDirection]);
-  // Leaderboard rows animate in only the first time each player is shown per
-  // tab visit (not again when rows remount after a refresh).
   const lbRowsVisible = activeTab === 'leaderboard' && !lbLoading;
   const [lbEntering, setLbEntering] = useState(() => ({
     seen: new Set<string>() as ReadonlySet<string>,
@@ -266,8 +264,6 @@ export default function FriendsScreen() {
     );
   }, [user]);
 
-  // Reset/flag leaderboard loading as soon as its inputs change (during render
-  // rather than in the effect below, to avoid a cascading render).
   const [lbInputs, setLbInputs] = useState<{
     user: typeof user;
     friends: typeof friends;
@@ -324,8 +320,6 @@ export default function FriendsScreen() {
     );
   }, [user]);
 
-  // Members only arrive via the subscription below, so clear them during render
-  // once there is no expanded group to subscribe to.
   if ((!user || !expandedGroupId) && groupMembers.length > 0) {
     setGroupMembers([]);
   }

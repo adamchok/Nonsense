@@ -55,7 +55,6 @@ export default function SettingsScreen() {
   const [isSignOutHovered, setIsSignOutHovered] = useState(false);
   const signOutColor = isSignOutHovered ? c.loss : t.text;
 
-  // Reset loading/error whenever a new stats request starts (modal opened, or user changed).
   const statsRequestUser = showStatsModal ? user : null;
   const [prevStatsRequestUser, setPrevStatsRequestUser] = useState(statsRequestUser);
   if (prevStatsRequestUser !== statsRequestUser) {

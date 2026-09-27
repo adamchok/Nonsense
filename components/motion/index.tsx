@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -105,23 +105,28 @@ export function PressableScale({
 export function useCountUp(value: number, durationMs = 450): number {
   const reduceMotion = useReducedMotion();
   const [shown, setShown] = useState(value);
-  // With reduced motion, jump straight to the target instead of animating.
+  const shownRef = useRef(value);
   if (reduceMotion && shown !== value) setShown(value);
   useEffect(() => {
-    if (shown === value || reduceMotion) return;
-    const from = shown;
+    if (reduceMotion) {
+      shownRef.current = value;
+      return;
+    }
+    const from = shownRef.current;
+    if (from === value) return;
     const start = Date.now();
     let frame = 0;
     const tick = () => {
       const t = Math.min(1, (Date.now() - start) / durationMs);
       const eased = 1 - Math.pow(1 - t, 3);
-      setShown(from + (value - from) * eased);
+      const next = from + (value - from) * eased;
+      shownRef.current = next;
+      setShown(next);
       if (t < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only when the target changes
-  }, [value]);
+  }, [value, durationMs, reduceMotion]);
   return shown;
 }
 

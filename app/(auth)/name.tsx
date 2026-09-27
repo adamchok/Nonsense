@@ -38,7 +38,6 @@ export default function NameScreen() {
 
   const isEditing = !!profileName;
 
-  // Adopt the saved profile name whenever it changes (e.g. profile finishes loading).
   if (syncedProfileName !== profileName) {
     setSyncedProfileName(profileName);
     if (profileName) setName(profileName.slice(0, MAX_NAME_LEN));

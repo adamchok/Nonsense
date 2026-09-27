@@ -64,7 +64,6 @@ export default function QrCodeScreen() {
   const [codeStatus, setCodeStatus] = useState<'idle' | 'loading' | 'error'>(() =>
     needsCodeBackfill ? 'loading' : 'idle'
   );
-  // Mark a new backfill attempt as loading whenever its inputs change (mirrors the effect below).
   const codeRequestKey = `${playerProfile?.id}|${playerProfile?.refCode}|${codeAttempt}`;
   const [prevCodeRequestKey, setPrevCodeRequestKey] = useState(codeRequestKey);
   if (prevCodeRequestKey !== codeRequestKey) {
@@ -166,7 +165,6 @@ export default function QrCodeScreen() {
     return result.granted;
   }, [permission?.granted, requestPermission]);
 
-  // Follow the ?tab= param to "my" as soon as it changes to it.
   const [prevTabParam, setPrevTabParam] = useState(tab);
   if (prevTabParam !== tab) {
     setPrevTabParam(tab);

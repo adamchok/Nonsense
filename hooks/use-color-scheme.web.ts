@@ -6,7 +6,6 @@ import { ThemePreferenceContext } from '@/lib/theme-context';
 const subscribeNoop = () => () => {};
 
 export function useColorScheme(): 'light' | 'dark' | null {
-  // false during static rendering / hydration, true once running on the client.
   const hasHydrated = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   const ctx = useContext(ThemePreferenceContext);

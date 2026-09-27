@@ -180,7 +180,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [playerProfile, setPlayerProfile] = useState<PlayerProfile | null>(null);
   const [linkInfo, setLinkInfo] = useState<LinkInfo>(UNLINKED);
-  // Without Firebase there is no auth state to wait for, so we're ready immediately.
   const [isReady, setIsReady] = useState(() => !isFirebaseConfigured());
 
   useEffect(() => {

@@ -2,7 +2,6 @@ import { BREAKPOINT_MD, gutterFor, sectionGapFor } from '@/lib/spacing';
 import { Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Gap between the status bar and a tab screen's first row on native.
 const NATIVE_TAB_TOP_GAP = 16;
 
 export function usePageLayout(baseBottom = 32) {
@@ -11,7 +10,6 @@ export function usePageLayout(baseBottom = 32) {
   const gutter = gutterFor(width);
   const sectionGap = sectionGapFor(width);
   const isMd = width >= BREAKPOINT_MD;
-  // Tab screens have no header, so on native they draw under the (edge-to-edge) status bar.
   const tabTop =
     Platform.OS !== 'web'
       ? { paddingTop: insets.top + NATIVE_TAB_TOP_GAP }
