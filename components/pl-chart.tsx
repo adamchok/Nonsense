@@ -3,8 +3,10 @@ import { PressableScale } from '@/components/motion';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatSignedCurrency, formatTightCompactNumber } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
+import * as Haptics from 'expo-haptics';
 import { memo, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
 import { LinearGradient, Stop } from 'react-native-svg';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -15,8 +17,10 @@ const SECTIONS = 4;
 const HEADER_HEIGHT = 52;
 const MAX_BAR_WIDTH = 22;
 const MARKER_SIZE = 14;
-const MARKER_SHIFT_X = -(1 + MARKER_SIZE / 2);
-const MARKER_SHIFT_Y = -1;
+const LINE_INITIAL_SPACING = 6;
+const PLOT_TOP_PAD = 10;
+const SCRUB_ACTIVATE_X = 8;
+const SCRUB_FAIL_Y = 12;
 
 type Mode = 'line' | 'bars';
 type Entry = { id: string; date: Date; profit: number };
@@ -30,7 +34,7 @@ const MODES: { key: Mode; label: string; title: string; hint: string }[] = [
     title: 'Profit over time',
     hint: 'Tap or drag a point',
   },
-  { key: 'bars', label: 'Bars', title: 'Each session', hint: 'Tap a bar' },
+  { key: 'bars', label: 'Bars', title: 'Each session', hint: 'Tap or drag across the bars' },
 ];
 
 function niceStep(raw: number): number {
@@ -72,7 +76,6 @@ export const PLChart = memo(function PLChart({
   const [width, setWidth] = useState(0);
   const [mode, setMode] = useState<Mode>('line');
   const [active, setActive] = useState(-1);
-  const [chartKey, setChartKey] = useState(0);
 
   const data = useMemo(() => {
     const sorted = [...entries].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -158,8 +161,44 @@ export const PLChart = memo(function PLChart({
 
   function clearSelection() {
     setActive(-1);
-    setChartKey((k) => k + 1);
   }
+
+  const lineSpacing = data.length > 1 ? (plotWidth - LINE_INITIAL_SPACING) / (data.length - 1) : 0;
+  const lineX = (i: number) => Y_LABEL_WIDTH + LINE_INITIAL_SPACING + i * lineSpacing;
+  const lineY = (v: number) => {
+    const top = axis.step * axis.above;
+    const bottom = -axis.step * axis.below;
+    return PLOT_TOP_PAD + ((top - v) / (top - bottom || 1)) * CHART_HEIGHT;
+  };
+
+  function indexAt(x: number): number {
+    if (data.length === 0) return -1;
+    const raw =
+      mode === 'line'
+        ? lineSpacing > 0 ? Math.round((x - Y_LABEL_WIDTH - LINE_INITIAL_SPACING) / lineSpacing) : 0
+        : Math.floor((x - Y_LABEL_WIDTH) / (slot || 1));
+    return Math.min(data.length - 1, Math.max(0, raw));
+  }
+
+  function selectAt(x: number) {
+    const next = indexAt(x);
+    if (next < 0 || next === active) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setActive(next);
+  }
+
+  const scrub = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetX([-SCRUB_ACTIVATE_X, SCRUB_ACTIVATE_X])
+    .failOffsetY([-SCRUB_FAIL_Y, SCRUB_FAIL_Y])
+    .onStart((e) => selectAt(e.x))
+    .onUpdate((e) => selectAt(e.x));
+  const tap = Gesture.Tap()
+    .runOnJS(true)
+    .onEnd((e, success) => {
+      if (success) selectAt(e.x);
+    });
+  const plotGesture = Gesture.Exclusive(scrub, tap);
 
   return (
     <View style={styles.wrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
@@ -225,6 +264,7 @@ export const PLChart = memo(function PLChart({
         )}
       </View>
 
+      <GestureDetector gesture={plotGesture}>
       <View
         style={styles.plot}
         nativeID="pl-chart"
@@ -238,11 +278,10 @@ export const PLChart = memo(function PLChart({
           <View style={{ height: CHART_HEIGHT }} />
         ) : mode === 'line' ? (
           <LineChart
-            key={chartKey}
             {...axisProps}
             data={lineData}
             adjustToWidth
-            initialSpacing={6}
+            initialSpacing={LINE_INITIAL_SPACING}
             endSpacing={6}
             animationDuration={900}
             animateOnDataChange={!reduceMotion}
@@ -270,29 +309,9 @@ export const PLChart = memo(function PLChart({
             )}
             hideDataPoints={data.length > 12}
             dataPointsRadius={3}
-            getPointerProps={({ pointerIndex }: { pointerIndex: number }) => setActive(pointerIndex)}
-            pointerConfig={{
-              showPointerStrip: false,
-              persistPointer: true,
-              pointerComponent: () => (
-                <View
-                  style={[
-                    styles.marker,
-                    {
-                      borderColor: markerColor,
-                      backgroundColor: c.card,
-                      marginLeft: MARKER_SHIFT_X,
-                      marginTop: MARKER_SHIFT_Y,
-                    },
-                  ]}
-                />
-              ),
-              pointerLabelComponent: () => null,
-            }}
           />
         ) : (
           <BarChart
-            key={chartKey}
             {...axisProps}
             data={barData}
             barWidth={barWidth}
@@ -301,10 +320,24 @@ export const PLChart = memo(function PLChart({
             endSpacing={0}
             barBorderRadius={3}
             animationDuration={500}
-            onPress={(_item: unknown, index: number) => setActive(index)}
           />
         )}
+        {mode === 'line' && selected && plotWidth > 0 ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.marker,
+              {
+                borderColor: markerColor,
+                backgroundColor: c.card,
+                left: lineX(active) - MARKER_SIZE / 2,
+                top: lineY(selected.value) - MARKER_SIZE / 2,
+              },
+            ]}
+          />
+        ) : null}
       </View>
+      </GestureDetector>
       <Text style={[styles.caption, { color: c.textHint }]}>{current.hint}</Text>
     </View>
   );
@@ -356,6 +389,7 @@ const styles = StyleSheet.create({
     height: MARKER_SIZE,
     borderRadius: MARKER_SIZE / 2,
     borderWidth: 3,
+    position: 'absolute',
   },
   header: {
     height: HEADER_HEIGHT,
