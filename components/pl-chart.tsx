@@ -1,4 +1,6 @@
-import { Icon } from '@/components/icon';
+import { pointer } from '@/lib/ui';
+import { Icon, type IconName } from '@/components/icon';
+import { MetaLine } from '@/components/meta-line';
 import { PressableScale } from '@/components/motion';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatSignedCurrency, formatTightCompactNumber } from '@/lib/currency-format';
@@ -15,9 +17,13 @@ const CHART_HEIGHT = 160;
 // Wide enough for labels like "-$1.2k" at the 12px axis font.
 const Y_LABEL_WIDTH = 46;
 const SECTIONS = 4;
-const HEADER_HEIGHT = 52;
+// Same height idle and selected, so the plot never jumps when a point is picked.
+// Fits the selected readout (amount + date line); the idle total sits centred in the same height.
+const HEADER_HEIGHT = 48;
 const MAX_BAR_WIDTH = 22;
 const MARKER_SIZE = 14;
+/** Below this chart width (phones) the open button shortens to "View". */
+const COMPACT_CHART_WIDTH = 420;
 const DOT_SIZE = 6;
 const LINE_INITIAL_SPACING = 6;
 const PLOT_TOP_PAD = 10;
@@ -27,6 +33,18 @@ const SCRUB_FAIL_Y = 12;
 type Mode = 'line' | 'bars';
 type Entry = { id: string; date: Date; profit: number };
 type Point = { value: number; date: Date; delta: number; id: string };
+
+const AXIS_LABEL_WIDTH = 64;
+const MONTH_YEAR = new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric' });
+const DAY_MONTH = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+const YEAR_MS = 365 * 86_400_000;
+
+/** Start / middle / end point indexes for the date axis (fewer when there are only 1-2 points). */
+function axisIndexes(count: number): number[] {
+  if (count <= 0) return [];
+  if (count <= 2) return [...Array(count).keys()];
+  return [0, Math.round((count - 1) / 2), count - 1];
+}
 type Axis = { step: number; above: number; below: number };
 
 type WebKeyEvent = {
@@ -65,14 +83,15 @@ function nextIndexForKey(key: string, active: number, count: number): number | u
   }
 }
 
-const MODES: { key: Mode; label: string; title: string; hint: string }[] = [
+const MODES: { key: Mode; label: string; title: string; hint: string; icon: IconName }[] = [
   {
     key: 'line',
     label: 'Line',
     title: 'Profit over time',
     hint: 'Tap or drag a point',
+    icon: 'line-chart',
   },
-  { key: 'bars', label: 'Bars', title: 'Each session', hint: 'Tap or drag across the bars' },
+  { key: 'bars', label: 'Bars', title: 'Each session', hint: 'Tap or drag across the bars', icon: 'bar-chart' },
 ];
 
 function niceStep(raw: number): number {
@@ -105,14 +124,22 @@ const signColor = (c: AppColors, n: number) => (n > 0 ? c.profit : n < 0 ? c.los
 export const PLChart = memo(function PLChart({
   entries,
   onOpen,
+  titlePeriod,
+  isCountSpelledOut = false,
 }: {
   entries: readonly Entry[];
   /** Omit for a read-only chart (e.g. the landing demo): the selection readout is then plain text. */
   onOpen?: (id: string) => void;
+  /** Period the entries cover, appended to the title ("in 2025"). The title always ends with the session count. */
+  titlePeriod?: string;
+  /** "(12 sessions)" instead of "(12)", for readers who have not seen the app before (landing page). */
+  isCountSpelledOut?: boolean;
 }) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
+  const countLabel = `${entries.length} ${entries.length === 1 ? 'session' : 'sessions'}`;
   const [width, setWidth] = useState(0);
+  const isCompact = width < COMPACT_CHART_WIDTH;
   const [mode, setMode] = useState<Mode>('line');
   const [active, setActive] = useState(-1);
 
@@ -132,7 +159,7 @@ export const PLChart = memo(function PLChart({
   const primaryValue = selected ? (mode === 'line' ? selected.value : selected.delta) : 0;
   const secondaryLabel = selected
     ? mode === 'line'
-      ? `${formatSignedCurrency(selected.delta)} this session`
+      ? `${formatSignedCurrency(selected.delta)}${isCompact ? '' : ' this session'}`
       : `Total ${formatSignedCurrency(selected.value)}`
     : '';
   const final = data[data.length - 1]?.value ?? 0;
@@ -148,7 +175,7 @@ export const PLChart = memo(function PLChart({
         ...p,
         dataPointColor: p.value < 0 ? c.loss : c.profit,
       })),
-    [data, c]
+    [data, c],
   );
   const markerColor = selected && selected.value < 0 ? c.loss : c.profit;
   const plotWidth = Math.max(0, width - Y_LABEL_WIDTH - 8);
@@ -175,7 +202,7 @@ export const PLChart = memo(function PLChart({
       dashWidth: 4,
       dashGap: 4,
     }),
-    [axis, plotWidth, reduceMotion, c]
+    [axis, plotWidth, reduceMotion, c],
   );
 
   const slot = data.length > 0 ? plotWidth / data.length : 0;
@@ -190,7 +217,7 @@ export const PLChart = memo(function PLChart({
           frontColor: active >= 0 && i !== active ? `${color}55` : color,
         };
       }),
-    [data, active, c]
+    [data, active, c],
   );
 
   function changeMode(next: Mode) {
@@ -214,7 +241,9 @@ export const PLChart = memo(function PLChart({
     if (data.length === 0) return -1;
     const raw =
       mode === 'line'
-        ? lineSpacing > 0 ? Math.round((x - Y_LABEL_WIDTH - LINE_INITIAL_SPACING) / lineSpacing) : 0
+        ? lineSpacing > 0
+          ? Math.round((x - Y_LABEL_WIDTH - LINE_INITIAL_SPACING) / lineSpacing)
+          : 0
         : Math.floor((x - Y_LABEL_WIDTH) / (slot || 1));
     return Math.min(data.length - 1, Math.max(0, raw));
   }
@@ -270,200 +299,306 @@ export const PLChart = memo(function PLChart({
   }
 
   const plotWebProps = IS_WEB
-    ? ({ tabIndex: 0, onKeyDown: plotKeyDown, 'aria-keyshortcuts': 'ArrowLeft ArrowRight Home End Enter Escape' } as object)
+    ? ({
+        tabIndex: 0,
+        onKeyDown: plotKeyDown,
+        'aria-keyshortcuts': 'ArrowLeft ArrowRight Home End Enter Escape',
+      } as object)
     : {};
 
   const selectedText = selected && (
     <View style={styles.headerSelectedText}>
-      <Text style={[styles.headerValue, { color: signColor(c, primaryValue) }]}>{formatSignedCurrency(primaryValue)}</Text>
-      <Text style={[styles.headerHint, { color: c.textMuted }]} numberOfLines={1}>
-        {`${formatDateDMY(selected.date)} · ${secondaryLabel}`}
+      <Text style={[styles.headerValue, { color: signColor(c, primaryValue) }]}>
+        {formatSignedCurrency(primaryValue)}
       </Text>
+      <MetaLine
+        textStyle={[styles.headerHint, { color: c.textMuted }]}
+        parts={[formatDateDMY(selected.date), secondaryLabel]}
+      />
+    </View>
+  );
+
+  const modeToggle = (
+    <View
+      style={[styles.toggle, { backgroundColor: c.inputBg, borderColor: c.border }]}
+      accessibilityRole="radiogroup">
+      {MODES.map((m, index) => {
+        const on = m.key === mode;
+        const webRadioProps = IS_WEB
+          ? ({ tabIndex: on ? 0 : -1, onKeyDown: (e: WebKeyEvent) => modeKeyDown(e, index) } as object)
+          : {};
+        return (
+          <PressableScale
+            key={m.key}
+            pressedScale={0.95}
+            hitSlop={6}
+            onPress={() => changeMode(m.key)}
+            accessibilityRole="radio"
+            accessibilityLabel={m.label}
+            accessibilityState={{ checked: on }}
+            aria-checked={on}
+            {...webRadioProps}
+            style={[styles.toggleBtn, isCompact && styles.toggleBtnCompact, on && { backgroundColor: c.accentBg }]}>
+            <Icon name={m.icon} size={14} color={on ? c.accentText : c.textMuted} />
+            {/* Narrow charts: icon-only toggle so the title keeps one line. */}
+            {isCompact ? null : (
+              <Text style={[styles.toggleText, { color: on ? c.accentText : c.textMuted }]}>{m.label}</Text>
+            )}
+          </PressableScale>
+        );
+      })}
     </View>
   );
 
   return (
     <View style={styles.wrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
       <View style={styles.top}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.headerLabel, { color: c.textMuted }]}>{current.title}</Text>
-          <View
-            style={[styles.toggle, { backgroundColor: c.inputBg, borderColor: c.border }]}
-            accessibilityRole="radiogroup">
-            {MODES.map((m, index) => {
-              const on = m.key === mode;
-              const webRadioProps = IS_WEB
-                ? ({ tabIndex: on ? 0 : -1, onKeyDown: (e: WebKeyEvent) => modeKeyDown(e, index) } as object)
-                : {};
-              return (
-                <PressableScale
-                  key={m.key}
-                  pressedScale={0.95}
-                  onPress={() => changeMode(m.key)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: on }}
-                  aria-checked={on}
-                  {...webRadioProps}
-                  style={[styles.toggleBtn, on && { backgroundColor: c.accentBg }]}>
-                  <Text style={[styles.toggleText, { color: on ? c.accentText : c.textMuted }]}>{m.label}</Text>
-                </PressableScale>
-              );
-            })}
+        <View style={[styles.titleRow, styles.titleRowPadded, !isCompact && styles.titleRowWithToggle]}>
+          <View style={styles.titleWithIcon}>
+            {/* Title icon matches the P/L label icon; the toggle keeps the line/bar chart glyphs. */}
+            <Icon name={mode === 'line' ? 'trend-up' : 'bar-chart'} size={18} color={c.textMuted} />
+            <Text style={[styles.headerLabel, styles.headerLabelShrink, { color: c.text }]}>
+              {titlePeriod ? `${current.title} ${titlePeriod}` : current.title}{' '}
+              {/* Session count, muted and regular weight. */}
+              <Text style={[styles.headerCount, { color: c.textMuted }]} accessibilityLabel={countLabel}>
+                ({isCountSpelledOut ? countLabel : data.length})
+              </Text>
+            </Text>
           </View>
+          {/* Wide: toggle beside the title. Narrow: it moves down beside the total so the title keeps the row. */}
+          {isCompact ? null : modeToggle}
         </View>
 
         <View accessibilityLiveRegion="polite" aria-live="polite">
-        {selected ? (
-          <View style={styles.valueRow}>
-            {onOpen ? (
+          {selected ? (
+            <View style={styles.valueRow}>
+              <View style={[styles.header, styles.headerBtn, isCompact && styles.headerBtnCompact]}>{selectedText}</View>
+              {/* An explicit, labelled button: clearer than making the readout itself silently tappable. */}
+              {onOpen ? (
+                <PressableScale
+                  pressedScale={0.96}
+                  onPress={() => onOpen(selected.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View session on ${formatDateDMY(selected.date)}`}
+                  style={(state) => [
+                    styles.openBtn,
+                    isCompact && styles.openBtnCompact,
+                    { borderColor: c.borderAccent, backgroundColor: c.accentBg },
+                    state.pressed && styles.openBtnPressed,
+                  ]}>
+                  <Text style={[styles.openBtnText, isCompact && styles.openBtnTextCompact, { color: c.accentText }]}>
+                    {isCompact ? 'View' : 'View session'}
+                  </Text>
+                  <Icon name="chevron-right" size={isCompact ? 12 : 14} color={c.accentText} />
+                </PressableScale>
+              ) : null}
               <PressableScale
-                pressedScale={0.98}
-                onPress={() => onOpen(selected.id)}
+                pressedScale={0.9}
+                onPress={clearSelection}
                 accessibilityRole="button"
-                accessibilityLabel={`Open session on ${formatDateDMY(selected.date)}`}
-                style={[styles.header, styles.headerBtn]}>
-                {selectedText}
-                <Icon name="chevron-right" size={18} color={c.textMuted} />
+                accessibilityLabel="Clear selection"
+                hitSlop={isCompact ? 10 : 6}
+                style={[styles.clearBtn, isCompact && styles.clearBtnCompact]}>
+                <Icon name="close" size={isCompact ? 14 : 16} color={c.textMuted} />
               </PressableScale>
-            ) : (
-              <View style={[styles.header, styles.headerBtn]}>{selectedText}</View>
-            )}
-            <PressableScale
-              pressedScale={0.9}
-              onPress={clearSelection}
-              accessibilityRole="button"
-              accessibilityLabel="Clear selection"
-              style={styles.clearBtn}>
-              <Icon name="close" size={16} color={c.textMuted} />
-            </PressableScale>
-          </View>
-        ) : (
-          <View style={[styles.valueRow, styles.header, styles.valueRowIdle]}>
-            <View style={styles.headerSelectedText}>
-              <Text style={[styles.headerValue, { color: signColor(c, final) }]}>{formatSignedCurrency(final)}</Text>
-              <Text style={[styles.headerHint, { color: c.textMuted }]} numberOfLines={1}>
-                {`All time · ${data.length} ${data.length === 1 ? 'session' : 'sessions'}`}
-              </Text>
             </View>
-          </View>
-        )}
+          ) : (
+            <View style={[styles.valueRow, styles.header, styles.valueRowIdle]}>
+              <View style={styles.headerSelectedText}>
+                <Text style={[styles.headerValue, { color: signColor(c, final) }]}>{formatSignedCurrency(final)}</Text>
+              </View>
+              {isCompact ? modeToggle : null}
+            </View>
+          )}
         </View>
       </View>
 
       <GestureDetector gesture={plotGesture}>
-      <View
-        style={styles.plot}
-        nativeID="pl-chart"
-        accessible
-        {...plotWebProps}
-        accessibilityHint={IS_WEB ? `Use arrow keys to pick a session, ${onOpen ? 'Enter to open it, ' : ''}Escape to clear` : undefined}
-        accessibilityLabel={
-          mode === 'line'
-            ? `Running profit over ${data.length} sessions, ending at ${formatSignedCurrency(final)}`
-            : `Result of each of ${data.length} sessions`
-        }>
-        {plotWidth <= 0 ? (
-          <View style={{ height: CHART_HEIGHT }} />
-        ) : mode === 'line' ? (
-          <LineChart
-            {...axisProps}
-            data={lineData}
-            adjustToWidth
-            initialSpacing={LINE_INITIAL_SPACING}
-            endSpacing={6}
-            animationDuration={900}
-            animateOnDataChange={!reduceMotion}
-            onDataChangeAnimationDuration={400}
-            thickness={2.5}
-            areaChart
-            lineGradient
-            lineGradientId="plLine"
-            lineGradientComponent={() => (
-              <LinearGradient id="plLine" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={aboveZero} />
-                <Stop offset={zeroAt} stopColor={aboveZero} />
-                <Stop offset={zeroAt} stopColor={belowZero} />
-                <Stop offset="1" stopColor={belowZero} />
-              </LinearGradient>
-            )}
-            areaGradientId="plArea"
-            areaGradientComponent={() => (
-              <LinearGradient id="plArea" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={aboveZero} stopOpacity={0.3} />
-                <Stop offset={zeroAt} stopColor={aboveZero} stopOpacity={0.04} />
-                <Stop offset={zeroAt} stopColor={belowZero} stopOpacity={0.04} />
-                <Stop offset="1" stopColor={belowZero} stopOpacity={0.3} />
-              </LinearGradient>
-            )}
-            hideDataPoints={data.length > 12}
-            dataPointsRadius={3}
-            // Web: the library's SVG <circle> dots carry press handlers that react-native-svg forwards to the DOM
-            // (React "unknown event handler" errors). Plain view dots avoid that; the plot's own gesture handles taps.
-            {...(IS_WEB
-              ? {
-                  customDataPoint: (item: { dataPointColor?: string }) => (
-                    <View style={[styles.dot, { backgroundColor: item.dataPointColor }]} />
-                  ),
-                  dataPointsWidth: DOT_SIZE,
-                  dataPointsHeight: DOT_SIZE,
-                }
-              : {})}
-          />
-        ) : (
-          <BarChart
-            {...axisProps}
-            data={barData}
-            barWidth={barWidth}
-            spacing={barSpacing}
-            initialSpacing={barSpacing / 2}
-            endSpacing={0}
-            barBorderRadius={3}
-            animationDuration={500}
-          />
-        )}
-        {mode === 'line' && selected && plotWidth > 0 ? (
-          <View
-            style={[
-              styles.marker,
-              {
-                borderColor: markerColor,
-                backgroundColor: c.card,
-                left: lineX(active) - MARKER_SIZE / 2,
-                top: lineY(selected.value) - MARKER_SIZE / 2,
-              }, { pointerEvents: 'none' }]}
-          />
-        ) : null}
-      </View>
+        <View
+          style={styles.plot}
+          nativeID="pl-chart"
+          accessible
+          {...plotWebProps}
+          accessibilityHint={
+            IS_WEB
+              ? `Use arrow keys to pick a session, ${onOpen ? 'Enter to open it, ' : ''}Escape to clear`
+              : undefined
+          }
+          accessibilityLabel={
+            mode === 'line'
+              ? `Running profit over ${data.length} sessions, ending at ${formatSignedCurrency(final)}`
+              : `Result of each of ${data.length} sessions`
+          }>
+          {plotWidth <= 0 ? (
+            <View style={{ height: CHART_HEIGHT }} />
+          ) : mode === 'line' ? (
+            <LineChart
+              {...axisProps}
+              data={lineData}
+              adjustToWidth
+              initialSpacing={LINE_INITIAL_SPACING}
+              endSpacing={6}
+              animationDuration={900}
+              // Web: the library's data-change animation uses an Animated SVG path that leaks
+              // `collapsable` to the DOM (React console error), so it only animates on native.
+              animateOnDataChange={!reduceMotion && !IS_WEB}
+              onDataChangeAnimationDuration={400}
+              thickness={2.5}
+              areaChart
+              lineGradient
+              lineGradientId="plLine"
+              lineGradientComponent={() => (
+                <LinearGradient id="plLine" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={aboveZero} />
+                  <Stop offset={zeroAt} stopColor={aboveZero} />
+                  <Stop offset={zeroAt} stopColor={belowZero} />
+                  <Stop offset="1" stopColor={belowZero} />
+                </LinearGradient>
+              )}
+              areaGradientId="plArea"
+              areaGradientComponent={() => (
+                <LinearGradient id="plArea" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={aboveZero} stopOpacity={0.3} />
+                  <Stop offset={zeroAt} stopColor={aboveZero} stopOpacity={0.04} />
+                  <Stop offset={zeroAt} stopColor={belowZero} stopOpacity={0.04} />
+                  <Stop offset="1" stopColor={belowZero} stopOpacity={0.3} />
+                </LinearGradient>
+              )}
+              hideDataPoints={data.length > 12}
+              dataPointsRadius={3}
+              // Web: the library's SVG <circle> dots carry press handlers that react-native-svg forwards to the DOM
+              // (React "unknown event handler" errors). Plain view dots avoid that; the plot's own gesture handles taps.
+              {...(IS_WEB
+                ? {
+                    customDataPoint: (item: { dataPointColor?: string }) => (
+                      <View style={[styles.dot, { backgroundColor: item.dataPointColor }]} />
+                    ),
+                    dataPointsWidth: DOT_SIZE,
+                    dataPointsHeight: DOT_SIZE,
+                  }
+                : {})}
+            />
+          ) : (
+            <BarChart
+              {...axisProps}
+              data={barData}
+              barWidth={barWidth}
+              spacing={barSpacing}
+              initialSpacing={barSpacing / 2}
+              endSpacing={0}
+              barBorderRadius={3}
+              animationDuration={500}
+            />
+          )}
+          {/* Crosshair: thin vertical guide through the selected point, top of the plot to the baseline. */}
+          {mode === 'line' && selected && plotWidth > 0 ? (
+            <View
+              style={[
+                styles.crosshair,
+                { backgroundColor: c.textMuted, left: lineX(active) - 0.5, top: PLOT_TOP_PAD, height: CHART_HEIGHT },
+                pointer.none,
+              ]}
+            />
+          ) : null}
+          {mode === 'line' && selected && plotWidth > 0 ? (
+            <View
+              style={[
+                styles.marker,
+                {
+                  borderColor: markerColor,
+                  backgroundColor: c.card,
+                  left: lineX(active) - MARKER_SIZE / 2,
+                  top: lineY(selected.value) - MARKER_SIZE / 2,
+                },
+                pointer.none,
+              ]}
+            />
+          ) : null}
+        </View>
       </GestureDetector>
-      <Text style={[styles.caption, { color: c.textHint }]}>{current.hint}</Text>
+      {/* Rough date axis: start, middle and end. Month + year for long spans, day + month within a year. */}
+      {plotWidth > 0 && data.length > 0 ? (
+        <View style={styles.dateAxis} importantForAccessibility="no-hide-descendants" aria-hidden>
+          {axisIndexes(data.length).map((i, k, all) => {
+            const spanMs = data[data.length - 1].date.getTime() - data[0].date.getTime();
+            const fmt = spanMs > YEAR_MS * 0.9 ? MONTH_YEAR : DAY_MONTH;
+            const x =
+              mode === 'line' ? lineX(i) : Y_LABEL_WIDTH + barSpacing / 2 + i * (barWidth + barSpacing) + barWidth / 2;
+            const isFirst = k === 0 && all.length > 1;
+            const isLast = k === all.length - 1 && all.length > 1;
+            // Ends hug their point's edge so they never spill past the plot; the middle is centred.
+            const left = isFirst ? x - 4 : isLast ? x - AXIS_LABEL_WIDTH + 4 : x - AXIS_LABEL_WIDTH / 2;
+            return (
+              <Text
+                key={i}
+                numberOfLines={1}
+                style={[
+                  styles.axisText,
+                  styles.dateAxisLabel,
+                  { color: c.textMuted, left, textAlign: isFirst ? 'left' : isLast ? 'right' : 'center' },
+                ]}>
+                {fmt.format(data[i].date)}
+              </Text>
+            );
+          })}
+        </View>
+      ) : null}
+      <View style={styles.captionRow}>
+        <Icon name="tap" size={14} color={c.textHint} />
+        <Text style={[styles.caption, { color: c.textHint }]}>{current.hint}</Text>
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
-  top: { marginBottom: 8, gap: 4 },
-  valueRowIdle: { paddingHorizontal: 8 },
+  top: { marginBottom: 4, gap: 6 },
+  // Idle total lines up with the title (the selected readout keeps its own inset).
+  // Total and toggle centred in a row the height of the selected readout, so the plot never jumps.
+  valueRowIdle: { paddingHorizontal: 0 },
   valueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
+  // Same height as the "View session" pill and inside the card edge; hitSlop keeps a ~46px touch target.
   clearBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -12,
   },
   caption: { fontSize: 12, textAlign: 'center' },
+  dateAxis: { height: 18, marginTop: 6, marginBottom: 14 },
+  dateAxisLabel: { position: 'absolute', top: 0, width: AXIS_LABEL_WIDTH },
+  captionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  titleWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  // The cards' top padding is only 4px (it assumed a taller row), so the title row pads itself.
+  titleRowPadded: {
+    paddingTop: 12,
+  },
+  // Wide charts: the toggle shares the title row; a little less top pad since the row is taller.
+  titleRowWithToggle: {
     minHeight: 40,
+    paddingTop: 8,
+  },
+  // Icon-only toggle on narrow charts: smaller pills in proportion with the total beside it.
+  toggleBtnCompact: {
+    minHeight: 26,
+    paddingHorizontal: 8,
   },
   toggle: {
     flexDirection: 'row',
@@ -471,17 +606,25 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 2,
   },
+  // Compact segmented control; hitSlop keeps each option a ~42px touch target.
   toggleBtn: {
-    minHeight: 40,
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    gap: 5,
+    minHeight: 30,
+    paddingHorizontal: 12,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
   toggleText: { fontSize: 12, fontWeight: '600' },
-  plot: { marginTop: 12 },
+  plot: { marginTop: 8 },
   axisText: { fontSize: 12, fontVariant: ['tabular-nums'] },
   dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
+  crosshair: {
+    position: 'absolute',
+    width: 1,
+    opacity: 0.45,
+  },
   marker: {
     width: MARKER_SIZE,
     height: MARKER_SIZE,
@@ -496,22 +639,66 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  // Longer titles ("Profit over time this year") wrap beside the toggle on narrow phones instead of overflowing.
+  headerCount: {
+    fontWeight: '400',
+    fontVariant: ['tabular-nums'],
+  },
+  headerLabelShrink: {
+    flexShrink: 1,
+  },
   headerLabel: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: '600',
   },
   headerSelectedText: { flex: 1, minWidth: 0, gap: 2 },
+  openBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 34,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  openBtnPressed: {
+    opacity: 0.8,
+  },
+  // Narrow charts: smaller View pill / clear button and no readout inset, in proportion with the
+  // compact toggle; hitSlop keeps the tap areas.
+  openBtnCompact: {
+    minHeight: 28,
+    paddingLeft: 10,
+    paddingRight: 6,
+  },
+  openBtnTextCompact: {
+    fontSize: 12,
+  },
+  clearBtnCompact: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  headerBtnCompact: {
+    paddingHorizontal: 0,
+  },
+  openBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   headerBtn: {
     flex: 1,
     gap: 10,
-    paddingHorizontal: 8,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
   },
   headerValue: {
-    fontSize: 16,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  headerHint: { fontSize: 12, fontVariant: ['tabular-nums'] },
+  headerHint: { fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
 });

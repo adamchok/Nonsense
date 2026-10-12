@@ -14,3 +14,12 @@ export function formatDateTimeDMY(d: Date): string {
   const min = String(d.getMinutes()).padStart(2, '0');
   return `${date} ${h}:${min} ${suffix}`;
 }
+
+/** "4h 37m", or "37m" under an hour. */
+export function formatDuration(ms: number): string {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+}

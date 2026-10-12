@@ -1,4 +1,5 @@
 import { EmptyState } from '@/components/empty-state';
+import { MetaLine } from '@/components/meta-line';
 import { Icon, type IconName } from '@/components/icon';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
@@ -62,17 +63,33 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
         <Text style={[styles.heroValue, { color: signedColor(c, s.totalProfit) }]}>
           {formatSignedCurrency(s.totalProfit)}
         </Text>
-        <Text style={[styles.heroSub, { color: c.textMuted }]}>
-          {s.finishedSessions} {s.finishedSessions === 1 ? 'session' : 'sessions'} · {winRate}% won
-        </Text>
+        <MetaLine
+          textStyle={[styles.heroSub, { color: c.textMuted }]}
+          parts={[`${s.finishedSessions} ${s.finishedSessions === 1 ? 'session' : 'sessions'}`, `${winRate}% won`]}
+        />
         <WinBar c={c} win={s.winningSessions} loss={s.losingSessions} even={s.breakEvenSessions} />
       </View>
 
       <View style={styles.tiles}>
-        <Tile c={c} label="Per session" value={signedOrDash(s.avgProfitPerSession)} color={signedColor(c, s.avgProfitPerSession)} />
-        <Tile c={c} label="Per hour" value={signedOrDash(s.profitPerHour)} color={signedColor(c, s.profitPerHour)} />
-        <Tile c={c} label="Best" value={signedOrDash(s.bestSessionProfit)} color={signedColor(c, s.bestSessionProfit)} />
-        <Tile c={c} label="Worst" value={signedOrDash(s.worstSessionProfit)} color={signedColor(c, s.worstSessionProfit)} />
+        <Tile
+          c={c}
+          label="Avg per session"
+          value={signedOrDash(s.avgProfitPerSession)}
+          color={signedColor(c, s.avgProfitPerSession)}
+        />
+        <Tile c={c} label="Avg per hour" value={signedOrDash(s.profitPerHour)} color={signedColor(c, s.profitPerHour)} />
+        <Tile
+          c={c}
+          label="Best"
+          value={signedOrDash(s.bestSessionProfit)}
+          color={signedColor(c, s.bestSessionProfit)}
+        />
+        <Tile
+          c={c}
+          label="Worst"
+          value={signedOrDash(s.worstSessionProfit)}
+          color={signedColor(c, s.worstSessionProfit)}
+        />
         <Tile
           c={c}
           label="Return on buy-in"
@@ -113,13 +130,13 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
       <Section title="Social" icon="people" rows={social} c={c} />
 
       <Text style={[styles.footnote, { color: c.textMuted }]}>
-        Per hour and time played only count sessions with a recorded end time.
+        Avg per hour and time played only count sessions with a recorded end time.
       </Text>
     </View>
   );
 }
 
-const TILE_LABELS = ['Per session', 'Per hour', 'Best', 'Worst', 'Return on buy-in', 'Time played'];
+const TILE_LABELS = ['Avg per session', 'Avg per hour', 'Best', 'Worst', 'Return on buy-in', 'Time played'];
 const SKELETON_SECTIONS: { title: string; icon: IconName; labels: string[] }[] = [
   { title: 'Money', icon: 'account-balance-wallet', labels: ['Total buy-in', 'Total cash-out'] },
   { title: 'Sessions', icon: 'history', labels: ['First', 'Latest', 'Hosted / joined'] },

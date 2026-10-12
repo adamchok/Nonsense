@@ -1,3 +1,4 @@
+import { pointer } from '@/lib/ui';
 import { Icon } from '@/components/icon';
 import { Animated, PressableScale, fadeIn, fadeOut } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
@@ -19,7 +20,7 @@ export function SearchInput({ value, onChangeText, ...inputProps }: Props) {
         placeholderTextColor={c.placeholder}
         style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
       />
-      <View style={[styles.leading, { pointerEvents: 'none' }]}>
+      <View style={[styles.leading, pointer.none]}>
         <Icon name="search" size={18} color={c.textMuted} importantForAccessibility="no" />
       </View>
       {value ? (
@@ -30,8 +31,12 @@ export function SearchInput({ value, onChangeText, ...inputProps }: Props) {
             pressedScale={0.9}
             accessibilityRole="button"
             accessibilityLabel="Clear search"
+            {...({ dataSet: { hoverDot: 'true' } } as object)}
             style={styles.clearButton}>
-            <Icon name="close" size={16} color={c.textMuted} />
+            {/* Visible hover target; the 44px button stays the tap area (same as the date field's clear). */}
+            <View style={styles.clearDot}>
+              <Icon name="close" size={16} color={c.textMuted} />
+            </View>
           </PressableScale>
         </Animated.View>
       ) : null}
@@ -51,6 +56,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingLeft: 42,
     paddingRight: 48,
+  },
+  clearDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   leading: {
     position: 'absolute',

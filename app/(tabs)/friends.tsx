@@ -1,6 +1,8 @@
-import { text } from '@/lib/ui';
+import { useOutsidePress } from '@/lib/use-outside-press';
+import { MetaLine } from '@/components/meta-line';
+import { ModalShell } from '@/components/session/modal-shell';
+import { pressBg, text } from '@/lib/ui';
 import { PlayerAvatar } from '@/components/player-avatar';
-import { ModalBackdrop } from '@/components/modal-backdrop';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { appAlert } from '@/lib/app-alert';
@@ -33,15 +35,12 @@ import {
   subscribeIncomingGuestLinks,
   type GuestLink,
 } from '@/lib/guest-links';
-import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { FriendRecord, FriendRequestRecord, GroupMember, PokerGroup } from '@/types';
 import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -57,6 +56,7 @@ import { EmptyState } from '@/components/empty-state';
 import { Animated as Motion, PressableScale, fadeOut, layoutTransition, listItemEntering, webSafe } from '@/components/motion';
 import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
 import { NewGroupModal } from '@/components/new-group-modal';
+import { GroupMembersModal } from '@/components/group-members-modal';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 
 const menuEntering = webSafe(
@@ -142,9 +142,9 @@ export default function FriendsScreen() {
   const [busyGuestLinkId, setBusyGuestLinkId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
+  const [membersGroupId, setMembersGroupId] = useState<string | null>(null);
   const [refCodeInput, setRefCodeInput] = useState('');
   const [refCodeError, setRefCodeError] = useState<string | null>(null);
-  const addFriendScrollRef = useRef<ScrollView>(null);
   const [adding, setAdding] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(true);
@@ -176,6 +176,9 @@ export default function FriendsScreen() {
     setShowLeaderboardSortDropdown(false);
     if (returnFocus) focusSortTrigger();
   }, []);
+
+  const closeSortMenuOutside = useCallback(() => closeSortMenu(false), [closeSortMenu]);
+  useOutsidePress(showLeaderboardSortDropdown, closeSortMenuOutside, [SORT_MENU_ID, SORT_TRIGGER_ID]);
 
   // Web: move focus into the sort menu when it opens (checked item first).
   useEffect(() => {
@@ -363,17 +366,17 @@ export default function FriendsScreen() {
     );
   }, [user, expandedGroupId]);
 
+  // Fetched fresh (bypassing the 5-min scan cache) each time the modal opens, so new results show
+  // without a refresh button, matching the friends leaderboard's re-scan on focus.
+  const groupLbId = showGroupLeaderboardModal ? groupLeaderboardModalGroup?.id : undefined;
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      if (!user || !expandedGroupId) {
-        setGroupLeaderboard([]);
-        setGroupLbLoading(false);
-        return;
-      }
+      if (!user || !groupLbId) return;
+      setGroupLeaderboard([]);
       setGroupLbLoading(true);
       try {
-        const lb = await getGroupLeaderboard(user.uid, expandedGroupId);
+        const lb = await getGroupLeaderboard(user.uid, groupLbId, true);
         if (!cancelled) setGroupLeaderboard(lb);
       } catch (e) {
         console.error('Group leaderboard load failed:', e);
@@ -386,7 +389,7 @@ export default function FriendsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user, expandedGroupId]);
+  }, [user, groupLbId]);
 
   function openRenameGroupModal(group: PokerGroup) {
     setRenameGroupTarget(group);
@@ -590,7 +593,10 @@ export default function FriendsScreen() {
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
       contentContainerStyle={[layout.content, styles.content, layout.tabTop]}>
-      <Text style={[styles.title, { color: c.text }]}>Friends</Text>
+      <View style={styles.pageTitleRow}>
+        <Icon name="people" size={26} color={c.textMuted} importantForAccessibility="no" />
+        <Text style={[styles.title, { color: c.text }]}>Friends</Text>
+      </View>
 
       <SegmentedTabs
         tabs={FRIENDS_TABS}
@@ -605,17 +611,18 @@ export default function FriendsScreen() {
       {activeTab === 'friends' && (
         <>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.text }]}>
-              {friendsLoaded ? `Friends (${friends.length})` : 'Friends'}
+            {/* The tab already names the section; this just counts what's in it. */}
+            <Text style={[styles.sectionCount, { color: c.textSecondary }]} accessibilityRole="header">
+              {friendsLoaded ? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}` : ''}
             </Text>
             <View style={styles.addBtnGroup}>
               <PressableScale
                 pressedScale={0.92}
-                style={[styles.scanBtn, { borderColor: c.border }]}
+                style={[styles.scanBtn, { backgroundColor: c.card, borderColor: c.inputBorder }]}
                 onPress={() => router.push('../qr-code?tab=scan')}
                 accessibilityRole="button"
                 accessibilityLabel="Scan a friend's QR code">
-                <Icon name="qr-code-scanner" size={20} color={c.textSecondary} />
+                <Icon name="qr-code-scanner" size={20} color={c.text} />
               </PressableScale>
               <PressableScale
                 pressedScale={0.97}
@@ -890,7 +897,7 @@ export default function FriendsScreen() {
                     <View style={styles.friendTextBlock}>
                       <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
                       <Text style={[styles.friendMeta, { color: c.textHint }]}>
-                        Friends since {formatDateDMY(item.addedAt)}
+                        Since {formatDateDMY(item.addedAt)}
                       </Text>
                     </View>
                   </View>
@@ -913,8 +920,8 @@ export default function FriendsScreen() {
       {activeTab === 'groups' && (
         <>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.text }]}>
-              {groupsLoaded ? `Groups (${groups.length})` : 'Groups'}
+            <Text style={[styles.sectionCount, { color: c.textSecondary }]} accessibilityRole="header">
+              {groupsLoaded ? `${groups.length} ${groups.length === 1 ? 'group' : 'groups'}` : ''}
             </Text>
             <View style={styles.sectionHeaderActions}>
               <PressableScale
@@ -966,7 +973,7 @@ export default function FriendsScreen() {
                   layout={layoutTransition}
                   style={[styles.groupCard, { backgroundColor: c.card, borderColor: isExpanded ? c.borderAccent : c.border }]}>
                   {/* Toggle and actions are siblings: buttons can't nest (invalid HTML on web, broken for assistive tech). */}
-                  <View style={styles.groupHeader}>
+                  <View style={styles.groupHeader} {...({ dataSet: { hoverField: 'true' } } as object)}>
                   <Pressable
                     style={styles.groupToggle}
                     onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}
@@ -977,10 +984,23 @@ export default function FriendsScreen() {
                     aria-expanded={isExpanded}>
                     <View style={styles.groupHeaderLeft}>
                       <Icon name="group" size={20} color={c.textMuted} />
-                      <Text style={[styles.groupName, { color: c.text }]}>{group.name}</Text>
-                      <Text style={[styles.groupCount, { color: c.textHint }]}>
-                        {group.memberCount ?? 0} {(group.memberCount ?? 0) === 1 ? 'player' : 'players'}
-                      </Text>
+                      {/* Name over count: keeps the name on one line beside the action buttons on narrow phones. */}
+                      <View style={styles.groupHeaderText}>
+                        <Text style={[styles.groupName, { color: c.text }]} numberOfLines={1}>
+                          {group.name}
+                        </Text>
+                        <MetaLine
+                          textStyle={[styles.groupCount, { color: c.textHint }]}
+                          dotColor={c.textHint}
+                          parts={[
+                            <View key="members" style={styles.groupMembers}>
+                              <Icon name="person" size={13} color={c.textHint} importantForAccessibility="no" />
+                              <Text style={[styles.groupCount, { color: c.textHint }]}>{group.memberCount ?? 0}</Text>
+                            </View>,
+                            `Since ${formatDateDMY(group.createdAt)}`,
+                          ]}
+                        />
+                      </View>
                     </View>
                   </Pressable>
                     <View style={styles.groupHeaderRight}>
@@ -1016,21 +1036,6 @@ export default function FriendsScreen() {
                           <Icon name="logout" size={20} color={c.textHint} />
                         </PressableScale>
                       )}
-                      {/* Mouse/touch shortcut for the toggle; the labelled toggle above is the accessible control. */}
-                      <Pressable
-                        style={styles.groupIconBtn}
-                        onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}
-                        accessible={false}
-                        focusable={false}
-                        aria-hidden
-                        {...({ tabIndex: -1 } as object)}>
-                        <Icon
-                          name={isExpanded ? 'expand-less' : 'expand-more'}
-                          size={22}
-                          color={c.textMuted}
-                          importantForAccessibility="no"
-                        />
-                      </Pressable>
                     </View>
                   </View>
 
@@ -1087,7 +1092,7 @@ export default function FriendsScreen() {
                             styles.manageBtn,
                             { backgroundColor: c.accentBg, borderColor: c.accentBorder },
                           ]}
-                          onPress={() => router.push(`../group/${group.id}/members`)}
+                          onPress={() => setMembersGroupId(group.id)}
                           accessibilityRole="button"
                           accessibilityLabel={isGroupOwner ? 'Manage members' : 'View members'}>
                           <Icon name={isGroupOwner ? 'edit' : 'people'} size={16} color={c.accentText} />
@@ -1127,12 +1132,14 @@ export default function FriendsScreen() {
             <Pressable style={styles.menuBackdrop} onPress={() => setShowLeaderboardSortDropdown(false)} accessible={false} focusable={false} tabIndex={-1} aria-hidden />
           ) : null}
           <View style={[styles.sectionHeader, showLeaderboardSortDropdown && styles.menuAnchorRaised]}>
-            <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>
+            <Text style={[styles.sectionCount, { color: c.textSecondary }]} accessibilityRole="header">
+              {leaderboard.length > 0 ? `${leaderboard.length} ${leaderboard.length === 1 ? 'player' : 'players'}` : ''}
+            </Text>
             <View style={styles.sectionHeaderActions}>
               <View style={styles.lbSortWrap}>
               <PressableScale
                 pressedScale={0.97}
-                style={[styles.lbSortBtnLabeled, { backgroundColor: c.cardAlt, borderColor: c.border }]}
+                style={[styles.lbSortBtnLabeled, { backgroundColor: c.card, borderColor: c.inputBorder }]}
                 onPress={() => setShowLeaderboardSortDropdown((prev) => !prev)}
                 nativeID={SORT_TRIGGER_ID}
                 accessibilityRole="button"
@@ -1141,8 +1148,8 @@ export default function FriendsScreen() {
                 aria-expanded={showLeaderboardSortDropdown}
                 aria-haspopup="menu"
                 aria-controls={showLeaderboardSortDropdown ? SORT_MENU_ID : undefined}>
-                <Icon name="sort" size={20} color={c.textMuted} />
-                <Text style={[styles.lbSortBtnText, { color: c.textMuted }]}>
+                <Icon name="sort" size={20} color={c.text} />
+                <Text style={[styles.lbSortBtnText, { color: c.text }]}>
                   {leaderboardSortBy === 'profit' ? 'Profit' : 'Name'} ({leaderboardSortDirection === 'asc' ? 'Asc' : 'Desc'})
                 </Text>
               </PressableScale>
@@ -1157,7 +1164,7 @@ export default function FriendsScreen() {
                   style={[styles.lbSortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Sort by</Text>
                   <Pressable
-                    style={[styles.lbSortOption, leaderboardSortBy === 'profit' && { backgroundColor: c.accentBg }]}
+                    style={(state) => [styles.lbSortOption, pressBg(c, state)]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortBy === 'profit' }}
                     {...sortItemWebProps(leaderboardSortBy === 'profit')}
@@ -1165,11 +1172,14 @@ export default function FriendsScreen() {
                       setLeaderboardSortBy('profit');
                       closeSortMenu(IS_WEB);
                     }}>
+                    <View style={styles.lbSortOptionLabel}>
+                    <Icon name="trend-up" size={18} color={leaderboardSortBy === 'profit' ? c.accentText : c.textMuted} />
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Profit</Text>
+                  </View>
                     {leaderboardSortBy === 'profit' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                   <Pressable
-                    style={[styles.lbSortOption, leaderboardSortBy === 'name' && { backgroundColor: c.accentBg }]}
+                    style={(state) => [styles.lbSortOption, pressBg(c, state)]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortBy === 'name' }}
                     {...sortItemWebProps(leaderboardSortBy === 'name')}
@@ -1177,13 +1187,16 @@ export default function FriendsScreen() {
                       setLeaderboardSortBy('name');
                       closeSortMenu(IS_WEB);
                     }}>
+                    <View style={styles.lbSortOptionLabel}>
+                    <Icon name="person" size={18} color={leaderboardSortBy === 'name' ? c.accentText : c.textMuted} />
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Name</Text>
+                  </View>
                     {leaderboardSortBy === 'name' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                   <View style={[styles.lbSortDivider, { backgroundColor: c.border }]} {...(IS_WEB ? ({ role: 'separator' } as object) : {})} />
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Direction</Text>
                   <Pressable
-                    style={[styles.lbSortOption, leaderboardSortDirection === 'desc' && { backgroundColor: c.accentBg }]}
+                    style={(state) => [styles.lbSortOption, pressBg(c, state)]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortDirection === 'desc' }}
                     {...sortItemWebProps(leaderboardSortDirection === 'desc')}
@@ -1191,11 +1204,14 @@ export default function FriendsScreen() {
                       setLeaderboardSortDirection('desc');
                       closeSortMenu(IS_WEB);
                     }}>
+                    <View style={styles.lbSortOptionLabel}>
+                    <Icon name="sort" size={18} color={leaderboardSortDirection === 'desc' ? c.accentText : c.textMuted} />
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Descending</Text>
+                  </View>
                     {leaderboardSortDirection === 'desc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                   <Pressable
-                    style={[styles.lbSortOption, leaderboardSortDirection === 'asc' && { backgroundColor: c.accentBg }]}
+                    style={(state) => [styles.lbSortOption, pressBg(c, state)]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortDirection === 'asc' }}
                     {...sortItemWebProps(leaderboardSortDirection === 'asc')}
@@ -1203,7 +1219,10 @@ export default function FriendsScreen() {
                       setLeaderboardSortDirection('asc');
                       closeSortMenu(IS_WEB);
                     }}>
+                    <View style={styles.lbSortOptionLabel}>
+                    <Icon name="sort-asc" size={18} color={leaderboardSortDirection === 'asc' ? c.accentText : c.textMuted} />
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Ascending</Text>
+                  </View>
                     {leaderboardSortDirection === 'asc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
                 </Motion.View>
@@ -1221,7 +1240,9 @@ export default function FriendsScreen() {
               action={lbFailed ? { label: 'Try again', icon: 'refresh', onPress: retryLeaderboard } : undefined}
             />
           ) : (
-            sortedLeaderboard.map((entry, idx) => {
+            // Own wrapper: the screen's content gap (16) would otherwise split the joined rows apart.
+            <View>
+            {sortedLeaderboard.map((entry, idx) => {
               const isMe = entry.playerId === user?.uid;
               const isFirstShow = lbEntering.fresh.has(entry.playerId);
               return (
@@ -1249,257 +1270,145 @@ export default function FriendsScreen() {
                   </Text>
                 </Motion.View>
               );
-            })
+            })}
+            </View>
           )}
         </>
       )}
 
-      <Modal
+      <ModalShell
         visible={showAddModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowAddModal(false)}>
-        <View style={styles.modalRoot}>
-          <ModalBackdrop
-                        onPress={() => setShowAddModal(false)}
-          />
-          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
-            <KeyboardAvoidingView
-              behavior="padding"
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-              style={styles.addFriendModalKav}>
-              <View style={[styles.addCard, { backgroundColor: c.card, borderColor: c.border }]}>
-                <Text style={[styles.addCardTitle, { color: c.text }]}>Send friend request</Text>
-                <Text style={[styles.addCardSub, { color: c.textMuted }]}>
-                  Enter their 6-character ref code
-                </Text>
-                <ScrollView
-                  ref={addFriendScrollRef}
-                  keyboardShouldPersistTaps="handled"
-                  style={styles.addFriendModalFieldsScroll}
-                  contentContainerStyle={styles.addFriendModalFieldsScrollContent}>
-                  <TextInput
-                    value={refCodeInput}
-                    onChangeText={(t) => {
-                      setRefCodeInput(t.toUpperCase());
-                      setRefCodeError(null);
-                    }}
-                    accessibilityLabel="Friend's 6-character ref code"
-                    placeholder="e.g. A3X7KP"
-                    placeholderTextColor={c.placeholder}
-                    maxLength={6}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    spellCheck={false}
-                    autoComplete="off"
-                    autoFocus={!IS_WEB}
-                    onFocus={() => scrollModalFieldToTop(addFriendScrollRef)}
-                    style={[
-                      styles.codeInput,
-                      { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                      errorBorder(c, refCodeError),
-                    ]}
-                    {...invalidProps(refCodeError)}
-                  />
-                  <FieldError message={refCodeError} />
-                </ScrollView>
-                <View style={styles.addCardActions}>
-                  <Pressable
-                    {...({ dataSet: { textButton: 'danger' } } as object)}
-                    style={styles.cancelBtn}
-                    accessibilityRole="button"
-                    onPress={() => { setShowAddModal(false); setRefCodeInput(''); setRefCodeError(null); }}>
-                    <Text style={[styles.cancelLabel, { color: c.lossLight }]}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.confirmBtn,
-                      { backgroundColor: c.accent },
-                      adding && styles.disabled,
-                    ]}
-                    onPress={handleAddFriend}
-                    disabled={adding}
-                    accessibilityRole="button"
-                    accessibilityLabel="Send request"
-                    accessibilityState={{ disabled: adding, busy: adding }}>
-                    {adding ? (
-                      <ActivityIndicator size="small" color={c.onAccent} />
-                    ) : (
-                      <Text style={[styles.confirmLabel, { color: c.onAccent }]}>Send request</Text>
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showGroupLeaderboardModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowGroupLeaderboardModal(false)}>
-        <View style={styles.modalRoot}>
-          <ModalBackdrop
-                        onPress={() => setShowGroupLeaderboardModal(false)}
-          />
-          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
-            <View
-              style={[
-                styles.leaderboardCard,
-                { backgroundColor: c.card, borderColor: c.border },
-              ]}>
-              <View style={styles.leaderboardHeaderRow}>
-                <Text style={[styles.leaderboardTitle, { color: c.text }]}>
-                  {groupLeaderboardModalGroup?.name ? `${groupLeaderboardModalGroup.name} Leaderboard` : 'Leaderboard'}
-                </Text>
-                <PressableScale
-                  pressedScale={0.9}
-                  onPress={() => setShowGroupLeaderboardModal(false)}
-                  style={styles.requestCloseBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close leaderboard">
-                  <Icon name="close" size={20} color={c.textHint} />
-                </PressableScale>
-              </View>
-
-              <ScrollView
-                contentContainerStyle={styles.leaderboardBody}>
-                {groupLbLoading ? (
-                  <LeaderboardSkeleton rows={4} label="Loading group leaderboard" />
-                ) : groupLeaderboard.length === 0 ? (
-                  <EmptyState
-                    compact
-                    icon="leaderboard"
-                    title="No results yet"
-                    message="Play a session with this group to see who's up."
-                  />
-                ) : (
-                  groupLeaderboard.map((entry, idx) => {
-                    const isMe = entry.playerId === user?.uid;
-                    return (
-                      <Motion.View
-                        key={entry.playerId}
-                        entering={listItemEntering(idx)}
-                        style={[
-                          styles.lbRow,
-                          styles.vRow,
-                          idx === 0 && styles.vFirst,
-                          idx === groupLeaderboard.length - 1 && styles.vLast,
-                          { backgroundColor: isMe ? c.accentBg : c.card, borderColor: c.border },
-                        ]}>
-                        <View style={styles.lbLeft}>
-                          <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
-                          <PlayerAvatar value={entry.avatarEmoji} size={34} />
-                          <Text style={[styles.lbName, { color: isMe ? c.text : c.textSecondary }]}>
-                            {entry.name}
-                          </Text>
-                        </View>
-                        <Text style={[styles.lbProfit, { color: entry.totalProfit >= 0 ? c.profit : c.loss }]}>
-                          {formatSignedCurrency(entry.totalProfit)}
-                        </Text>
-                      </Motion.View>
-                    );
-                  })
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={renameGroupTarget != null}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => {
-          if (!renameGroupSaving) {
-            setRenameGroupTarget(null);
-            setRenameGroupName('');
-          }
-        }}>
-        <View style={styles.modalRoot}>
-          <ModalBackdrop
-                        disabled={renameGroupSaving}
-            onPress={() => {
-              setRenameGroupTarget(null);
-              setRenameGroupName('');
+        onClose={() => {
+          setShowAddModal(false);
+          setRefCodeInput('');
+          setRefCodeError(null);
+        }}
+        title="Send friend request"
+        titleIcon={{ name: 'person-add', color: c.textMuted }}
+        primary={{ label: 'Send request', onPress: handleAddFriend, busy: adding, icon: 'person-add' }}>
+        <Text style={[styles.addCardSub, { color: c.textMuted }]}>Enter their 6-character ref code</Text>
+        <View>
+          <TextInput
+            value={refCodeInput}
+            onChangeText={(t) => {
+              setRefCodeInput(t.toUpperCase());
+              setRefCodeError(null);
             }}
+            accessibilityLabel="Friend's 6-character ref code"
+            placeholder="e.g. A3X7KP"
+            placeholderTextColor={c.placeholder}
+            maxLength={6}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            spellCheck={false}
+            autoComplete="off"
+            autoFocus={!IS_WEB}
+            onSubmitEditing={handleAddFriend}
+            style={[
+              styles.codeInput,
+              { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
+              errorBorder(c, refCodeError),
+            ]}
+            {...invalidProps(refCodeError)}
           />
-          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
-            <KeyboardAvoidingView
-              behavior="padding"
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-              style={styles.addFriendModalKav}>
-              <View style={[styles.addCard, { backgroundColor: c.card, borderColor: c.border }]}>
-                <Text style={[styles.addCardTitle, { color: c.text }]}>Rename group</Text>
-                <Text style={[styles.addCardSub, { color: c.textMuted }]}>
-                  This name is only visible to you.
-                </Text>
-                <View>
-                  <TextInput
-                    value={renameGroupName}
-                    onChangeText={(t) => {
-                      setRenameGroupName(t);
-                      setRenameGroupError(null);
-                    }}
-                    placeholder="Group name"
-                    accessibilityLabel="Group name"
-                    placeholderTextColor={c.placeholder}
-                    autoCapitalize="words"
-                    autoComplete="off"
-                    autoFocus={!IS_WEB}
-                    editable={!renameGroupSaving}
-                    style={[
-                      styles.renameGroupInput,
-                      { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                      errorBorder(c, renameGroupError),
-                    ]}
-                    {...invalidProps(renameGroupError)}
-                  />
-                  <FieldError message={renameGroupError} />
-                </View>
-                <View style={styles.addCardActions}>
-                  <Pressable
-                    {...({ dataSet: { textButton: 'danger' } } as object)}
-                    style={styles.cancelBtn}
-                    disabled={renameGroupSaving}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: renameGroupSaving }}
-                    onPress={() => {
-                      setRenameGroupTarget(null);
-                      setRenameGroupName('');
-                    }}>
-                    <Text style={[styles.cancelLabel, { color: c.lossLight }]}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.confirmBtn,
-                      { backgroundColor: c.accent },
-                      renameGroupSaving && styles.disabled,
-                    ]}
-                    disabled={renameGroupSaving}
-                    onPress={handleConfirmRenameGroup}
-                    accessibilityRole="button"
-                    accessibilityLabel="Save group name"
-                    accessibilityState={{ disabled: renameGroupSaving, busy: renameGroupSaving }}>
-                    {renameGroupSaving ? (
-                      <ActivityIndicator size="small" color={c.onAccent} />
-                    ) : (
-                      <Text style={[styles.confirmLabel, { color: c.onAccent }]}>Save</Text>
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
+          <FieldError message={refCodeError} />
         </View>
-      </Modal>
-      {showNewGroup ? <NewGroupModal ownedCount={ownedGroupCount} onClose={() => setShowNewGroup(false)} /> : null}
+      </ModalShell>
+
+      <ModalShell
+        visible={showGroupLeaderboardModal}
+        onClose={() => setShowGroupLeaderboardModal(false)}
+        title={groupLeaderboardModalGroup?.name ? `${groupLeaderboardModalGroup.name} Leaderboard` : 'Leaderboard'}
+        titleIcon={{ name: 'leaderboard', color: c.textMuted }}
+        avoidKeyboard={false}>
+        <ScrollView style={styles.groupLbScroll} contentContainerStyle={styles.leaderboardBody}>
+          {groupLbLoading ? (
+            <LeaderboardSkeleton rows={4} label="Loading group leaderboard" />
+          ) : groupLeaderboard.length === 0 ? (
+            <EmptyState
+              compact
+              icon="leaderboard"
+              title="No results yet"
+              message="Play a session with this group to see who's up."
+            />
+          ) : (
+            groupLeaderboard.map((entry, idx) => {
+              const isMe = entry.playerId === user?.uid;
+              return (
+                <Motion.View
+                  key={entry.playerId}
+                  entering={listItemEntering(idx)}
+                  style={[
+                    styles.lbRow,
+                    styles.vRow,
+                    idx === 0 && styles.vFirst,
+                    idx === groupLeaderboard.length - 1 && styles.vLast,
+                    { backgroundColor: isMe ? c.accentBg : c.card, borderColor: c.border },
+                  ]}>
+                  <View style={styles.lbLeft}>
+                    <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
+                    <PlayerAvatar value={entry.avatarEmoji} size={34} />
+                    <Text style={[styles.lbName, { color: isMe ? c.text : c.textSecondary }]}>
+                      {entry.name}
+                    </Text>
+                  </View>
+                  <Text style={[styles.lbProfit, { color: entry.totalProfit >= 0 ? c.profit : c.loss }]}>
+                    {formatSignedCurrency(entry.totalProfit)}
+                  </Text>
+                </Motion.View>
+              );
+            })
+          )}
+        </ScrollView>
+      </ModalShell>
+
+      <ModalShell
+        visible={renameGroupTarget != null}
+        onClose={() => {
+          if (renameGroupSaving) return;
+          setRenameGroupTarget(null);
+          setRenameGroupName('');
+        }}
+        title="Rename group"
+        titleIcon={{ name: 'edit', color: c.textMuted }}
+        primary={{ label: 'Save', onPress: handleConfirmRenameGroup, busy: renameGroupSaving, icon: 'check' }}>
+        <Text style={[styles.addCardSub, { color: c.textMuted }]}>This name is only visible to you.</Text>
+        <View>
+          <TextInput
+            value={renameGroupName}
+            onChangeText={(t) => {
+              setRenameGroupName(t);
+              setRenameGroupError(null);
+            }}
+            placeholder="Group name"
+            accessibilityLabel="Group name"
+            placeholderTextColor={c.placeholder}
+            autoCapitalize="words"
+            autoComplete="off"
+            autoFocus={!IS_WEB}
+            editable={!renameGroupSaving}
+            onSubmitEditing={handleConfirmRenameGroup}
+            style={[
+              styles.renameGroupInput,
+              { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
+              errorBorder(c, renameGroupError),
+            ]}
+            {...invalidProps(renameGroupError)}
+          />
+          <FieldError message={renameGroupError} />
+        </View>
+      </ModalShell>
+      {showNewGroup ? (
+        <NewGroupModal
+          ownedCount={ownedGroupCount}
+          onClose={() => setShowNewGroup(false)}
+          onCreated={(groupId) => {
+            setShowNewGroup(false);
+            setMembersGroupId(groupId);
+          }}
+        />
+      ) : null}
+      {membersGroupId ? <GroupMembersModal groupId={membersGroupId} onClose={() => setMembersGroupId(null)} /> : null}
     </ScrollView>
   );
 }
@@ -1588,6 +1497,11 @@ function GroupCardsSkeleton({ gap, cards = 3 }: { gap: number; cards?: number })
 }
 
 const styles = StyleSheet.create({
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
   screen: {
     flex: 1,
   },
@@ -1703,6 +1617,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 8,
   },
+  lbSortOptionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   lbSortOptionText: {
     ...text.rowTitle,
     fontWeight: '500',
@@ -1712,7 +1631,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     marginVertical: 4,
   },
-  sectionTitle: text.heading,
+  sectionCount: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
   addBtnGroup: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1867,7 +1791,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 52,
-    paddingRight: 16,
+    paddingRight: 10,
   },
   groupToggle: {
     flex: 1,
@@ -1880,8 +1804,18 @@ const styles = StyleSheet.create({
   groupHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 14,
     flex: 1,
+  },
+  groupHeaderText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  groupMembers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   groupName: text.rowTitle,
   groupCount: text.rowMeta,
@@ -1889,14 +1823,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    // Offsets the 44px icon buttons so header height and icon alignment stay as before.
-    marginRight: -12,
-    marginVertical: -4,
   },
+  // Rename / delete / leave: same 40px circle so their hover rings match.
   groupIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1958,36 +1890,6 @@ const styles = StyleSheet.create({
   groupMembersScroll: {
     maxHeight: 200,
   },
-  modalRoot: {
-    flex: 1,
-  },
-  modalCenter: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  addFriendModalKav: {
-    flex: 1,
-    justifyContent: 'center',
-    width: '100%',
-    maxWidth: 480,
-  },
-  addFriendModalFieldsScroll: {
-    width: '100%',
-  },
-  addFriendModalFieldsScrollContent: {
-    paddingBottom: 4,
-  },
-  addCard: {
-    width: '100%',
-    maxWidth: 480,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 20,
-    gap: 12,
-  },
-  addCardTitle: text.modalTitle,
   addCardSub: text.caption,
   codeInput: {
     borderRadius: 9,
@@ -2006,47 +1908,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  addCardActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-  },
-  cancelBtn: {
-    minHeight: 48,
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  cancelLabel: text.button,
-  confirmBtn: {
-    minHeight: 48,
-    justifyContent: 'center',
-    borderRadius: 14,
-    paddingHorizontal: 18,
-  },
-  confirmLabel: text.button,
   disabled: {
     opacity: 0.4,
   },
-  leaderboardCard: {
-    width: '100%',
-    maxWidth: 480,
-    maxHeight: '80%',
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 20,
-    gap: 12,
-  },
-  leaderboardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  leaderboardTitle: {
-    ...text.heading,
-    flex: 1,
-    marginRight: 12,
+  groupLbScroll: {
+    maxHeight: 420,
   },
   leaderboardBody: {
     gap: 0,

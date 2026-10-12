@@ -132,3 +132,12 @@ export const ui = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+/**
+ * Pointer-event styles. react-native-web only compiles `pointerEvents` from StyleSheet.create;
+ * an inline `{ pointerEvents: 'box-none' }` object is silently dropped on web, so use these instead.
+ */
+export const pointer = StyleSheet.create({
+  boxNone: { pointerEvents: 'box-none' },
+  none: { pointerEvents: 'none' },
+});

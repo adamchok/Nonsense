@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
   DEFAULT_FILTERS,
+  matchesSearch,
+  sessionYears,
+  yearRange,
   countActiveFilters,
   filterEntries,
   monthGrid,
@@ -66,4 +69,30 @@ test('monthGrid starts weeks on Monday and pads to whole weeks', () => {
   assert.equal(sept[1]?.getDate(), 1);
   assert.equal(sept.length % 7, 0);
   assert.equal(sept.filter(Boolean).length, 30);
+});
+
+test('matchesSearch matches place, date words and stakes; every word must match', () => {
+  const e = { date: new Date(2026, 9, 2), location: "Jordan's place", smallBlind: 1, bigBlind: 2 };
+  assert.equal(matchesSearch(e, ''), true);
+  assert.equal(matchesSearch(e, 'jordan'), true);
+  assert.equal(matchesSearch(e, 'fri oct'), true);
+  assert.equal(matchesSearch(e, '2026'), true);
+  assert.equal(matchesSearch(e, '$1/$2'), true);
+  assert.equal(matchesSearch(e, '2/10/2026'), true);
+  assert.equal(matchesSearch(e, 'garage'), false);
+  assert.equal(matchesSearch(e, 'jordan sept'), false);
+  assert.equal(matchesSearch({ ...e, smallBlind: 0.5, bigBlind: 1 }, '0.50/1.00'), true);
+  assert.equal(matchesSearch({ ...e, smallBlind: 0.5, bigBlind: 1 }, '0.5/1'), true);
+});
+
+test('yearRange: past years are whole years, the current year ends today', () => {
+  const today = new Date(2026, 9, 13);
+  assert.deepEqual(yearRange(2025, today), { start: '2025-01-01', end: '2025-12-31' });
+  assert.deepEqual(yearRange(2026, today), { start: '2026-01-01', end: '2026-10-13' });
+});
+
+test('sessionYears lists distinct years newest first', () => {
+  const d = (y: number) => ({ date: new Date(y, 5, 1) });
+  assert.deepEqual(sessionYears([d(2024), d(2026), d(2024), d(2025)]), [2026, 2025, 2024]);
+  assert.deepEqual(sessionYears([]), []);
 });

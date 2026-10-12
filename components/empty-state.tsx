@@ -17,10 +17,12 @@ type Props = {
   title: string;
   message?: string;
   action?: { label: string; icon?: IconName; onPress: () => void };
+  /** Lower-emphasis alternative shown under the main action (text button). */
+  secondaryAction?: { label: string; onPress: () => void };
   compact?: boolean;
 };
 
-export function EmptyState({ icon, title, message, action, compact = false }: Props) {
+export function EmptyState({ icon, title, message, action, secondaryAction, compact = false }: Props) {
   const c = useAppColors();
   return (
     <Animated.View entering={fadeIn} style={[styles.wrap, compact && styles.compact]}>
@@ -38,6 +40,15 @@ export function EmptyState({ icon, title, message, action, compact = false }: Pr
           style={[styles.action, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
           {action.icon ? <Icon name={action.icon} size={18} color={c.accentText} /> : null}
           <Text style={[styles.actionLabel, { color: c.accentText }]}>{action.label}</Text>
+        </PressableScale>
+      ) : null}
+      {secondaryAction ? (
+        <PressableScale
+          onPress={secondaryAction.onPress}
+          accessibilityRole="button"
+          {...({ dataSet: { textButton: 'true' } } as object)}
+          style={styles.secondary}>
+          <Text style={[styles.secondaryLabel, { color: c.textMuted }]}>{secondaryAction.label}</Text>
         </PressableScale>
       ) : null}
     </Animated.View>
@@ -83,4 +94,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionLabel: text.button,
+  secondary: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  secondaryLabel: {
+    ...text.button,
+    fontWeight: '500',
+  },
 });

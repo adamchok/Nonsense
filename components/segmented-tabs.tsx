@@ -1,11 +1,18 @@
+import { pointer } from '@/lib/ui';
 import { Icon, type IconName } from '@/components/icon';
 import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View, type LayoutRectangle } from 'react-native';
+import { Platform, StyleSheet, Text, useWindowDimensions, View, type LayoutRectangle } from 'react-native';
 import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 export type SegmentedTab<K extends string> = { key: K; label: string; icon: IconName };
+
+// onLayout measures tabs from the track's outer edge, but the absolute indicator is placed inside
+// the track's border, so its offset must drop the border width (else it sits 1px low and right).
+const TRACK_BORDER = 1;
+/** Below this window width the tab icons drop so three labels still fit on one line. */
+const NARROW_WIDTH = 380;
 
 const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
 const PREV_KEYS = new Set(['ArrowLeft', 'ArrowUp']);
@@ -34,6 +41,7 @@ type Props<K extends string> = {
 
 export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant = 'tabs' }: Props<K>) {
   const isRadio = variant === 'radio';
+  const isNarrow = useWindowDimensions().width < NARROW_WIDTH;
   const c = useAppColors();
   const [layouts, setLayouts] = useState<Partial<Record<K, LayoutRectangle>>>({});
   const x = useSharedValue(0);
@@ -59,12 +67,12 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
   useEffect(() => {
     if (!selectedLayout) return;
     if (!placed.current) {
-      x.value = selectedLayout.x;
+      x.value = selectedLayout.x - TRACK_BORDER;
       width.value = selectedLayout.width;
       placed.current = true;
       return;
     }
-    x.value = withSpring(selectedLayout.x, SPRING);
+    x.value = withSpring(selectedLayout.x - TRACK_BORDER, SPRING);
     width.value = withSpring(selectedLayout.width, SPRING);
   }, [selectedLayout, x, width]);
 
@@ -74,15 +82,15 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
   }));
 
   return (
-    <View style={[styles.track, { backgroundColor: c.inputBg, borderColor: c.border }]} accessibilityRole={isRadio ? 'radiogroup' : 'tablist'}>
+    <View style={[styles.track, { backgroundColor: c.card, borderColor: c.border }]} accessibilityRole={isRadio ? 'radiogroup' : 'tablist'}>
       {selectedLayout ? (
         <Animated.View
-          style={[styles.indicator, { backgroundColor: c.accentBg, top: selectedLayout.y, height: selectedLayout.height }, indicatorStyle, { pointerEvents: 'none' }]}
+          style={[styles.indicator, { backgroundColor: c.accentBg, borderColor: c.accentBorder, top: selectedLayout.y - TRACK_BORDER, height: selectedLayout.height }, indicatorStyle, pointer.none]}
         />
       ) : null}
       {tabs.map((tab, index) => {
         const selected = tab.key === value;
-        const color = selected ? c.accentText : c.textMuted;
+        const color = selected ? c.accentText : c.textSecondary;
         const webRadioProps = isWebRadio
           ? ({
               tabIndex: index === selectedIndex ? 0 : -1,
@@ -108,8 +116,8 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
             accessibilityLabel={tab.label}
             onPress={() => onChange(tab.key)}
             {...webRadioProps}
-            style={[styles.tab, selected && !selectedLayout && { backgroundColor: c.accentBg }]}>
-            <Icon name={tab.icon} size={18} color={color} weight={selected ? 'fill' : 'regular'} />
+            style={[styles.tab, selected && !selectedLayout && { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
+            {isNarrow ? null : <Icon name={tab.icon} size={18} color={color} weight={selected ? 'fill' : 'regular'} />}
             <Text style={[styles.label, { color }]} numberOfLines={1}>
               {tab.label}
             </Text>
@@ -126,17 +134,20 @@ const styles = StyleSheet.create({
     padding: 4,
     gap: 4,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: TRACK_BORDER,
   },
   indicator: {
     position: 'absolute',
     left: 0,
     borderRadius: 10,
+    borderWidth: 1,
   },
   tab: {
     flexGrow: 1,
     flexShrink: 1,
-    flexBasis: 0,
+    // Size from content, then share the spare width: a long label ("Leaderboard") gets the room it needs
+    // instead of truncating inside an equal third.
+    flexBasis: 'auto',
     minWidth: 0,
     minHeight: 44,
     flexDirection: 'row',
@@ -145,6 +156,8 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 8,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   label: {
     fontSize: 14,

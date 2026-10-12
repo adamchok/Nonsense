@@ -72,6 +72,39 @@ export function filterEntries<T extends FilterableEntry>(entries: readonly T[], 
   });
 }
 
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+type SearchableEntry = { date: Date; location?: string | null; smallBlind?: number; bigBlind?: number };
+
+/**
+ * History search: every word of the query must appear in the session's place, date or stakes.
+ * Dates match by weekday, month (full or prefix, so "oct", "fri"), day number, year or d/m/yyyy;
+ * stakes match "1/2" or "$1/$2".
+ */
+export function matchesSearch(entry: SearchableEntry, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const d = entry.date;
+  // Both "0.5/1" and "0.50/1.00", since the app shows cents when a blind isn't whole.
+  const hasBlinds = entry.smallBlind != null && entry.bigBlind != null;
+  const blinds = hasBlinds
+    ? `${entry.smallBlind}/${entry.bigBlind} ${entry.smallBlind!.toFixed(2)}/${entry.bigBlind!.toFixed(2)}`
+    : '';
+  const haystack = [
+    entry.location ?? '',
+    WEEKDAYS[d.getDay()],
+    MONTHS[d.getMonth()],
+    String(d.getDate()),
+    String(d.getFullYear()),
+    `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`,
+    blinds,
+  ]
+    .join(' ')
+    .toLowerCase();
+  return words.every((w) => haystack.includes(w.replace(/\$/g, '')));
+}
+
 export type DatePreset = 'all' | '30d' | '3m' | 'year';
 
 export const DATE_PRESETS: { key: DatePreset; label: string }[] = [
@@ -90,6 +123,17 @@ export function presetRange(key: DatePreset, today: Date): { start: string; end:
   if (key === '30d') return { start: toYmd(new Date(y, m, d - 29)), end };
   if (key === '3m') return { start: toYmd(new Date(y, m - 3, d + 1)), end };
   return { start: toYmd(new Date(y, 0, 1)), end };
+}
+
+/** A calendar year as a date filter. The current year ends today, matching the "This year" preset. */
+export function yearRange(year: number, today: Date): { start: string; end: string } {
+  if (year === today.getFullYear()) return presetRange('year', today);
+  return { start: `${year}-01-01`, end: `${year}-12-31` };
+}
+
+/** Years that have sessions, newest first. */
+export function sessionYears(entries: readonly { date: Date }[]): number[] {
+  return [...new Set(entries.map((e) => e.date.getFullYear()))].sort((a, b) => b - a);
 }
 
 export function monthGrid(year: number, month: number): (Date | null)[] {

@@ -1405,7 +1405,7 @@ export function subscribeGroupMembers(
   );
 }
 
-type SessionHistoryEntry = SessionRecord & {
+export type SessionHistoryEntry = SessionRecord & {
   totalBuyIn: number;
   cashOut: number;
   profit: number;
@@ -1564,13 +1564,21 @@ export type PlayerAppStatistics = {
   profitPerHour: number | null;
 };
 
+/**
+ * Every finished session for the player, newest first. Shares the 5-minute scan cache with the statistics
+ * (invalidated when a session is saved or deleted), so History and Home reuse one scan.
+ */
+export function getCachedSessionHistory(uid: string, forceRefresh = false): Promise<SessionHistoryEntry[]> {
+  return cachedScan(`history:${uid}`, forceRefresh, () => getFullSessionHistoryForPlayer(uid));
+}
+
 export async function getPlayerAppStatistics(
   uid: string,
   forceRefresh = false
 ): Promise<PlayerAppStatistics> {
   const db = getFirestoreDb();
   const [history, friendsSnap, groupsSnap, savedLocs] = await Promise.all([
-    cachedScan(`history:${uid}`, forceRefresh, () => getFullSessionHistoryForPlayer(uid)),
+    getCachedSessionHistory(uid, forceRefresh),
     getDocs(collection(db, 'players', uid, 'friends')),
     getDocs(collection(db, 'players', uid, GROUP_MEMBERSHIPS_SUB)),
     getSavedLocations(uid),

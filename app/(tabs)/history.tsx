@@ -1,7 +1,12 @@
-import { ModalBackdrop } from '@/components/modal-backdrop';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useOutsidePress } from '@/lib/use-outside-press';
+import { ModalShell } from '@/components/session/modal-shell';
+import { formatDuration } from '@/lib/date-format';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { MetaLine, SessionTitle } from '@/components/meta-line';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg, text } from '@/lib/ui';
+import { pointer, pressBg, text } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency,
@@ -11,20 +16,45 @@ import {
 } from '@/lib/currency-format';
 import { formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
 import { appAlert } from '@/lib/app-alert';
-import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE } from '@/lib/firestore';
+import { deleteSession, getCachedSessionHistory, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
-import { Icon } from '@/components/icon';
+import { Icon, type IconName } from '@/components/icon';
+import { SearchInput } from '@/components/search-input';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
 import { PLChart } from '@/components/pl-chart';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { HistoryFilterSheet } from '@/components/history-filter-sheet';
-import { DEFAULT_FILTERS, countActiveFilters, filterEntries, type FilterState } from '@/lib/history-filters';
-import { Animated as Motion, PressableScale, layoutTransition, fadeOut, listItemEntering, webSafe } from '@/components/motion';
+import {
+  DEFAULT_FILTERS,
+  countActiveFilters,
+  filterEntries,
+  matchesSearch,
+  sessionYears,
+  yearRange,
+  type FilterState,
+} from '@/lib/history-filters';
+import {
+  Animated as Motion,
+  PressableScale,
+  layoutTransition,
+  fadeOut,
+  listItemEntering,
+  webSafe,
+} from '@/components/motion';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Keyframe, ReduceMotion, FadeIn } from 'react-native-reanimated';
 
@@ -59,14 +89,6 @@ function getSessionDurationMs(entry: HistoryEntry): number {
   return end - start;
 }
 
-function formatDuration(ms: number): string {
-  const totalMinutes = Math.floor(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours <= 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
-}
-
 function mergeHistoryPages(prev: HistoryEntry[], next: HistoryEntry[]): HistoryEntry[] {
   const byId = new Map<string, HistoryEntry>();
   for (const e of prev) byId.set(e.id, e);
@@ -74,9 +96,18 @@ function mergeHistoryPages(prev: HistoryEntry[], next: HistoryEntry[]): HistoryE
   return [...byId.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
 }
 
+// Chart and the session rows read as one block, so tighter than the 24px between screen sections.
+const CHART_TO_LIST_GAP = 16;
+const NARROW_SUMMARY_WIDTH = 380;
+const SORT_TRIGGER_ID = 'history-sort-trigger';
+const SORT_MENU_ID = 'history-sort-menu';
+
 export default function HistoryScreen() {
   const c = useAppColors();
   const layout = usePageLayout();
+  const { width: screenWidth } = useBreakpoint();
+  // Web can't shrink text to fit (adjustsFontSizeToFit is native-only), so narrow phones get a smaller total.
+  const narrowSummary = screenWidth < NARROW_SUMMARY_WIDTH;
   const router = useRouter();
   const { playerProfile } = useAuth();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -91,6 +122,8 @@ export default function HistoryScreen() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const closeSortDropdown = useCallback(() => setShowSortDropdown(false), []);
+  useOutsidePress(showSortDropdown, closeSortDropdown, [SORT_MENU_ID, SORT_TRIGGER_ID]);
   const [sortBy, setSortBy] = useState<SortKey>('datetime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [refreshing, setRefreshing] = useState(false);
@@ -98,7 +131,7 @@ export default function HistoryScreen() {
   const shownRowIdsRef = useRef(new Set<string>());
   const loadGenerationRef = useRef(0);
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (force = false) => {
     if (!playerProfile) {
       setLoading(false);
       return;
@@ -107,15 +140,23 @@ export default function HistoryScreen() {
     try {
       setError(null);
       historyPageCursorRef.current = null;
-      const page = await getSessionHistoryPage(
-        playerProfile.id,
-        HISTORY_TAB_PAGE_SIZE,
-        null
-      );
+      const page = await getSessionHistoryPage(playerProfile.id, HISTORY_TAB_PAGE_SIZE, null);
       if (generation !== loadGenerationRef.current) return;
       setHistory(page.entries);
       historyPageCursorRef.current = page.lastDoc;
       setHasMoreHistory(page.hasMore);
+      // First page paints fast; then the full history (shared cache with Home's statistics) replaces it,
+      // so totals, chart, search and year chips cover every session. On failure, paging still works.
+      if (page.hasMore) {
+        getCachedSessionHistory(playerProfile.id, force)
+          .then((all) => {
+            if (generation !== loadGenerationRef.current) return;
+            setHistory(all);
+            historyPageCursorRef.current = null;
+            setHasMoreHistory(false);
+          })
+          .catch((e) => console.warn('Full history load failed; keeping paged history.', e));
+      }
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
       setError(userMessage(e, 'Failed to load history.'));
@@ -136,11 +177,7 @@ export default function HistoryScreen() {
     try {
       setLoadingMore(true);
       setError(null);
-      const page = await getSessionHistoryPage(
-        playerProfile.id,
-        HISTORY_TAB_PAGE_SIZE,
-        cursor
-      );
+      const page = await getSessionHistoryPage(playerProfile.id, HISTORY_TAB_PAGE_SIZE, cursor);
       if (generation !== loadGenerationRef.current) return;
       setHistory((prev) => mergeHistoryPages(prev, page.entries));
       historyPageCursorRef.current = page.lastDoc;
@@ -153,6 +190,34 @@ export default function HistoryScreen() {
     }
   }, [playerProfile, loadingMore, hasMoreHistory]);
 
+  // Search filters loaded sessions only, so the first search pulls in every remaining page.
+  // ponytail: loads the whole history client-side; fine for home-game volumes (hundreds of sessions).
+  // Past that, move to server-side year/date queries or a search service.
+  const loadingAllRef = useRef(false);
+  const loadRemainingHistory = useCallback(async () => {
+    if (!playerProfile || loadingAllRef.current) return;
+    loadingAllRef.current = true;
+    const generation = loadGenerationRef.current;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      let cursor = historyPageCursorRef.current;
+      while (cursor) {
+        const page = await getSessionHistoryPage(playerProfile.id, HISTORY_TAB_PAGE_SIZE, cursor);
+        if (generation !== loadGenerationRef.current) return;
+        setHistory((prev) => mergeHistoryPages(prev, page.entries));
+        cursor = page.hasMore ? page.lastDoc : null;
+        historyPageCursorRef.current = page.lastDoc;
+        setHasMoreHistory(page.hasMore);
+      }
+    } catch (e) {
+      if (generation === loadGenerationRef.current) setError(userMessage(e, 'Failed to load older sessions.'));
+    } finally {
+      loadingAllRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [playerProfile]);
+
   useFocusEffect(
     useCallback(() => {
       // Skeleton only on the first load; refocus refreshes in place.
@@ -161,7 +226,7 @@ export default function HistoryScreen() {
       return () => {
         loadGenerationRef.current += 1;
       };
-    }, [loadHistory])
+    }, [loadHistory]),
   );
 
   const locationOptions = useMemo(() => {
@@ -176,10 +241,28 @@ export default function HistoryScreen() {
     if (!query) return locationOptions;
     return locationOptions.filter((name) => name.toLowerCase().includes(query));
   }, [locationOptions, locationSearch]);
-  const filteredHistory = useMemo(() => filterEntries(history, filters), [filters, history]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [edges, setEdges] = useState({ top: false, bottom: false });
+  const scrollYRef = useRef(0);
+  const listHeightRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const updateEdges = useCallback(() => {
+    const top = scrollYRef.current > 2;
+    const bottom = scrollYRef.current + listHeightRef.current < contentHeightRef.current - 2;
+    setEdges((prev) => (prev.top === top && prev.bottom === bottom ? prev : { top, bottom }));
+  }, []);
+  const isSearching = searchQuery.trim().length > 0;
+  const filteredHistory = useMemo(
+    () => filterEntries(history, filters).filter((e) => matchesSearch(e, searchQuery)),
+    [filters, history, searchQuery],
+  );
   const draftMatchCount = useMemo(
-    () => (showFilterModal ? filterEntries(history, draftFilters).length : 0),
-    [showFilterModal, history, draftFilters]
+    // Same pipeline as the list (filters AND search), so "Show N" matches what appears.
+    () =>
+      showFilterModal
+        ? filterEntries(history, draftFilters).filter((e) => matchesSearch(e, searchQuery)).length
+        : 0,
+    [showFilterModal, history, draftFilters, searchQuery],
   );
   const sortedHistory = useMemo(() => {
     const next = [...filteredHistory];
@@ -197,9 +280,10 @@ export default function HistoryScreen() {
   const totalDurationMs = filteredHistory.reduce((sum, h) => sum + getSessionDurationMs(h), 0);
   const totalHoursPlayed = totalDurationMs / 3_600_000;
   const hasActiveFilters = countActiveFilters(filters) > 0;
-  const allLocationsSelected = draftFilters.locations === null
-    || (locationOptions.length > 0
-      && locationOptions.every((name) => draftFilters.locations?.includes(name)));
+  const hasNonDateFilters = countActiveFilters({ ...filters, startDate: '', endDate: '' }) > 0;
+  const allLocationsSelected =
+    draftFilters.locations === null ||
+    (locationOptions.length > 0 && locationOptions.every((name) => draftFilters.locations?.includes(name)));
   function openFilters() {
     setShowSortDropdown(false);
     setDraftFilters(filters);
@@ -222,26 +306,51 @@ export default function HistoryScreen() {
     if (refreshing) return;
     setShowSortDropdown(false);
     setRefreshing(true);
-    void loadHistory();
+    void loadHistory(true);
   }, [refreshing, loadHistory]);
 
   const openSessionSummary = useCallback(
     (sessionId: string) => router.push(`../session/summary/${sessionId}`),
-    [router]
+    [router],
   );
 
+  // Period chips (All / 2026 / 2025 / ...) drive the same date filter as the filter sheet, so the chart,
+  // totals and list always agree. A custom date range from the sheet leaves no chip selected.
+  const years = useMemo(() => sessionYears(history), [history]);
+  const selectedYear = useMemo(() => {
+    const today = new Date();
+    return (
+      years.find((y) => {
+        const r = yearRange(y, today);
+        return filters.startDate === r.start && filters.endDate === r.end;
+      }) ?? null
+    );
+  }, [years, filters.startDate, filters.endDate]);
+  const hasDateFilter = Boolean(filters.startDate || filters.endDate);
+  const selectPeriod = useCallback((year: number | null) => {
+    const r = year === null ? { start: '', end: '' } : yearRange(year, new Date());
+    setFilters((prev) => ({ ...prev, startDate: r.start, endDate: r.end }));
+  }, []);
+  const titlePeriod = selectedYear ? `in ${selectedYear}` : hasDateFilter ? 'in selected dates' : undefined;
+
   const chartHeader = useMemo(
-    () =>
-      filteredHistory.length >= 2 ? (
-        <View
-          style={[
-            styles.chartCard,
-            { backgroundColor: c.card, borderColor: c.border, marginBottom: layout.sectionGap },
-          ]}>
-          <PLChart entries={filteredHistory} onOpen={openSessionSummary} />
-        </View>
-      ) : null,
-    [filteredHistory, c.card, c.border, layout.sectionGap, openSessionSummary]
+    () => (
+      // While searching the chart steps aside for a result count; the results are what matters then.
+      isSearching ? null : (
+        <>
+          {filteredHistory.length >= 2 ? (
+            <View
+              style={[
+                styles.chartCard,
+                { backgroundColor: c.card, borderColor: c.border, marginBottom: CHART_TO_LIST_GAP },
+              ]}>
+              <PLChart entries={filteredHistory} titlePeriod={titlePeriod} onOpen={openSessionSummary} />
+            </View>
+          ) : null}
+        </>
+      )
+    ),
+    [filteredHistory, isSearching, titlePeriod, c.card, c.border, openSessionSummary],
   );
 
   const confirmDeleteSession = useCallback(
@@ -265,106 +374,141 @@ export default function HistoryScreen() {
               })();
             },
           },
-        ]
+        ],
       );
     },
-    [loadHistory]
+    [loadHistory],
   );
 
   return (
     <View
       style={[
         styles.screen,
-        { backgroundColor: c.bg, paddingHorizontal: layout.gutter, paddingBottom: layout.gutter, gap: layout.sectionGap },
+        {
+          backgroundColor: c.bg,
+          paddingHorizontal: layout.gutter,
+          paddingBottom: layout.gutter,
+          gap: layout.sectionGap,
+        },
         layout.tabTop,
       ]}>
       {showSortDropdown ? (
-        <Pressable style={styles.menuBackdrop} onPress={() => setShowSortDropdown(false)} accessible={false} focusable={false} tabIndex={-1} aria-hidden />
+        <Pressable
+          style={styles.menuBackdrop}
+          onPress={() => setShowSortDropdown(false)}
+          accessible={false}
+          focusable={false}
+          tabIndex={-1}
+          aria-hidden
+        />
       ) : null}
       <View style={[styles.titleRow, showSortDropdown && styles.menuAnchorRaised]}>
-        <Text style={[styles.title, { color: c.text }]}>My Winnings</Text>
+        <View style={styles.pageTitleRow}>
+          <Icon name="history" size={26} color={c.textMuted} importantForAccessibility="no" />
+          <Text style={[styles.title, { color: c.text }]}>History</Text>
+        </View>
         <View style={styles.headerActions}>
           <View style={styles.sortWrap}>
             <PressableScale
               pressedScale={0.92}
-              style={[styles.filterButton, { backgroundColor: c.cardAlt, borderColor: c.border }]}
+              style={[styles.filterButton, { backgroundColor: c.card, borderColor: c.inputBorder }]}
               onPress={() => setShowSortDropdown((prev) => !prev)}
+              nativeID={SORT_TRIGGER_ID}
               accessibilityRole="button"
               accessibilityLabel="Open sort options">
-              <Icon name="sort" size={20} color={c.textMuted} />
+              <Icon name="sort" size={20} color={c.text} />
             </PressableScale>
             {showSortDropdown ? (
               <Motion.View
+                nativeID={SORT_MENU_ID}
                 entering={menuEntering}
                 exiting={fadeOut}
                 style={[styles.sortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
                 <Text style={[styles.sortSectionTitle, { color: c.textHint }]}>Sort by</Text>
                 <Pressable
-                  style={[styles.sortOption, sortBy === 'datetime' && { backgroundColor: c.accentBg }]}
+                  style={(state) => [styles.sortOption, pressBg(c, state)]}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: sortBy === 'datetime' }}
                   onPress={() => {
                     setSortBy('datetime');
                     setShowSortDropdown(false);
                   }}>
-                  <Text style={[styles.sortOptionText, { color: c.text }]}>Date & time</Text>
+                  <View style={styles.sortOptionLabel}>
+                    <Icon name="calendar" size={18} color={sortBy === 'datetime' ? c.accentText : c.textMuted} />
+                    <Text style={[styles.sortOptionText, { color: c.text }]}>Date & time</Text>
+                  </View>
                   {sortBy === 'datetime' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
-                  style={[styles.sortOption, sortBy === 'buyIn' && { backgroundColor: c.accentBg }]}
+                  style={(state) => [styles.sortOption, pressBg(c, state)]}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: sortBy === 'buyIn' }}
                   onPress={() => {
                     setSortBy('buyIn');
                     setShowSortDropdown(false);
                   }}>
-                  <Text style={[styles.sortOptionText, { color: c.text }]}>Buy-in</Text>
+                  <View style={styles.sortOptionLabel}>
+                    <Icon name="money-in" size={18} color={sortBy === 'buyIn' ? c.accentText : c.textMuted} />
+                    <Text style={[styles.sortOptionText, { color: c.text }]}>Buy-in</Text>
+                  </View>
                   {sortBy === 'buyIn' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
-                  style={[styles.sortOption, sortBy === 'profit' && { backgroundColor: c.accentBg }]}
+                  style={(state) => [styles.sortOption, pressBg(c, state)]}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: sortBy === 'profit' }}
                   onPress={() => {
                     setSortBy('profit');
                     setShowSortDropdown(false);
                   }}>
-                  <Text style={[styles.sortOptionText, { color: c.text }]}>Profit</Text>
+                  <View style={styles.sortOptionLabel}>
+                    <Icon name="trend-up" size={18} color={sortBy === 'profit' ? c.accentText : c.textMuted} />
+                    <Text style={[styles.sortOptionText, { color: c.text }]}>Profit</Text>
+                  </View>
                   {sortBy === 'profit' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
-                  style={[styles.sortOption, sortBy === 'duration' && { backgroundColor: c.accentBg }]}
+                  style={(state) => [styles.sortOption, pressBg(c, state)]}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: sortBy === 'duration' }}
                   onPress={() => {
                     setSortBy('duration');
                     setShowSortDropdown(false);
                   }}>
-                  <Text style={[styles.sortOptionText, { color: c.text }]}>Duration</Text>
+                  <View style={styles.sortOptionLabel}>
+                    <Icon name="timer" size={18} color={sortBy === 'duration' ? c.accentText : c.textMuted} />
+                    <Text style={[styles.sortOptionText, { color: c.text }]}>Duration</Text>
+                  </View>
                   {sortBy === 'duration' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <View style={[styles.sortDivider, { backgroundColor: c.border }]} />
                 <Text style={[styles.sortSectionTitle, { color: c.textHint }]}>Direction</Text>
                 <Pressable
-                  style={[styles.sortOption, sortDirection === 'desc' && { backgroundColor: c.accentBg }]}
+                  style={(state) => [styles.sortOption, pressBg(c, state)]}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: sortDirection === 'desc' }}
                   onPress={() => {
                     setSortDirection('desc');
                     setShowSortDropdown(false);
                   }}>
-                  <Text style={[styles.sortOptionText, { color: c.text }]}>Descending</Text>
+                  <View style={styles.sortOptionLabel}>
+                    <Icon name="sort" size={18} color={sortDirection === 'desc' ? c.accentText : c.textMuted} />
+                    <Text style={[styles.sortOptionText, { color: c.text }]}>Descending</Text>
+                  </View>
                   {sortDirection === 'desc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
                 <Pressable
-                  style={[styles.sortOption, sortDirection === 'asc' && { backgroundColor: c.accentBg }]}
+                  style={(state) => [styles.sortOption, pressBg(c, state)]}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: sortDirection === 'asc' }}
                   onPress={() => {
                     setSortDirection('asc');
                     setShowSortDropdown(false);
                   }}>
-                  <Text style={[styles.sortOptionText, { color: c.text }]}>Ascending</Text>
+                  <View style={styles.sortOptionLabel}>
+                    <Icon name="sort-asc" size={18} color={sortDirection === 'asc' ? c.accentText : c.textMuted} />
+                    <Text style={[styles.sortOptionText, { color: c.text }]}>Ascending</Text>
+                  </View>
                   {sortDirection === 'asc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                 </Pressable>
               </Motion.View>
@@ -375,18 +519,14 @@ export default function HistoryScreen() {
             style={[
               styles.filterButton,
               {
-                backgroundColor: hasActiveFilters ? c.accentBg : c.cardAlt,
-                borderColor: hasActiveFilters ? c.accentBorder : c.border,
+                backgroundColor: hasActiveFilters ? c.accentBg : c.card,
+                borderColor: hasActiveFilters ? c.accentBorder : c.inputBorder,
               },
             ]}
             onPress={openFilters}
             accessibilityRole="button"
             accessibilityLabel="Open history filters">
-            <Icon
-              name="filter-alt"
-              size={20}
-              color={hasActiveFilters ? c.accentText : c.textMuted}
-            />
+            <Icon name="filter-alt" size={20} color={hasActiveFilters ? c.accentText : c.text} />
           </PressableScale>
         </View>
       </View>
@@ -398,7 +538,9 @@ export default function HistoryScreen() {
             styles.summaryCardHalf,
             { backgroundColor: c.card, borderColor: c.borderAccent },
           ]}>
-          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Lifetime profit/loss</Text>
+          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>
+            {titlePeriod ? `Profit/loss ${titlePeriod}` : 'Lifetime profit/loss'}
+          </Text>
           {loading ? (
             <SummaryValueSkeleton valueWidth={96} metaWidth={70} />
           ) : (
@@ -408,34 +550,31 @@ export default function HistoryScreen() {
                 adjustsFontSizeToFit
                 style={[
                   styles.summaryValue,
+                  narrowSummary && styles.summaryValueNarrow,
                   { color: totalProfit >= 0 ? c.profit : c.loss },
                 ]}>
                 {formatLifetimeTotal(totalProfit)}
               </Text>
               <Text style={[styles.summaryMeta, { color: c.textHint }]}>
                 {filteredHistory.length} session{filteredHistory.length !== 1 ? 's' : ''}
-                {hasActiveFilters ? ' (filtered)' : ''}
+                {/* The label already names a year / date range; "(filtered)" is for location, buy-in or P/L. */}
+                {hasNonDateFilters ? ' (filtered)' : ''}
                 {hasMoreHistory ? ` · ${history.length} loaded` : ''}
               </Text>
             </>
           )}
         </View>
-        <View
-          style={[
-            styles.summaryCard,
-            styles.summaryCardHalf,
-            { backgroundColor: c.card, borderColor: c.border },
-          ]}>
+        <View style={[styles.summaryCard, styles.summaryCardHalf, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Total played</Text>
           {loading ? (
             <SummaryValueSkeleton valueWidth={64} metaWidth={110} />
           ) : (
             <>
-              <Text style={[styles.summaryValue, { color: c.text }]}>
+              <Text style={[styles.summaryValue, narrowSummary && styles.summaryValueNarrow, { color: c.text }]}>
                 {totalHoursPlayed.toFixed(1)}h
               </Text>
               <Text style={[styles.summaryMeta, { color: c.textHint }]}>
-                {hasMoreHistory ? 'Among loaded sessions' : 'Across all sessions'}
+                {hasMoreHistory ? 'Among loaded sessions' : titlePeriod ? `In ${titlePeriod.slice(3)}` : 'Across all sessions'}
               </Text>
             </>
           )}
@@ -443,6 +582,69 @@ export default function HistoryScreen() {
       </View>
 
       {error ? <Text style={[styles.historyMeta, { color: c.loss }]}>{error}</Text> : null}
+
+      {/* Outside the list so it stays put when a search matches nothing. Stacks with the filters. */}
+      {history.length > 0 ? (
+        // Quick filters: search and the year chips sit together; the screen's 24px gap follows the block.
+        <View style={styles.quickFilters}>
+          <SearchInput
+            placeholder="Search place, date or stakes"
+            accessibilityLabel="Search sessions by place, date or stakes"
+            autoCorrect={false}
+            autoComplete="off"
+            value={searchQuery}
+            onChangeText={(t) => {
+              setSearchQuery(t);
+              if (t.trim() && hasMoreHistory) void loadRemainingHistory();
+            }}
+          />
+        {/* Chips on the left; while searching, the result count sits at the right end of the same row. */}
+        {years.length >= 2 || isSearching ? (
+          <View style={styles.periodBar}>
+            {years.length >= 2 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.periodScroll}
+                contentContainerStyle={styles.periodRow}
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Period">
+                {[null, ...years].map((y) => {
+                  const on = y === null ? !hasDateFilter : selectedYear === y;
+                  return (
+                    <PressableScale
+                      key={y ?? 'all'}
+                      pressedScale={0.95}
+                      onPress={() => selectPeriod(y)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on }}
+                      style={[
+                        styles.periodChip,
+                        { backgroundColor: on ? c.accentBg : c.card, borderColor: on ? c.accentBorder : c.border },
+                      ]}>
+                      <Text style={[styles.periodChipText, { color: on ? c.accentText : c.textSecondary }]}>
+                        {y ?? 'All'}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </ScrollView>
+                ) : (
+              <View style={styles.periodScroll} />
+            )}
+            {isSearching ? (
+              <Text
+                style={[styles.resultCount, { color: c.textMuted }]}
+                numberOfLines={1}
+                accessibilityLiveRegion="polite"
+                aria-live="polite">
+                {filteredHistory.length} {filteredHistory.length === 1 ? 'result' : 'results'}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        </View>
+      ) : null}
 
       {loading ? (
         <HistorySkeleton />
@@ -456,72 +658,118 @@ export default function HistoryScreen() {
           />
         ) : (
           <EmptyState
-            icon="filter-alt"
-            title="No matching sessions"
-            message="Try changing or clearing your filters."
+            icon={searchQuery.trim() ? 'search' : 'filter-alt'}
+            title={
+              isSearching && hasMoreHistory
+                ? 'Searching all sessions…'
+                : isSearching
+                  ? `No results for “${searchQuery.trim()}”${titlePeriod ? ` ${titlePeriod}` : ''}`
+                  : 'No matching sessions'
+            }
+            message={
+              isSearching
+                ? hasDateFilter
+                  ? 'Your search is limited to this period.'
+                  : 'Search by venue, day, month, year or stakes.'
+                : 'Try changing or clearing your filters.'
+            }
+            // Search stacks with the period: if one is picked, the likely fix is widening it, not retyping.
+            action={
+              isSearching && hasDateFilter
+                ? { label: selectedYear ? 'Search all years' : 'Search all dates', icon: 'search', onPress: () => selectPeriod(null) }
+                : isSearching
+                  ? { label: 'Clear search', icon: 'close', onPress: () => setSearchQuery('') }
+                  : undefined
+            }
+            secondaryAction={
+              isSearching && hasDateFilter ? { label: 'Clear search', onPress: () => setSearchQuery('') } : undefined
+            }
           />
         )
       ) : (
-        <Motion.FlatList
-          data={sortedHistory}
-          keyExtractor={(item) => item.id}
-          itemLayoutAnimation={layoutTransition}
-          style={styles.list}
-          refreshControl={
-            Platform.OS === 'web' ? undefined : (
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor={c.textMuted}
-                colors={[c.accent]}
-                progressBackgroundColor={c.card}
-              />
-            )
-          }
-          ListHeaderComponent={chartHeader}
-          ListFooterComponent={
-            hasMoreHistory ? (
-              <View style={styles.historyPaginationFooter}>
-                <PressableScale
-                  style={[
-                    styles.loadMoreBtn,
-                    { backgroundColor: c.card, borderColor: c.inputBorder },
-                    loadingMore && styles.loadMoreBtnDisabled,
-                  ]}
-                  onPress={() => void loadMoreHistory()}
-                  disabled={loadingMore}
-                  accessibilityRole="button"
-                  accessibilityLabel="Load more history">
-                  {loadingMore ? (
-                    <ActivityIndicator size="small" color={c.textMuted} />
-                  ) : (
-                    <Text style={[styles.loadMoreBtnLabel, { color: c.text }]}>
-                      Load more ({HISTORY_TAB_PAGE_SIZE} older)
-                    </Text>
-                  )}
-                </PressableScale>
-              </View>
-            ) : history.length > 0 ? (
-              null
-            ) : null
-          }
-          renderItem={({ item, index }) => {
-            const isHost = Boolean(playerProfile && item.hostId === playerProfile.id);
-            const isFirstShow = !shownRowIdsRef.current.has(item.id);
-            shownRowIdsRef.current.add(item.id);
-            return (
-              <HistoryRow
-                item={item}
-                isHost={isHost}
-                isFirst={index === 0}
-                isLast={index === sortedHistory.length - 1}
-                entering={isFirstShow ? listItemEntering(index) : undefined}
-                onOpen={() => router.push(`../session/summary/${item.id}`)}
-                onRemove={isHost ? () => confirmDeleteSession(item.id) : undefined}
-              />
-            );
-          }}
-        />
+        // Edge fades: content scrolling under the top / bottom edge melts into the page instead of a hard cut.
+        <View style={styles.list}>
+          <Motion.FlatList
+            data={sortedHistory}
+            keyExtractor={(item) => item.id}
+            itemLayoutAnimation={layoutTransition}
+            style={styles.list}
+            onScroll={(e) => {
+              scrollYRef.current = e.nativeEvent.contentOffset.y;
+              updateEdges();
+            }}
+            scrollEventThrottle={16}
+            onLayout={(e) => {
+              listHeightRef.current = e.nativeEvent.layout.height;
+              updateEdges();
+            }}
+            onContentSizeChange={(_, h) => {
+              contentHeightRef.current = h;
+              updateEdges();
+            }}
+            refreshControl={
+              Platform.OS === 'web' ? undefined : (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  tintColor={c.textMuted}
+                  colors={[c.accent]}
+                  progressBackgroundColor={c.card}
+                />
+              )
+            }
+            ListHeaderComponent={chartHeader}
+            ListFooterComponent={
+              hasMoreHistory ? (
+                <View style={styles.historyPaginationFooter}>
+                  <PressableScale
+                    style={[
+                      styles.loadMoreBtn,
+                      { backgroundColor: c.card, borderColor: c.inputBorder },
+                      loadingMore && styles.loadMoreBtnDisabled,
+                    ]}
+                    onPress={() => void loadMoreHistory()}
+                    disabled={loadingMore}
+                    accessibilityRole="button"
+                    accessibilityLabel="Load more history">
+                    {loadingMore ? (
+                      <ActivityIndicator size="small" color={c.textMuted} />
+                    ) : (
+                      <View style={styles.loadMoreContent}>
+                        <Icon name="expand-more" size={18} color={c.text} />
+                        <Text style={[styles.loadMoreBtnLabel, { color: c.text }]}>
+                          Load more ({HISTORY_TAB_PAGE_SIZE} older)
+                        </Text>
+                      </View>
+                    )}
+                  </PressableScale>
+                </View>
+              ) : history.length > 0 ? null : null
+            }
+            renderItem={({ item, index }) => {
+              const isHost = Boolean(playerProfile && item.hostId === playerProfile.id);
+              const isFirstShow = !shownRowIdsRef.current.has(item.id);
+              shownRowIdsRef.current.add(item.id);
+              return (
+                <HistoryRow
+                  item={item}
+                  isHost={isHost}
+                  isFirst={index === 0}
+                  isLast={index === sortedHistory.length - 1}
+                  entering={isFirstShow ? listItemEntering(index) : undefined}
+                  onOpen={() => router.push(`../session/summary/${item.id}`)}
+                  onRemove={isHost ? () => confirmDeleteSession(item.id) : undefined}
+                />
+              );
+            }}
+          />
+          {edges.top ? (
+            <LinearGradient colors={[c.bg, `${c.bg}00`]} style={[styles.edgeFade, styles.edgeFadeTop, pointer.none]} />
+          ) : null}
+          {edges.bottom ? (
+            <LinearGradient colors={[`${c.bg}00`, c.bg]} style={[styles.edgeFade, styles.edgeFadeBottom, pointer.none]} />
+          ) : null}
+        </View>
       )}
 
       <HistoryFilterSheet
@@ -545,112 +793,98 @@ export default function HistoryScreen() {
         onClose={() => setShowFilterModal(false)}
       />
 
-      <Modal
+      <ModalShell
         visible={showLocationModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowLocationModal(false)}>
-        <View style={styles.modalRoot}>
-          <ModalBackdrop
-                        onPress={() => {
-              setShowLocationModal(false);
-              setLocationSearch('');
-            }}
+        onClose={() => {
+          setShowLocationModal(false);
+          setLocationSearch('');
+        }}
+        title="Select locations"
+        titleIcon={{ name: 'place', color: c.textMuted }}
+        cancelLabel="Done">
+        <SearchInput
+          placeholder="Search locations"
+          accessibilityLabel="Search locations"
+          autoComplete="off"
+          autoCorrect={false}
+          spellCheck={false}
+          value={locationSearch}
+          onChangeText={setLocationSearch}
+        />
+        <ScrollView style={styles.locationList} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
+          <CheckRow
+            label="All locations"
+            bold
+            checked={allLocationsSelected}
+            onPress={() =>
+              setDraftFilters((prev) => ({
+                ...prev,
+                locations: allLocationsSelected ? [] : null,
+              }))
+            }
           />
-          <View style={styles.modalCenter}>
-            <View style={[styles.locationCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <View style={styles.filterHeaderRow}>
-                <Text style={[styles.filterTitle, { color: c.text }]}>Select locations</Text>
-                <Pressable
-                  onPress={() => {
-                    setShowLocationModal(false);
-                    setLocationSearch('');
-                  }}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close location picker">
-                  <Icon name="close" size={20} color={c.textHint} />
-                </Pressable>
-              </View>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.locationSearchInput,
-                  { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
-                ]}
-                placeholder="Search locations…"
-                accessibilityLabel="Search locations"
-                autoComplete="off"
-                autoCorrect={false}
-                spellCheck={false}
-                placeholderTextColor={c.placeholder}
-                value={locationSearch}
-                onChangeText={setLocationSearch}
+          <View style={[styles.checkDivider, { backgroundColor: c.border }]} />
+          {filteredLocationOptions.map((locationName) => {
+            const selected = allLocationsSelected || Boolean(draftFilters.locations?.includes(locationName));
+            return (
+              <CheckRow
+                key={locationName}
+                label={locationName}
+                checked={selected}
+                onPress={() =>
+                  setDraftFilters((prev) => ({
+                    ...prev,
+                    locations: selected
+                      ? allLocationsSelected
+                        ? locationOptions.filter((v) => v !== locationName)
+                        : (prev.locations ?? []).filter((v) => v !== locationName)
+                      : [...(prev.locations ?? []), locationName],
+                  }))
+                }
               />
-              <ScrollView
-                style={styles.locationList}
-                showsVerticalScrollIndicator
-                keyboardShouldPersistTaps="handled">
-                <Pressable
-                  style={styles.dropdownOption}
-                  role="checkbox"
-                  aria-checked={allLocationsSelected}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: allLocationsSelected }}
-                  onPress={() =>
-                    setDraftFilters((prev) => ({
-                      ...prev,
-                      locations: allLocationsSelected ? [] : null,
-                    }))
-                  }>
-                  <Icon
-                    name={allLocationsSelected ? 'check-box' : 'check-box-outline-blank'}
-                    size={18}
-                    color={allLocationsSelected ? c.accentText : c.textHint}
-                  />
-                  <Text style={[styles.dropdownOptionText, { color: c.text }]}>All locations</Text>
-                </Pressable>
-                {filteredLocationOptions.map((locationName) => {
-                  const selected = allLocationsSelected || Boolean(draftFilters.locations?.includes(locationName));
-                  return (
-                    <Pressable
-                      key={locationName}
-                      style={styles.dropdownOption}
-                      role="checkbox"
-                      aria-checked={selected}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selected }}
-                      onPress={() =>
-                        setDraftFilters((prev) => ({
-                          ...prev,
-                          locations: selected
-                            ? (allLocationsSelected
-                              ? locationOptions.filter((v) => v !== locationName)
-                              : (prev.locations ?? []).filter((v) => v !== locationName))
-                            : [...(prev.locations ?? []), locationName],
-                        }))
-                      }>
-                      <Icon
-                        name={selected ? 'check-box' : 'check-box-outline-blank'}
-                        size={18}
-                        color={selected ? c.accentText : c.textHint}
-                      />
-                      <Text style={[styles.dropdownOptionText, { color: c.text }]}>
-                        {locationName}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-                {filteredLocationOptions.length === 0 ? (
-                  <Text style={[styles.emptyText, { color: c.textHint }]}>No locations found.</Text>
-                ) : null}
-              </ScrollView>
-            </View>
-          </View>
-        </View>
-      </Modal>
+            );
+          })}
+          {filteredLocationOptions.length === 0 ? (
+            <Text style={[styles.emptyText, { color: c.textHint }]}>No locations found.</Text>
+          ) : null}
+        </ScrollView>
+      </ModalShell>
     </View>
+  );
+}
+
+/** Rounded checkbox row: filled accent box with a bold tick when checked, row highlight on hover/press. */
+function CheckRow({
+  label,
+  checked,
+  onPress,
+  bold,
+}: {
+  label: string;
+  checked: boolean;
+  onPress: () => void;
+  bold?: boolean;
+}) {
+  const c = useAppColors();
+  return (
+    <Pressable
+      style={(state) => [styles.dropdownOption, pressBg(c, state)]}
+      role="checkbox"
+      aria-checked={checked}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      onPress={onPress}>
+      <View
+        style={[
+          styles.checkBox,
+          checked ? { backgroundColor: c.accent, borderColor: c.accent } : { borderColor: c.inputBorder },
+        ]}>
+        {checked ? <Icon name="check" size={14} color={c.onAccent} weight="bold" /> : null}
+      </View>
+      <Text style={[styles.dropdownOptionText, bold && styles.checkLabelBold, { color: c.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -668,12 +902,40 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
   const c = useAppColors();
   const swipeRef = useRef<SwipeableMethods>(null);
   const removeLabel = 'Delete session';
-  const blindsText = formatSessionBlindsForDisplay(item.smallBlind, item.bigBlind, item.amountUnit, item.dollarsPerChip);
+  const blindsText = formatSessionBlindsForDisplay(
+    item.smallBlind,
+    item.bigBlind,
+    item.amountUnit,
+    item.dollarsPerChip,
+  );
 
   const remove = () => {
     swipeRef.current?.close();
     onRemove?.();
   };
+  const { isMd: isWide } = useBreakpoint();
+  const profitColor = item.profit >= 0 ? c.profit : c.loss;
+  const titleRow = (
+    <View style={styles.historyTitleRow}>
+      <SessionTitle
+        date={item.date}
+        location={item.location}
+        textStyle={[styles.historyLabel, { color: c.text }]}
+        style={styles.historyTitleShrink}
+      />
+      {isHost ? (
+        <View style={[styles.roleBadge, { backgroundColor: c.badge.host }]}>
+          <Text style={styles.roleBadgeText}>Host</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+  const metaLine = (
+    <MetaLine
+      textStyle={[styles.historyMeta, { color: c.textMuted }]}
+      parts={[formatSessionTime(item.date), formatDuration(getSessionDurationMs(item)), blindsText]}
+    />
+  );
 
   return (
     <Motion.View entering={entering} exiting={fadeOut}>
@@ -719,33 +981,48 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
           onAccessibilityAction={(e) => {
             if (e.nativeEvent.actionName === 'remove') onRemove?.();
           }}>
-          <View style={styles.historyTop}>
-            <View style={styles.historyTitleRow}>
-              <Text style={[styles.historyLabel, { color: c.text }]} numberOfLines={1}>
-                {formatSessionTitle(item.date, item.location)}
+          {isWide ? (
+            // Desktop: identity on the left, then aligned money columns, result last and largest.
+            <View style={styles.historyWideRow}>
+              <View style={styles.historyWideMain}>
+                {titleRow}
+                {metaLine}
+              </View>
+              <MoneyColumn label="Buy-in" icon="money-in" value={formatCurrency(item.totalBuyIn)} />
+              <MoneyColumn label="Cash-out" icon="money-out" value={formatCurrency(item.cashOut)} />
+              <Text style={[styles.historyProfit, styles.historyProfitWide, { color: profitColor }]}>
+                {formatSignedCurrency(item.profit)}
               </Text>
-              {isHost ? (
-                <View style={[styles.roleBadge, { backgroundColor: c.badge.host }]}>
-                  <Text style={styles.roleBadgeText}>Host</Text>
-                </View>
-              ) : null}
             </View>
-            <Text style={[styles.historyProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
-              {formatSignedCurrency(item.profit)}
-            </Text>
-          </View>
-          <Text style={[styles.historyMeta, { color: c.textMuted }]}>
-            {formatSessionTime(item.date)}
-            {blindsText ? ` • ${blindsText}` : ''}
-            {' • '}
-            {formatDuration(getSessionDurationMs(item))}
-          </Text>
-          <Text style={[styles.historyDetail, { color: c.textHint }]}>
-            Buy-in: {formatCurrency(item.totalBuyIn)}  Cash-out: {formatCurrency(item.cashOut)}
-          </Text>
+          ) : (
+            <>
+              <View style={styles.historyTop}>
+                {titleRow}
+                <Text style={[styles.historyProfit, { color: profitColor }]}>{formatSignedCurrency(item.profit)}</Text>
+              </View>
+              {metaLine}
+              <Text style={[styles.historyDetail, { color: c.textHint }]}>
+                Buy-in: {formatCurrency(item.totalBuyIn)} Cash-out: {formatCurrency(item.cashOut)}
+              </Text>
+            </>
+          )}
         </PressableScale>
       </ReanimatedSwipeable>
     </Motion.View>
+  );
+}
+
+/** Small label over a tabular amount, for the desktop history columns. */
+function MoneyColumn({ label, value, icon }: { label: string; value: string; icon: IconName }) {
+  const c = useAppColors();
+  return (
+    <View style={styles.moneyCol}>
+      <View style={styles.moneyLabel}>
+        <Icon name={icon} size={14} color={c.textHint} />
+        <Text style={[text.label, { color: c.textHint }]}>{label}</Text>
+      </View>
+      <Text style={[text.amount, { color: c.text }]}>{value}</Text>
+    </View>
   );
 }
 
@@ -772,10 +1049,7 @@ function HistorySkeleton() {
   return (
     <SkeletonGroup label="Loading history" style={styles.list}>
       <View
-        style={[
-          styles.chartCard,
-          { backgroundColor: c.card, borderColor: c.border, marginBottom: layout.sectionGap },
-        ]}>
+        style={[styles.chartCard, { backgroundColor: c.card, borderColor: c.border, marginBottom: layout.sectionGap }]}>
         <View style={styles.skeletonChartTitleRow}>
           <Skeleton width={120} height={12} />
           <Skeleton width={104} height={34} radius={17} />
@@ -810,6 +1084,11 @@ function HistorySkeleton() {
 const SKELETON_PLOT_HEIGHT = 186;
 
 const styles = StyleSheet.create({
+  pageTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
   skeletonValue: {
     marginVertical: 3,
   },
@@ -913,6 +1192,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginHorizontal: 4,
   },
+  sortOptionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   sortOptionText: {
     ...text.rowTitle,
     fontWeight: '500',
@@ -934,7 +1218,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     paddingTop: 4,
-    paddingBottom: 8,
+    paddingBottom: 16,
     paddingHorizontal: 12,
   },
   summaryRow: {
@@ -955,12 +1239,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
+  summaryValueNarrow: {
+    fontSize: 20,
+    lineHeight: 26,
+  },
   summaryMeta: {
     ...text.caption,
     textAlign: 'center',
   },
   list: {
     flex: 1,
+  },
+  edgeFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 28,
+  },
+  edgeFadeTop: {
+    top: 0,
+  },
+  edgeFadeBottom: {
+    bottom: 0,
   },
   historyPaginationFooter: {
     paddingVertical: 16,
@@ -979,6 +1279,41 @@ const styles = StyleSheet.create({
   },
   loadMoreBtnDisabled: {
     opacity: 0.7,
+  },
+  periodBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  resultCount: {
+    ...text.caption,
+    flexShrink: 0,
+  },
+  quickFilters: {
+    gap: 10,
+  },
+  periodScroll: {
+    flex: 1,
+  },
+  periodRow: {
+    gap: 8,
+  },
+  periodChip: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  periodChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  loadMoreContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   loadMoreBtnLabel: text.button,
   historyCard: {
@@ -999,6 +1334,32 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 14,
     borderBottomRightRadius: 14,
   },
+  historyWideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
+    paddingVertical: 4,
+  },
+  historyWideMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  moneyLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  moneyCol: {
+    width: 110,
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  historyProfitWide: {
+    width: 120,
+    textAlign: 'right',
+    fontSize: 18,
+  },
   historyTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1011,6 +1372,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     minWidth: 0,
+  },
+  historyTitleShrink: {
+    flexShrink: 1,
   },
   historyLabel: {
     ...text.rowTitle,
@@ -1032,60 +1396,42 @@ const styles = StyleSheet.create({
     ...text.rowMeta,
     fontVariant: ['tabular-nums'],
   },
-  modalRoot: {
-    flex: 1,
-  },
-  modalCenter: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  filterHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  filterTitle: text.modalTitle,
   dropdownOption: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     minHeight: 44,
     paddingHorizontal: 12,
+    borderRadius: 10,
   },
   dropdownOptionText: {
     ...text.rowTitle,
     fontWeight: '400',
+    flex: 1,
   },
-  locationCard: {
-    width: '100%',
-    maxWidth: 480,
-    maxHeight: '70%',
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 20,
-    gap: 12,
+  checkLabelBold: {
+    fontWeight: '600',
+  },
+  checkBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 4,
+    marginHorizontal: 12,
   },
   locationList: {
-    maxHeight: 220,
-  },
-  locationSearchInput: {
-    flex: 0,
+    maxHeight: 320,
+    marginHorizontal: -8,
   },
   emptyText: {
     ...text.caption,
     textAlign: 'center',
     paddingVertical: 14,
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 9,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: text.body.fontSize,
   },
 });

@@ -1,6 +1,5 @@
-import { text } from '@/lib/ui';
+import { ModalShell } from '@/components/session/modal-shell';
 import { PlayerAvatar } from '@/components/player-avatar';
-import { ModalBackdrop } from '@/components/modal-backdrop';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -15,6 +14,8 @@ import {
 } from '@/lib/firestore';
 import type { FriendRecord, FriendRequestRecord, PlayerProfile } from '@/types';
 import { Icon } from '@/components/icon';
+import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
+import { isShareCancel, shareViewAsImage } from '@/lib/share-image';
 import { ScaleFadeIn } from '@/components/celebration';
 import { Animated, PressableScale, fadeIn } from '@/components/motion';
 import { ReduceMotion, ZoomIn } from 'react-native-reanimated';
@@ -22,18 +23,20 @@ import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera'
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import ViewShot, { captureRef, type ViewShotRef } from 'react-native-view-shot';
 import { userMessage } from '@/lib/user-message';
 
 type Tab = 'my' | 'scan';
 
+const QR_TABS: readonly SegmentedTab<Tab>[] = [
+  { key: 'my', label: 'My code', icon: 'qr-code' },
+  { key: 'scan', label: 'Scan code', icon: 'qr-code-scanner' },
+];
+
 const iconSwapEntering = ZoomIn.duration(180).reduceMotion(ReduceMotion.System);
 
-const CAN_SHARE_QR_IMAGE = Platform.OS !== 'web';
 
 export default function QrCodeScreen() {
   const c = useAppColors();
@@ -51,7 +54,7 @@ export default function QrCodeScreen() {
   const [pickingGalleryImage, setPickingGalleryImage] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const scanLock = useRef(false);
-  const shareCardRef = useRef<ViewShotRef | null>(null);
+  const shareCardRef = useRef<View>(null);
   const lastDismissedRef = useRef<{ code: string; at: number } | null>(null);
   const friendsRef = useRef<FriendRecord[]>([]);
   const incomingRef = useRef<FriendRequestRecord[]>([]);
@@ -63,7 +66,7 @@ export default function QrCodeScreen() {
   const refCode = playerProfile?.refCode ?? backfilledCode ?? '';
   const needsCodeBackfill = !!playerProfile?.id && !playerProfile?.refCode;
   const [codeStatus, setCodeStatus] = useState<'idle' | 'loading' | 'error'>(() =>
-    needsCodeBackfill ? 'loading' : 'idle'
+    needsCodeBackfill ? 'loading' : 'idle',
   );
   const codeRequestKey = `${playerProfile?.id}|${playerProfile?.refCode}|${codeAttempt}`;
   const [prevCodeRequestKey, setPrevCodeRequestKey] = useState(codeRequestKey);
@@ -92,22 +95,20 @@ export default function QrCodeScreen() {
 
   useEffect(() => {
     if (!user) return;
-    return subscribeFriends(user.uid, setFriends, (e) =>
-      console.error('Friends subscription error:', e)
-    );
+    return subscribeFriends(user.uid, setFriends, (e) => console.error('Friends subscription error:', e));
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
     return subscribeIncomingFriendRequests(user.uid, setIncomingRequests, (e) =>
-      console.error('Incoming friend requests error:', e)
+      console.error('Incoming friend requests error:', e),
     );
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
     return subscribeOutgoingFriendRequests(user.uid, setOutgoingRequests, (e) =>
-      console.error('Outgoing friend requests error:', e)
+      console.error('Outgoing friend requests error:', e),
     );
   }, [user]);
 
@@ -134,31 +135,24 @@ export default function QrCodeScreen() {
   }
 
   async function handleShareQrImage() {
-    if (!CAN_SHARE_QR_IMAGE || !refCode || sharingQr) return;
+    if (!refCode || sharingQr) return;
     setSharingQr(true);
     try {
+      // Native: let the copy button (hidden while sharing) leave the card before it is captured.
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       });
-      const uri = await captureRef(shareCardRef, {
-        format: 'png',
-        quality: 0.95,
-      });
-      const available = await Sharing.isAvailableAsync();
-      if (!available) {
-        appAlert('Sharing unavailable', 'Sharing is not available on this device.');
-        return;
-      }
-      await Sharing.shareAsync(uri, {
-        mimeType: 'image/png',
-        dialogTitle: 'Share your Nonsense code',
+      await shareViewAsImage(shareCardRef, {
+        fileName: `nonsense-code-${refCode.toLowerCase()}.png`,
+        title: 'Share your Nonsense code',
       });
     } catch (e) {
-      appAlert('Error', userMessage(e, 'Could not share QR image.'));
+      if (!isShareCancel(e)) appAlert('Share failed', userMessage(e, 'Could not share QR image.'));
     } finally {
       setSharingQr(false);
     }
   }
+
 
   const ensureCamera = useCallback(async () => {
     if (permission?.granted) return true;
@@ -227,10 +221,7 @@ export default function QrCodeScreen() {
     scanLock.current = true;
     const code = data.trim().toUpperCase();
 
-    if (
-      lastDismissedRef.current?.code === code &&
-      Date.now() - lastDismissedRef.current.at < 2500
-    ) {
+    if (lastDismissedRef.current?.code === code && Date.now() - lastDismissedRef.current.at < 2500) {
       scanLock.current = false;
       return;
     }
@@ -340,23 +331,15 @@ export default function QrCodeScreen() {
     <View style={[styles.screen, { backgroundColor: c.bg }]}>
       <Stack.Screen options={{ title: 'QR code', headerBackTitle: 'Back' }} />
 
-      <View style={[styles.tabsRow, { backgroundColor: c.inputBg }]} accessibilityRole="tablist">
-        <Pressable
-          accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === 'my' }}
-          accessibilityLabel="My code"
-          style={[styles.tabBtn, activeTab === 'my' && { backgroundColor: c.card }]}
-          onPress={() => setActiveTab('my')}>
-          <Text style={[styles.tabText, { color: activeTab === 'my' ? c.text : c.textMuted }]}>
-            MY CODE
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === 'scan' }}
-          accessibilityLabel="Scan code"
-          style={[styles.tabBtn, activeTab === 'scan' && { backgroundColor: c.card }]}
-          onPress={async () => {
+      <View style={styles.tabsWrap}>
+        <SegmentedTabs
+          tabs={QR_TABS}
+          value={activeTab}
+          onChange={async (tab) => {
+            if (tab === 'my') {
+              setActiveTab('my');
+              return;
+            }
             const ok = await ensureCamera();
             if (!ok) {
               appAlert('Permission needed', 'Camera access is required to scan QR codes.');
@@ -364,100 +347,92 @@ export default function QrCodeScreen() {
             }
             scanLock.current = false;
             setActiveTab('scan');
-          }}>
-          <Text style={[styles.tabText, { color: activeTab === 'scan' ? c.text : c.textMuted }]}>
-            SCAN CODE
-          </Text>
-        </Pressable>
+          }}
+        />
       </View>
 
       {activeTab === 'my' ? (
         <Animated.View key="my" entering={fadeIn} style={styles.myRoot}>
           <ScaleFadeIn fromScale={0.96}>
-          <ViewShot
-            ref={shareCardRef}
-            options={{ format: 'png', quality: 0.95 }}
-            style={styles.shareShot}>
-            <View style={[styles.shareExportCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <View style={[styles.nameRow, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-                <View style={[styles.avatarCircle, { backgroundColor: c.avatarBg }]}>
-                  <PlayerAvatar value={playerProfile?.avatarEmoji} size={38} />
-                </View>
-                <View style={styles.nameText}>
-                  <Text style={[styles.name, { color: c.text }]}>{playerProfile?.name ?? 'Guest'}</Text>
-                  <Text style={[styles.sub, { color: c.textMuted }]}>Nonsense player</Text>
-                </View>
-              </View>
-
-              <View style={styles.qrCardExport}>
-                {refCode ? (
-                  <View style={[styles.qrInner, { backgroundColor: c.qrBg }]}>
-                    <QRCode value={refCode} size={210} backgroundColor={c.qrBg} color={c.qrFg} />
+            <View ref={shareCardRef} collapsable={false} style={styles.shareShot}>
+              <View style={[styles.shareExportCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                <View style={[styles.nameRow, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
+                  <View style={[styles.avatarCircle, { backgroundColor: c.avatarBg }]}>
+                    <PlayerAvatar value={playerProfile?.avatarEmoji} size={38} />
                   </View>
-                ) : (
-                  <View style={styles.qrPlaceholderBox}>
-                    {!playerProfile ? (
-                      <>
-                        <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>
-                          Set your display name to generate a referral code.
-                        </Text>
-                        <Pressable
-                          onPress={() => router.push('/name')}
-                          accessibilityRole="button"
-                          style={[styles.qrRetry, { borderColor: c.inputBorder }]}>
-                          <Text style={[styles.qrRetryLabel, { color: c.text }]}>Set display name</Text>
-                        </Pressable>
-                      </>
-                    ) : codeStatus === 'error' ? (
-                      <>
-                        <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>
-                          Couldn&apos;t create your code.
-                        </Text>
-                        <Pressable
-                          onPress={() => setCodeAttempt((n) => n + 1)}
-                          accessibilityRole="button"
-                          style={[styles.qrRetry, { borderColor: c.inputBorder }]}>
-                          <Text style={[styles.qrRetryLabel, { color: c.text }]}>Try again</Text>
-                        </Pressable>
-                      </>
-                    ) : (
-                      <>
-                        <ActivityIndicator color={c.textMuted} />
-                        <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>Creating your code…</Text>
-                      </>
-                    )}
+                  <View style={styles.nameText}>
+                    <Text style={[styles.name, { color: c.text }]}>{playerProfile?.name ?? 'Guest'}</Text>
                   </View>
-                )}
+                </View>
 
-                <Text style={[styles.code, styles.codeExport, { color: c.text }]}>
-                  {refCode || '------'}
-                </Text>
-                <Text style={[styles.shareCardFooter, { color: c.textHint }]}>
-                  Scan in Nonsense to send a friend request
-                </Text>
+                <View style={styles.qrCardExport}>
+                  {refCode ? (
+                    <View style={[styles.qrInner, { backgroundColor: c.qrBg }]}>
+                      <QRCode value={refCode} size={210} backgroundColor={c.qrBg} color={c.qrFg} />
+                    </View>
+                  ) : (
+                    <View style={styles.qrPlaceholderBox}>
+                      {!playerProfile ? (
+                        <>
+                          <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>
+                            Set your display name to generate a referral code.
+                          </Text>
+                          <Pressable
+                            onPress={() => router.push('/name')}
+                            accessibilityRole="button"
+                            style={[styles.qrRetry, { borderColor: c.inputBorder }]}>
+                            <Text style={[styles.qrRetryLabel, { color: c.text }]}>Set display name</Text>
+                          </Pressable>
+                        </>
+                      ) : codeStatus === 'error' ? (
+                        <>
+                          <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>
+                            Couldn&apos;t create your code.
+                          </Text>
+                          <Pressable
+                            onPress={() => setCodeAttempt((n) => n + 1)}
+                            accessibilityRole="button"
+                            style={[styles.qrRetry, { borderColor: c.inputBorder }]}>
+                            <Text style={[styles.qrRetryLabel, { color: c.text }]}>Try again</Text>
+                          </Pressable>
+                        </>
+                      ) : (
+                        <>
+                          <ActivityIndicator color={c.textMuted} />
+                          <Text style={[styles.qrPlaceholder, { color: c.textMuted }]}>Creating your code…</Text>
+                        </>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Copy sits beside the code it copies. Kept out of the share image: web skips it via
+                      html2canvas's ignore attribute; native (view-shot) hides it for the capture frame. */}
+                  <View style={styles.codeRow}>
+                    <Text style={[styles.code, styles.codeExport, { color: c.text }]}>{refCode || '------'}</Text>
+                    {refCode && !(sharingQr && Platform.OS !== 'web') ? (
+                      <PressableScale
+                        {...({ dataSet: { html2canvasIgnore: 'true' } } as object)}
+                        pressedScale={0.92}
+                        style={[styles.copyBtn, { borderColor: c.inputBorder, backgroundColor: c.card }]}
+                        onPress={copyRefCode}
+                        accessibilityRole="button"
+                        accessibilityLabel={copied ? 'Referral code copied' : 'Copy referral code'}>
+                        <Animated.View key={copied ? 'check' : 'copy'} entering={iconSwapEntering}>
+                          <Icon name={copied ? 'check' : 'content-copy'} size={18} color={copied ? c.profit : c.text} />
+                        </Animated.View>
+                      </PressableScale>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.shareCardFooter, { color: c.textHint }]}>
+                    Scan in Nonsense to send a friend request
+                  </Text>
+                </View>
               </View>
             </View>
-          </ViewShot>
           </ScaleFadeIn>
 
           <View style={styles.shareToolbar}>
             <PressableScale
-              pressedScale={0.92}
-              style={[styles.toolbarBtn, { borderColor: c.border, backgroundColor: c.cardAlt }]}
-              onPress={copyRefCode}
-              disabled={!refCode}
-              accessibilityRole="button"
-              accessibilityLabel={copied ? 'Referral code copied' : 'Copy referral code'}>
-              <Animated.View key={copied ? 'check' : 'copy'} entering={iconSwapEntering}>
-                <Icon
-                  name={copied ? 'check' : 'content-copy'}
-                  size={20}
-                  color={copied ? c.profit : c.textMuted}
-                />
-              </Animated.View>
-            </PressableScale>
-            {CAN_SHARE_QR_IMAGE && (
-              <PressableScale
                 style={[
                   styles.toolbarBtnPrimary,
                   { backgroundColor: c.accent, borderColor: c.accentBorder },
@@ -467,17 +442,17 @@ export default function QrCodeScreen() {
                 disabled={!refCode || sharingQr}
                 accessibilityRole="button"
                 accessibilityLabel="Share QR code as image">
-                <Icon name="share" size={20} color={c.onAccent} />
+                {sharingQr ? (
+                  <ActivityIndicator size="small" color={c.onAccent} />
+                ) : (
+                  <Icon name="share" size={20} color={c.onAccent} />
+                )}
                 <Text style={[styles.toolbarBtnPrimaryLabel, { color: c.onAccent }]}>
                   {sharingQr ? 'Sharing…' : 'Share'}
                 </Text>
               </PressableScale>
-            )}
           </View>
 
-          <Text style={[styles.note, { color: c.textHint }]}>
-            Your QR code is private. If someone scans it, they can send you a friend request.
-          </Text>
         </Animated.View>
       ) : (
         <Animated.View key="scan" entering={fadeIn} style={styles.scanRoot}>
@@ -517,67 +492,36 @@ export default function QrCodeScreen() {
               </Text>
             </Pressable>
           )}
-          <Text style={[styles.scanHint, { color: c.textMuted }]}>
-            Scan a friend&apos;s QR code to send them a friend request.
-            {Platform.OS !== 'web' ? ' Or pick a saved photo of their code.' : ''}
-          </Text>
         </Animated.View>
       )}
 
-      <Modal
+      <ModalShell
         visible={pendingFriend != null}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={dismissAddFriendModal}>
-        <View style={styles.modalRoot}>
-          <ModalBackdrop
-                        onPress={dismissAddFriendModal}
-          />
-          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
-            <View style={[styles.confirmCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={[styles.confirmTitle, { color: c.text }]}>Send friend request?</Text>
-              <Text style={[styles.confirmSub, { color: c.textMuted }]}>
-                {pendingFriend ? `${pendingFriend.name} will get a request to connect.` : ''}
-              </Text>
-
-              {pendingFriend && (
-                <View style={styles.friendPreview}>
-                  <View style={[styles.previewAvatarCircle, { backgroundColor: c.avatarBg }]}>
-                    <Text style={[styles.previewAvatarEmoji, { color: c.text }]}>
-                      {pendingFriend.avatarEmoji ?? '🙂'}
-                    </Text>
-                  </View>
-                  <Text style={[styles.previewName, { color: c.text }]}>{pendingFriend.name}</Text>
-                </View>
-              )}
-
-              <View style={styles.confirmActions}>
-                <Pressable
-                  style={[styles.cancelBtn, { borderColor: c.border }]}
-                  onPress={dismissAddFriendModal}
-                  disabled={addingFriend}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: addingFriend }}>
-                  <Text style={[styles.cancelLabel, { color: c.textHint }]}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.confirmBtn,
-                    { backgroundColor: c.accent, borderColor: c.accentBorder },
-                    (addingFriend || !pendingFriend) && styles.disabled,
-                  ]}
-                  onPress={confirmAddFriend}
-                  disabled={addingFriend || !pendingFriend}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: addingFriend || !pendingFriend, busy: addingFriend }}>
-                  <Text style={[styles.confirmLabel, { color: c.onAccent }]}>{addingFriend ? 'Sending…' : 'Send request'}</Text>
-                </Pressable>
-              </View>
+        onClose={() => {
+          if (!addingFriend) dismissAddFriendModal();
+        }}
+        title="Send friend request?"
+        titleIcon={{ name: 'person-add', color: c.textMuted }}
+        avoidKeyboard={false}
+        primary={{
+          label: 'Send request',
+          onPress: confirmAddFriend,
+          busy: addingFriend,
+          disabled: !pendingFriend,
+          icon: 'person-add',
+        }}>
+        <Text style={[styles.confirmSub, { color: c.textMuted }]}>
+          {pendingFriend ? `${pendingFriend.name} will get a request to connect.` : ''}
+        </Text>
+        {pendingFriend && (
+          <View style={styles.friendPreview}>
+            <View style={[styles.previewAvatarCircle, { backgroundColor: c.avatarBg }]}>
+              <PlayerAvatar value={pendingFriend.avatarEmoji} size={44} />
             </View>
+            <Text style={[styles.previewName, { color: c.text }]}>{pendingFriend.name}</Text>
           </View>
-        </View>
-      </Modal>
+        )}
+      </ModalShell>
     </View>
   );
 }
@@ -587,25 +531,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 10,
   },
-  tabsRow: {
-    flexDirection: 'row',
+  tabsWrap: {
     marginHorizontal: 16,
     marginTop: 8,
-    padding: 3,
-    gap: 2,
-    borderRadius: 9,
-  },
-  tabBtn: {
-    flex: 1,
-    minHeight: 38,
-    borderRadius: 8,
-    borderBottomWidth: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
   },
   myRoot: {
     flex: 1,
@@ -644,10 +572,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  toolbarBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 999,
+  codeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  copyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -725,13 +658,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 6,
   },
-  note: {
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-    paddingHorizontal: 10,
-    marginTop: 2,
-  },
   scanRoot: {
     flex: 1,
     paddingHorizontal: 16,
@@ -757,11 +683,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: 'transparent',
   },
-  scanHint: {
-    textAlign: 'center',
-    fontSize: 12,
-    paddingBottom: 40,
-  },
   scanGalleryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -777,24 +698,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  modalRoot: {
-    flex: 1,
-  },
-  modalCenter: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  confirmCard: {
-    width: '100%',
-    maxWidth: 480,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 20,
-    gap: 12,
-  },
-  confirmTitle: text.modalTitle,
   confirmSub: {
     fontSize: 13,
     lineHeight: 18,
@@ -815,45 +718,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  previewAvatarEmoji: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
   previewName: {
     fontSize: 15,
     lineHeight: 20,
     fontWeight: '600',
-  },
-  confirmActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  cancelBtn: {
-    flex: 1,
-    borderWidth: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  cancelLabel: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  confirmBtn: {
-    flex: 1,
-    borderWidth: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  confirmLabel: {
-    fontWeight: '600',
-    fontSize: 15,
   },
   disabled: {
     opacity: 0.5,
