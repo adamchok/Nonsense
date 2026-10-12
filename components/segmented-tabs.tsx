@@ -77,8 +77,7 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
     <View style={[styles.track, { backgroundColor: c.inputBg, borderColor: c.border }]} accessibilityRole={isRadio ? 'radiogroup' : 'tablist'}>
       {selectedLayout ? (
         <Animated.View
-          pointerEvents="none"
-          style={[styles.indicator, { backgroundColor: c.accentBg, top: selectedLayout.y, height: selectedLayout.height }, indicatorStyle]}
+          style={[styles.indicator, { backgroundColor: c.accentBg, top: selectedLayout.y, height: selectedLayout.height }, indicatorStyle, { pointerEvents: 'none' }]}
         />
       ) : null}
       {tabs.map((tab, index) => {

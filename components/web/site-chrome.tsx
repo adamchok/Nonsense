@@ -87,7 +87,7 @@ export function SiteNav({
           aria-label="Nonsense home"
           {...({ dataSet: { plainLink: 'true' } } as object)}
           style={StyleSheet.flatten([styles.brand, styles.brandLink])}>
-          <Image source={logo} style={styles.brandLogo} accessibilityIgnoresInvertColors />
+          <Image source={logo} style={styles.brandLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
           <Text style={[styles.navWordmark, { color: c.text }]}>Nonsense</Text>
         </Pressable>
       </Link>
@@ -162,7 +162,7 @@ export function SiteFooter({
         <View style={[styles.footerTop, isWide && styles.footerTopWide]}>
           <View style={styles.footerBrand}>
             <View style={styles.footerBrandRow}>
-              <Image source={logo} style={styles.footerLogo} accessibilityIgnoresInvertColors />
+              <Image source={logo} style={styles.footerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
               <Text style={[styles.footerWordmark, { color: c.text }]}>Nonsense</Text>
             </View>
             <Text style={[styles.footerTagline, { color: c.textMuted }]}>
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   brandLink: { borderRadius: radius.sm, paddingHorizontal: 4, marginHorizontal: -4 },
-  brandLogo: { width: 40, height: 40, resizeMode: 'contain' },
+  brandLogo: { width: 40, height: 40 },
   navWordmark: { fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4 },
   navActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: {
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   footerTopWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   footerBrand: { gap: space.md, maxWidth: 340, alignItems: 'flex-start' },
   footerBrandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  footerLogo: { width: 36, height: 36, resizeMode: 'contain' },
+  footerLogo: { width: 36, height: 36 },
   footerWordmark: { fontSize: 20, lineHeight: 26, fontWeight: '800', letterSpacing: -0.4 },
   footerTagline: { fontSize: 15, lineHeight: 22 },
   footerCta: {

@@ -152,14 +152,12 @@ export function ModalShell({
           accessibilityElementsHidden
         />
         <View
-          pointerEvents="box-none"
-          style={[styles.centerWrap, isSheet ? styles.sheetWrap : { paddingHorizontal: gutterFor(width) }]}>
+          style={[styles.centerWrap, isSheet ? styles.sheetWrap : { paddingHorizontal: gutterFor(width) }, { pointerEvents: 'box-none' }]}>
           {avoidKeyboard ? (
             <KeyboardAvoidingView
-              pointerEvents="box-none"
               behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' && !isSheet ? 64 : 0}
-              style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet]}>
+              style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet, { pointerEvents: 'box-none' }]}>
               {card}
             </KeyboardAvoidingView>
           ) : (

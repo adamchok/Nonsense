@@ -208,7 +208,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
             <ModalBackdrop />
           )}
           {isSheet ? (
-            <View pointerEvents="box-none" style={styles.sheetFrame}>
+            <View style={[styles.sheetFrame, { pointerEvents: 'box-none' }]}>
               <View
                 accessibilityViewIsModal
                 style={[
@@ -246,7 +246,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
               </View>
             </View>
           ) : (
-          <View pointerEvents="box-none" style={styles.center}>
+          <View style={[styles.center, { pointerEvents: 'box-none' }]}>
             <View
               accessibilityViewIsModal
               style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>

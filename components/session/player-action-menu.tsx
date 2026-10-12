@@ -176,11 +176,7 @@ const styles = StyleSheet.create({
   popover: {
     width: MENU_WIDTH,
     borderRadius: radius.md,
-    shadowColor: '#05070a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    elevation: 8,
+    boxShadow: '0 8px 24px rgba(5, 7, 10, 0.35)',
   },
   grabber: {
     alignSelf: 'center',

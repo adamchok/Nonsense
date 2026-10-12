@@ -18,6 +18,7 @@ const SECTIONS = 4;
 const HEADER_HEIGHT = 52;
 const MAX_BAR_WIDTH = 22;
 const MARKER_SIZE = 14;
+const DOT_SIZE = 6;
 const LINE_INITIAL_SPACING = 6;
 const PLOT_TOP_PAD = 10;
 const SCRUB_ACTIVATE_X = 8;
@@ -396,6 +397,17 @@ export const PLChart = memo(function PLChart({
             )}
             hideDataPoints={data.length > 12}
             dataPointsRadius={3}
+            // Web: the library's SVG <circle> dots carry press handlers that react-native-svg forwards to the DOM
+            // (React "unknown event handler" errors). Plain view dots avoid that; the plot's own gesture handles taps.
+            {...(IS_WEB
+              ? {
+                  customDataPoint: (item: { dataPointColor?: string }) => (
+                    <View style={[styles.dot, { backgroundColor: item.dataPointColor }]} />
+                  ),
+                  dataPointsWidth: DOT_SIZE,
+                  dataPointsHeight: DOT_SIZE,
+                }
+              : {})}
           />
         ) : (
           <BarChart
@@ -411,7 +423,6 @@ export const PLChart = memo(function PLChart({
         )}
         {mode === 'line' && selected && plotWidth > 0 ? (
           <View
-            pointerEvents="none"
             style={[
               styles.marker,
               {
@@ -419,8 +430,7 @@ export const PLChart = memo(function PLChart({
                 backgroundColor: c.card,
                 left: lineX(active) - MARKER_SIZE / 2,
                 top: lineY(selected.value) - MARKER_SIZE / 2,
-              },
-            ]}
+              }, { pointerEvents: 'none' }]}
           />
         ) : null}
       </View>
@@ -471,6 +481,7 @@ const styles = StyleSheet.create({
   toggleText: { fontSize: 12, fontWeight: '600' },
   plot: { marginTop: 12 },
   axisText: { fontSize: 12, fontVariant: ['tabular-nums'] },
+  dot: { width: DOT_SIZE, height: DOT_SIZE, borderRadius: DOT_SIZE / 2 },
   marker: {
     width: MARKER_SIZE,
     height: MARKER_SIZE,

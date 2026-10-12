@@ -19,7 +19,7 @@ export function SearchInput({ value, onChangeText, ...inputProps }: Props) {
         placeholderTextColor={c.placeholder}
         style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
       />
-      <View style={styles.leading} pointerEvents="none">
+      <View style={[styles.leading, { pointerEvents: 'none' }]}>
         <Icon name="search" size={18} color={c.textMuted} importantForAccessibility="no" />
       </View>
       {value ? (

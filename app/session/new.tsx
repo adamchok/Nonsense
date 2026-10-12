@@ -639,7 +639,7 @@ export default function NewSessionScreen() {
                         importantForAccessibility="no"
             onPress={() => setShowGroupPicker(false)}
           />
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
             <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.pickerTitle, { color: c.text }]} accessibilityRole="header">
                 Select Group
@@ -679,7 +679,7 @@ export default function NewSessionScreen() {
                         importantForAccessibility="no"
             onPress={() => setShowLocationPicker(false)}
           />
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
             <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.pickerTitle, { color: c.text }]} accessibilityRole="header">
                 Select Location

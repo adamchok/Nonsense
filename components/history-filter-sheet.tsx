@@ -65,8 +65,7 @@ export function HistoryFilterSheet({
           tabIndex={-1}
         />
         <KeyboardAvoidingView
-          pointerEvents="box-none"
-          style={[styles.frame, isSheet ? styles.frameSheet : styles.frameCenter]}
+          style={[styles.frame, isSheet ? styles.frameSheet : styles.frameCenter, { pointerEvents: 'box-none' }]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View
             accessibilityViewIsModal

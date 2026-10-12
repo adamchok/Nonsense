@@ -109,11 +109,11 @@ export default function WelcomeScreen() {
                 accessibilityLabel="Nonsense home"
                 {...({ dataSet: { plainLink: 'true' } } as object)}
                 style={styles.logoLink}>
-                <Animated.Image source={logoSource} style={styles.logo} accessible={false} />
+                <Animated.Image source={logoSource} style={styles.logo} resizeMode="contain" accessible={false} />
               </Pressable>
             </Link>
           ) : (
-            <Animated.Image source={logoSource} style={styles.logo} accessibilityLabel="Nonsense" />
+            <Animated.Image source={logoSource} style={styles.logo} resizeMode="contain" accessibilityLabel="Nonsense" />
           )}
           <View style={styles.header}>
             <Text style={[text.modalTitle, styles.center, { color: c.text }]} accessibilityRole="header">
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   stack: { gap: 20 },
-  logo: { width: 120, height: 120, resizeMode: 'contain', alignSelf: 'center' },
+  logo: { width: 120, height: 120, alignSelf: 'center' },
   logoLink: { alignSelf: 'center', borderRadius: radius.lg },
   backButton: {
     position: 'absolute',

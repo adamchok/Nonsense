@@ -39,7 +39,7 @@ function UndoCountdown({ color, isPaused }: { color: string; isPaused: boolean }
   }, [remaining, isPaused]);
   const style = useAnimatedStyle(() => ({ transform: [{ scaleX: remaining.value }] }));
   return (
-    <View style={styles.track} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+    <View style={[styles.track, { pointerEvents: 'none' }]} importantForAccessibility="no-hide-descendants">
       <Animated.View style={[styles.progress, { backgroundColor: color }, style]} />
     </View>
   );
@@ -111,11 +111,7 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 4,
     paddingVertical: 4,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
   },
   message: {
     flex: 1,
