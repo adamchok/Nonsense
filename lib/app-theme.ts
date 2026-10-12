@@ -89,14 +89,14 @@ const dark: AppColors = {
   borderBlue: '#3b82f6',
   borderAmber: '#78640d',
 
-  text: '#fff',
+  text: '#f8fafc',
   textSecondary: '#e2e8f0',
   textMuted: '#94a3b8',
   textHint: '#919fb4',
   placeholder: '#7a8393',
 
   accent: '#e0b24a',
-  accentText: '#f5c451',
+  accentText: '#e0b24a',
   accentBg: '#2e2612',
   accentBorder: '#6b5520',
   accentBgDashed: '#2e2612',
@@ -111,14 +111,14 @@ const dark: AppColors = {
   blueBg: '#1e3a5f',
   blueBorder: '#1e3a5f',
 
-  yellow: '#c7a306',
-  yellowBg: '#473504',
-  yellowBorder: '#473504',
+  yellow: '#e0b24a',
+  yellowBg: '#2e2612',
+  yellowBorder: '#6b5520',
 
   green: '#279c68',
 
   badge: {
-    host: '#7a5d16',
+    host: '#6b5520',
     you: '#3961e3',
     cashedOut: '#475569',
     live: '#1f7a4d',
@@ -140,9 +140,9 @@ const dark: AppColors = {
 
   overlay: 'rgba(0,0,0,0.65)',
 
-  switchTrackOff: '#2f3542',
-  switchTrackOn: '#b8892c',
-  switchThumb: '#fff',
+  switchTrackOff: '#64748b',
+  switchTrackOn: '#e0b24a',
+  switchThumb: '#f8fafc',
 
   chipMinusBg: '#3b1c1c',
   chipPlusBg: '#11352a',
@@ -160,7 +160,7 @@ const light: AppColors = {
   cardAlt: '#f8fafc',
   inputBg: '#f8fafc',
   border: '#e2e8f0',
-  inputBorder: '#8391a7',
+  inputBorder: '#7b889c',
   borderAccent: '#b7791f',
   borderDanger: '#cbd5e1',
   borderBlue: '#3b82f6',
@@ -180,17 +180,17 @@ const light: AppColors = {
   onAccent: '#241a04',
 
   profit: '#047857',
-  loss: '#dc2626',
-  lossLight: '#dc2626',
+  loss: '#b91c1c',
+  lossLight: '#b91c1c',
   warning: '#b45309',
 
   blue: '#2563eb',
   blueBg: '#dbeafe',
   blueBorder: '#93c5fd',
 
-  yellow: '#d97706',
-  yellowBg: '#fef3c7',
-  yellowBorder: '#fef3c7',
+  yellow: '#b7791f',
+  yellowBg: '#fdf3dc',
+  yellowBorder: '#e9c77a',
 
   green: '#279c68',
 
@@ -217,7 +217,7 @@ const light: AppColors = {
 
   overlay: 'rgba(15,23,42,0.45)',
 
-  switchTrackOff: '#cbd5e1',
+  switchTrackOff: '#8391a7',
   switchTrackOn: '#b7791f',
   switchThumb: '#fff',
 

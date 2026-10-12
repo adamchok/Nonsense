@@ -47,10 +47,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 9,
     borderWidth: 1,
-    fontSize: 15,
+    fontSize: 16,
     paddingVertical: 12,
     paddingLeft: 42,
-    paddingRight: 44,
+    paddingRight: 48,
   },
   leading: {
     position: 'absolute',
@@ -58,12 +58,13 @@ const styles = StyleSheet.create({
   },
   clear: {
     position: 'absolute',
-    right: 8,
+    // 2 + 22 keeps the icon centered 24px from the edge, as with the old 32px button.
+    right: 2,
   },
   clearButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

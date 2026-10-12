@@ -1,6 +1,7 @@
 import { Icon, type IconName } from '@/components/icon';
 import { Animated, PressableScale, fadeIn, webSafe } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
+import { text } from '@/lib/ui';
 import { StyleSheet, Text } from 'react-native';
 import { ReduceMotion, ZoomIn, FadeIn } from 'react-native-reanimated';
 
@@ -63,13 +64,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '600',
+    ...text.heading,
     textAlign: 'center',
   },
   message: {
-    fontSize: 14,
-    lineHeight: 20,
+    ...text.caption,
     textAlign: 'center',
     maxWidth: 320,
   },
@@ -83,8 +82,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  actionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  actionLabel: text.button,
 });

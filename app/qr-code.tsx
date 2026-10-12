@@ -557,7 +557,9 @@ export default function QrCodeScreen() {
                 <Pressable
                   style={[styles.cancelBtn, { borderColor: c.border }]}
                   onPress={dismissAddFriendModal}
-                  disabled={addingFriend}>
+                  disabled={addingFriend}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: addingFriend }}>
                   <Text style={[styles.cancelLabel, { color: c.textHint }]}>Cancel</Text>
                 </Pressable>
                 <Pressable
@@ -567,8 +569,10 @@ export default function QrCodeScreen() {
                     (addingFriend || !pendingFriend) && styles.disabled,
                   ]}
                   onPress={confirmAddFriend}
-                  disabled={addingFriend || !pendingFriend}>
-                  <Text style={[styles.confirmLabel, { color: c.onAccent }]}>{addingFriend ? 'Sending...' : 'Send request'}</Text>
+                  disabled={addingFriend || !pendingFriend}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: addingFriend || !pendingFriend, busy: addingFriend }}>
+                  <Text style={[styles.confirmLabel, { color: c.onAccent }]}>{addingFriend ? 'Sending…' : 'Send request'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -629,7 +633,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   shareCardFooter: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 16,
@@ -785,7 +789,7 @@ const styles = StyleSheet.create({
   },
   confirmCard: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 480,
     borderRadius: 14,
     borderWidth: 1,
     padding: 20,

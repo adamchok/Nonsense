@@ -1,9 +1,10 @@
 import { text } from '@/lib/ui';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { useAppColors } from '@/lib/app-theme';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -104,6 +105,31 @@ function sheetButtonStyle(
   }
 }
 
+/**
+ * react-native-web's Modal hard-codes role="dialog" on its outer element (the one with
+ * aria-modal) and rewrites it whenever the modal becomes active, so a role prop cannot
+ * win. On web this ref keeps that element's role at "alertdialog" while it is mounted.
+ */
+function useAlertDialogRoleRef(isAlertDialog: boolean) {
+  return useCallback(
+    (node: unknown) => {
+      if (Platform.OS !== 'web' || !isAlertDialog || typeof MutationObserver === 'undefined') return;
+      if (!(node instanceof HTMLElement)) return;
+      const enforce = () => {
+        if (node.getAttribute('role') === 'dialog') node.setAttribute('role', 'alertdialog');
+      };
+      enforce();
+      const observer = new MutationObserver(enforce);
+      observer.observe(node, { attributes: true, attributeFilter: ['role'] });
+      return () => {
+        observer.disconnect();
+        if (node.getAttribute('role') === 'alertdialog') node.setAttribute('role', 'dialog');
+      };
+    },
+    [isAlertDialog]
+  );
+}
+
 export function AppAlertProvider({ children }: { children: ReactNode }) {
   const c = useAppColors();
   const { width } = useWindowDimensions();
@@ -146,6 +172,20 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
   const isSheet = width < SHEET_BREAKPOINT && buttons.length > 1;
   const isStacked = buttons.length > 2;
   const cancelButton = buttons.find((b) => b.style === 'cancel');
+  const idBase = useId();
+  const titleId = `${idBase}-alert-title`;
+  const messageId = `${idBase}-alert-message`;
+  const hasMessage = Boolean(payload?.message);
+  // A prompt that asks the user to choose is a confirmation, announced as an alert dialog.
+  const dialogRoleRef = useAlertDialogRoleRef(buttons.length > 1);
+  const webDialogProps: object =
+    Platform.OS === 'web'
+      ? {
+          ref: dialogRoleRef,
+          'aria-labelledby': titleId,
+          ...(hasMessage ? { 'aria-describedby': messageId } : {}),
+        }
+      : {};
 
   return (
     <>
@@ -155,7 +195,8 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={close}>
+        onRequestClose={close}
+        {...webDialogProps}>
         <View style={styles.root}>
           {isSheet && cancelButton ? (
             <ModalBackdrop
@@ -175,11 +216,13 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
                   { backgroundColor: c.card, borderColor: c.border, paddingBottom: Math.max(20, insets.bottom + 12) },
                 ]}>
                 <View style={[styles.grabber, { backgroundColor: c.border }]} />
-                <Text style={[styles.sheetTitle, { color: c.text }]} accessibilityRole="header">
+                <Text nativeID={titleId} style={[styles.sheetTitle, { color: c.text }]} accessibilityRole="header">
                   {payload?.title ?? ''}
                 </Text>
                 {payload?.message ? (
-                  <Text style={[styles.sheetMessage, { color: c.textSecondary }]}>{payload.message}</Text>
+                  <Text nativeID={messageId} style={[styles.sheetMessage, { color: c.textSecondary }]}>
+                    {payload.message}
+                  </Text>
                 ) : null}
                 <View style={isStacked ? styles.sheetColumn : styles.sheetRow}>
                   {buttons.map((btn, i) => {
@@ -207,11 +250,13 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
             <View
               accessibilityViewIsModal
               style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
+              <Text nativeID={titleId} style={[styles.title, { color: c.text }]} accessibilityRole="header">
                 {payload?.title ?? ''}
               </Text>
               {payload?.message ? (
-                <Text style={[styles.message, { color: c.textSecondary }]}>{payload.message}</Text>
+                <Text nativeID={messageId} style={[styles.message, { color: c.textSecondary }]}>
+                  {payload.message}
+                </Text>
               ) : null}
 
               {isStacked ? (

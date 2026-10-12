@@ -9,15 +9,15 @@ import {
   formatSignedCurrency,
   formatTightCompactNumber,
 } from '@/lib/currency-format';
-import { formatDateTimeDMY } from '@/lib/date-format';
+import { formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
 import { appAlert } from '@/lib/app-alert';
 import { deleteSession, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
 import { PLChart } from '@/components/pl-chart';
@@ -39,6 +39,14 @@ const menuEntering = webSafe(
 );
 
 const SWIPE_ACTION_WIDTH = 96;
+/** Below this, the lifetime card shows the exact amount so it matches the chart; above, it goes compact. */
+const EXACT_TOTAL_LIMIT = 10_000;
+
+function formatLifetimeTotal(amount: number): string {
+  return Math.abs(amount) < EXACT_TOTAL_LIMIT
+    ? formatSignedCurrency(amount)
+    : formatTightCompactNumber(amount, { signed: true, currency: true });
+}
 
 type HistoryEntry = SessionRecord & { totalBuyIn: number; cashOut: number; profit: number };
 type SortKey = 'datetime' | 'buyIn' | 'profit' | 'duration';
@@ -86,7 +94,7 @@ export default function HistoryScreen() {
   const [sortBy, setSortBy] = useState<SortKey>('datetime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [refreshing, setRefreshing] = useState(false);
-  const [refreshSpin] = useState(() => new Animated.Value(0));
+  const hasLoadedRef = useRef(false);
   const shownRowIdsRef = useRef(new Set<string>());
   const loadGenerationRef = useRef(0);
 
@@ -113,6 +121,7 @@ export default function HistoryScreen() {
       setError(userMessage(e, 'Failed to load history.'));
     } finally {
       if (generation === loadGenerationRef.current) {
+        hasLoadedRef.current = true;
         setLoading(false);
         setRefreshing(false);
       }
@@ -146,7 +155,8 @@ export default function HistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      // Skeleton only on the first load; refocus refreshes in place.
+      if (!hasLoadedRef.current) setLoading(true);
       void loadHistory();
       return () => {
         loadGenerationRef.current += 1;
@@ -166,11 +176,6 @@ export default function HistoryScreen() {
     if (!query) return locationOptions;
     return locationOptions.filter((name) => name.toLowerCase().includes(query));
   }, [locationOptions, locationSearch]);
-  const refreshRotate = refreshSpin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
   const filteredHistory = useMemo(() => filterEntries(history, filters), [filters, history]);
   const draftMatchCount = useMemo(
     () => (showFilterModal ? filterEntries(history, draftFilters).length : 0),
@@ -212,34 +217,13 @@ export default function HistoryScreen() {
     setShowLocationModal(false);
   }
 
-  useEffect(() => {
-    if (!refreshing) {
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.timing(refreshSpin, {
-        toValue: 1,
-        duration: 700,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [refreshing, refreshSpin]);
-
-  const handleRefresh = useCallback(async () => {
+  // Pull-to-refresh (native only); loadHistory clears `refreshing` when it settles.
+  const handleRefresh = useCallback(() => {
     if (refreshing) return;
     setShowSortDropdown(false);
     setRefreshing(true);
-    try {
-      await loadHistory();
-    } finally {
-      refreshSpin.stopAnimation(() => {
-        refreshSpin.setValue(0);
-      });
-    }
-  }, [refreshing, loadHistory, refreshSpin]);
+    void loadHistory();
+  }, [refreshing, loadHistory]);
 
   const openSessionSummary = useCallback(
     (sessionId: string) => router.push(`../session/summary/${sessionId}`),
@@ -300,20 +284,6 @@ export default function HistoryScreen() {
       <View style={[styles.titleRow, showSortDropdown && styles.menuAnchorRaised]}>
         <Text style={[styles.title, { color: c.text }]}>My Winnings</Text>
         <View style={styles.headerActions}>
-          <PressableScale
-            pressedScale={0.92}
-            style={[
-              styles.filterButton,
-              { backgroundColor: c.cardAlt, borderColor: c.border },
-              refreshing && styles.refreshDisabled,
-            ]}
-            onPress={() => void handleRefresh()}
-            accessibilityRole="button"
-            accessibilityLabel="Refresh history">
-            <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-              <Icon name="refresh" size={20} color={c.textMuted} />
-            </Animated.View>
-          </PressableScale>
           <View style={styles.sortWrap}>
             <PressableScale
               pressedScale={0.92}
@@ -428,17 +398,19 @@ export default function HistoryScreen() {
             styles.summaryCardHalf,
             { backgroundColor: c.card, borderColor: c.borderAccent },
           ]}>
-          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Lifetime Profit/Loss</Text>
+          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Lifetime profit/loss</Text>
           {loading ? (
             <SummaryValueSkeleton valueWidth={96} metaWidth={70} />
           ) : (
             <>
               <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
                 style={[
                   styles.summaryValue,
                   { color: totalProfit >= 0 ? c.profit : c.loss },
                 ]}>
-                {formatTightCompactNumber(totalProfit, { signed: true, currency: true })}
+                {formatLifetimeTotal(totalProfit)}
               </Text>
               <Text style={[styles.summaryMeta, { color: c.textHint }]}>
                 {filteredHistory.length} session{filteredHistory.length !== 1 ? 's' : ''}
@@ -454,7 +426,7 @@ export default function HistoryScreen() {
             styles.summaryCardHalf,
             { backgroundColor: c.card, borderColor: c.border },
           ]}>
-          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Total Played</Text>
+          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Total played</Text>
           {loading ? (
             <SummaryValueSkeleton valueWidth={64} metaWidth={110} />
           ) : (
@@ -495,6 +467,17 @@ export default function HistoryScreen() {
           keyExtractor={(item) => item.id}
           itemLayoutAnimation={layoutTransition}
           style={styles.list}
+          refreshControl={
+            Platform.OS === 'web' ? undefined : (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={c.textMuted}
+                colors={[c.accent]}
+                progressBackgroundColor={c.card}
+              />
+            )
+          }
           ListHeaderComponent={chartHeader}
           ListFooterComponent={
             hasMoreHistory ? (
@@ -596,7 +579,11 @@ export default function HistoryScreen() {
                   styles.locationSearchInput,
                   { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text },
                 ]}
-                placeholder="Search locations"
+                placeholder="Search locations…"
+                accessibilityLabel="Search locations"
+                autoComplete="off"
+                autoCorrect={false}
+                spellCheck={false}
                 placeholderTextColor={c.placeholder}
                 value={locationSearch}
                 onChangeText={setLocationSearch}
@@ -607,6 +594,10 @@ export default function HistoryScreen() {
                 keyboardShouldPersistTaps="handled">
                 <Pressable
                   style={styles.dropdownOption}
+                  role="checkbox"
+                  aria-checked={allLocationsSelected}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: allLocationsSelected }}
                   onPress={() =>
                     setDraftFilters((prev) => ({
                       ...prev,
@@ -626,6 +617,10 @@ export default function HistoryScreen() {
                     <Pressable
                       key={locationName}
                       style={styles.dropdownOption}
+                      role="checkbox"
+                      aria-checked={selected}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
                       onPress={() =>
                         setDraftFilters((prev) => ({
                           ...prev,
@@ -718,7 +713,7 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
           onPress={onOpen}
           onLongPress={onRemove}
           accessibilityRole="button"
-          accessibilityLabel={`${formatDateTimeDMY(item.date)}, ${isHost ? 'host' : 'participant'}, ${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}, ${item.location ? item.location : 'no location'}`}
+          accessibilityLabel={`${formatSessionTitle(item.date, item.location)}, ${formatSessionTime(item.date)}, ${isHost ? 'host' : 'participant'}, ${item.profit >= 0 ? 'up' : 'down'} ${formatCurrency(Math.abs(item.profit))}`}
           accessibilityHint="Opens the session summary"
           accessibilityActions={onRemove ? [{ name: 'remove', label: removeLabel }] : undefined}
           onAccessibilityAction={(e) => {
@@ -726,32 +721,21 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
           }}>
           <View style={styles.historyTop}>
             <View style={styles.historyTitleRow}>
-              <Text style={[styles.historyLabel, { color: c.text }]}>{formatDateTimeDMY(item.date)}</Text>
+              <Text style={[styles.historyLabel, { color: c.text }]} numberOfLines={1}>
+                {formatSessionTitle(item.date, item.location)}
+              </Text>
               {isHost ? (
                 <View style={[styles.roleBadge, { backgroundColor: c.badge.host }]}>
-                  <Text style={styles.roleBadgeText}>HOST</Text>
+                  <Text style={styles.roleBadgeText}>Host</Text>
                 </View>
               ) : null}
             </View>
-            <View style={styles.historyTopRight}>
-              <Text style={[styles.historyProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
-                {formatSignedCurrency(item.profit)}
-              </Text>
-              {onRemove ? (
-                <PressableScale
-                  onPress={onRemove}
-                  hitSlop={8}
-                  pressedScale={0.9}
-                  style={styles.historyMoreBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={removeLabel}>
-                  <Icon name="delete-outline" size={18} color={c.textMuted} />
-                </PressableScale>
-              ) : null}
-            </View>
+            <Text style={[styles.historyProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
+              {formatSignedCurrency(item.profit)}
+            </Text>
           </View>
           <Text style={[styles.historyMeta, { color: c.textMuted }]}>
-            {item.location ? item.location : 'No location'}
+            {formatSessionTime(item.date)}
             {blindsText ? ` • ${blindsText}` : ''}
             {' • '}
             {formatDuration(getSessionDurationMs(item))}
@@ -813,12 +797,7 @@ function HistorySkeleton() {
               <Skeleton width={row.date} height={15} />
               <Skeleton width={row.badge} height={17} radius={4} />
             </View>
-            <View style={styles.historyTopRight}>
-              <Skeleton width={row.profit} height={15} />
-              <View style={styles.historyMoreBtn}>
-                <Icon name="delete-outline" size={18} color={c.textMuted} />
-              </View>
-            </View>
+            <Skeleton width={row.profit} height={15} />
           </View>
           <Skeleton width={row.meta} height={11} style={styles.skeletonLine} />
           <Skeleton width={row.detail} height={11} style={styles.skeletonLine} />
@@ -867,20 +846,15 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   historySwipeLabel: {
+    ...text.label,
     color: '#fff',
-    fontSize: 12,
     fontWeight: '600',
   },
   screen: {
     flex: 1,
     paddingTop: 48,
   },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
+  title: text.display,
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -924,10 +898,7 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   sortSectionTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.66,
-    textTransform: 'uppercase',
+    ...text.section,
     paddingHorizontal: 14,
     paddingTop: 4,
     paddingBottom: 4,
@@ -943,16 +914,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   sortOptionText: {
-    fontSize: 14,
+    ...text.rowTitle,
     fontWeight: '500',
   },
   sortDivider: {
     height: 1,
     marginHorizontal: 8,
     marginVertical: 4,
-  },
-  refreshDisabled: {
-    opacity: 0.6,
   },
   summaryCard: {
     borderRadius: 14,
@@ -978,10 +946,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   summaryLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.66,
-    textTransform: 'uppercase',
+    ...text.label,
     textAlign: 'center',
   },
   summaryValue: {
@@ -991,7 +956,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   summaryMeta: {
-    fontSize: 12,
+    ...text.caption,
     textAlign: 'center',
   },
   list: {
@@ -1015,10 +980,7 @@ const styles = StyleSheet.create({
   loadMoreBtnDisabled: {
     opacity: 0.7,
   },
-  loadMoreBtnLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  loadMoreBtnLabel: text.button,
   historyCard: {
     minHeight: 52,
     borderLeftWidth: 1,
@@ -1043,19 +1005,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  historyTopRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  historyMoreBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: -4,
-  },
   historyTitleRow: {
     flex: 1,
     flexDirection: 'row',
@@ -1064,9 +1013,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   historyLabel: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '600',
+    ...text.rowTitle,
     flexShrink: 1,
   },
   roleBadge: {
@@ -1075,23 +1022,14 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   roleBadgeText: {
+    ...text.label,
     color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  historyProfit: {
     fontWeight: '600',
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
   },
-  historyMeta: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
+  historyProfit: text.amount,
+  historyMeta: text.rowMeta,
   historyDetail: {
-    fontSize: 12,
-    lineHeight: 16,
+    ...text.rowMeta,
     fontVariant: ['tabular-nums'],
   },
   modalRoot: {
@@ -1117,7 +1055,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   dropdownOptionText: {
-    fontSize: 15,
+    ...text.rowTitle,
+    fontWeight: '400',
   },
   locationCard: {
     width: '100%',
@@ -1135,7 +1074,7 @@ const styles = StyleSheet.create({
     flex: 0,
   },
   emptyText: {
-    fontSize: 13,
+    ...text.caption,
     textAlign: 'center',
     paddingVertical: 14,
   },
@@ -1147,6 +1086,6 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: text.body.fontSize,
   },
 });

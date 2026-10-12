@@ -11,6 +11,7 @@ import { PotBadge } from '@/components/session/pot-badge';
 import { SessionFooterActions } from '@/components/session/session-footer-actions';
 import { SessionHeader } from '@/components/session/session-header';
 import { SessionMetaCards } from '@/components/session/session-meta-cards';
+import { formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
 import { LiveSessionSkeleton } from '@/components/session/session-skeletons';
 import { hapticTap } from '@/components/session/feedback';
 import { UndoSnackbar } from '@/components/session/undo-snackbar';
@@ -29,7 +30,6 @@ import { useAuth } from '@/lib/auth-context';
 import { appAlert } from '@/lib/app-alert';
 import { getAvatarEmoji } from '@/lib/avatar';
 import { formatSessionAmountValue } from '@/lib/currency-format';
-import { formatDateTimeDMY } from '@/lib/date-format';
 import type { LedgerPlayer } from '@/lib/session-view';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/motion';
@@ -175,20 +175,27 @@ export default function ActiveSessionScreen() {
       )
     : undefined;
 
+  const screenTitle = session?.date ? formatSessionTitle(session.date, session.location) : 'Live session';
+
   if (live.isLoading) {
-    return <LiveSessionSkeleton contentStyle={layout.content} />;
+    return (
+      <>
+        <Stack.Screen options={{ title: screenTitle }} />
+        <LiveSessionSkeleton contentStyle={layout.content} />
+      </>
+    );
   }
 
   return (
     <>
-      <Stack.Screen options={{ headerRight }} />
+      <Stack.Screen options={{ headerRight, title: screenTitle }} />
       <ScrollView
         style={[styles.screen, { backgroundColor: c.bg }]}
         contentContainerStyle={layout.content}
         keyboardShouldPersistTaps="handled">
         <View style={styles.group}>
           <SessionHeader
-            title={session?.date ? formatDateTimeDMY(session.date) : 'Active Session'}
+            meta={session?.date ? `Started ${formatSessionTime(session.date)}` : null}
             hostActions={
               canAct
                 ? {

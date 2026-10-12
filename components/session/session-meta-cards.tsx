@@ -10,7 +10,8 @@ import {
 import { sessionBlindsAreSet, type SessionView } from '@/lib/session-view';
 import { Icon, type IconName } from '@/components/icon';
 import type { ReactNode } from 'react';
-import { pressBg } from '@/lib/ui';
+import { radius, space } from '@/lib/spacing';
+import { pressBg, text } from '@/lib/ui';
 import { StyleSheet, Text, View } from 'react-native';
 
 type Props = {
@@ -43,24 +44,24 @@ export function SessionMetaCards({ session, canEdit, onEditLocation, onEditBlind
           <>
             <MetaCard
               icon="place"
-              label="LOCATION"
+              label="Location"
               a11yValue={session?.location || 'not set'}
               onEdit={onEditLocation}>
               <MetaValue>{session?.location ? session.location : 'Tap to add location'}</MetaValue>
             </MetaCard>
-            <MetaCard icon="payments" label="BLINDS" a11yValue={blindsText ?? 'not set'} onEdit={onEditBlinds}>
+            <MetaCard icon="payments" label="Blinds" a11yValue={blindsText ?? 'not set'} onEdit={onEditBlinds}>
               {blindsValue}
             </MetaCard>
           </>
         ) : (
           <>
             {location ? (
-              <MetaCard icon="place" label="LOCATION" a11yValue={location}>
+              <MetaCard icon="place" label="Location" a11yValue={location}>
                 <MetaValue lines={2}>{location}</MetaValue>
               </MetaCard>
             ) : null}
             {session && sessionBlindsAreSet(session) ? (
-              <MetaCard icon="payments" label="BLINDS" a11yValue={blindsText ?? ''}>
+              <MetaCard icon="payments" label="Blinds" a11yValue={blindsText ?? ''}>
                 {blindsValue}
               </MetaCard>
             ) : null}
@@ -70,7 +71,7 @@ export function SessionMetaCards({ session, canEdit, onEditLocation, onEditBlind
       {session?.amountUnit === 'chips' ? (
         <MetaCard
           icon="attach-money"
-          label="DOLLARS PER CHIP"
+          label="Dollars per chip"
           a11yValue={dpcText ?? 'not set'}
           onEdit={canEdit ? onEditChipValue : undefined}
           fullRow>
@@ -106,7 +107,7 @@ function MetaCard({
     <View style={styles.textBlock}>
       <View style={styles.labelRow}>
         <Icon name={icon} size={14} color={c.textHint} />
-        <Text style={[styles.label, { color: c.textHint }]}>{label}</Text>
+        <Text style={[text.label, { color: c.textHint }]}>{label}</Text>
       </View>
       {children}
     </View>
@@ -136,7 +137,7 @@ function MetaCard({
 function MetaValue({ children, lines = 1 }: { children: ReactNode; lines?: number }) {
   const c = useAppColors();
   return (
-    <Text style={[styles.value, { color: c.textSecondary }]} numberOfLines={lines}>
+    <Text style={[text.rowTitle, { color: c.textSecondary }]} numberOfLines={lines}>
       {children}
     </Text>
   );
@@ -154,7 +155,7 @@ function BlindsMetaLine({ session }: { session: SessionView }) {
       <View style={styles.chipsBlindsRow}>
         <SessionAmountPrefix unit="chips" color={c.textSecondary} size={14} />
         <MetaValue>{formatBlindChipStakeNumber(s)}</MetaValue>
-        <Text style={[styles.value, { color: c.textSecondary }]}> / </Text>
+        <Text style={[text.rowTitle, { color: c.textSecondary }]}> / </Text>
         <SessionAmountPrefix unit="chips" color={c.textSecondary} size={14} />
         <MetaValue>{formatBlindChipStakeNumber(b)}</MetaValue>
       </View>
@@ -166,7 +167,7 @@ function BlindsMetaLine({ session }: { session: SessionView }) {
 const styles = StyleSheet.create({
   cards: {
     width: '100%',
-    gap: 8,
+    gap: space.sm,
   },
   row: {
     width: '100%',
@@ -180,7 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 14,
+    borderRadius: radius.md,
     borderWidth: 1,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -199,16 +200,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.66,
-  },
-  value: {
-    fontSize: 15,
-    fontWeight: '600',
-    lineHeight: 20,
   },
   chipsBlindsRow: {
     flexDirection: 'row',

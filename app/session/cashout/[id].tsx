@@ -12,7 +12,7 @@ import { getBuyIns, getEarlyCashOuts, getSessionMeta, settleSession } from '@/li
 import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import type { SessionAmountUnit, SessionResult } from '@/types';
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -138,6 +138,39 @@ export default function CashOutScreen() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const listRef = useRef<FlatList<PlayerEntry>>(null);
   const isChipsMode = amountUnit === 'chips';
+  const navigation = useNavigation();
+  // True once the host edits an amount; cleared only by a successful settle.
+  const [isDirty, setIsDirty] = useState(false);
+  const allowLeaveRef = useRef(false);
+
+  useEffect(() => {
+    if (!isDirty || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    return navigation.addListener('beforeRemove', (event) => {
+      if (allowLeaveRef.current) return;
+      event.preventDefault();
+      appAlert('Discard cash-out amounts?', "The amounts you've entered haven't been settled yet.", [
+        { text: 'Keep editing', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            allowLeaveRef.current = true;
+            navigation.dispatch(event.data.action);
+          },
+        },
+      ]);
+    });
+  }, [navigation, isDirty]);
 
   useEffect(() => {
     if (!id) return;
@@ -200,6 +233,7 @@ export default function CashOutScreen() {
 
   const updateCashOut = useCallback((playerId: string, value: string) => {
     clearFieldError(playerId);
+    setIsDirty(true);
     setPlayers((prev) =>
       prev.map((p) => (p.playerId === playerId ? { ...p, cashOutInput: value } : p))
     );
@@ -207,6 +241,7 @@ export default function CashOutScreen() {
 
   const adjustCashOut = useCallback((playerId: string, delta: number) => {
     clearFieldError(playerId);
+    setIsDirty(true);
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.playerId !== playerId) return p;
@@ -237,6 +272,7 @@ export default function CashOutScreen() {
       );
       return;
     }
+    setIsDirty(true);
     setPlayers((prev) => {
       const unlockedPrev = prev.filter((p) => !p.locked);
       if (unlockedPrev.length === 0) return prev;
@@ -266,6 +302,7 @@ export default function CashOutScreen() {
       );
       return;
     }
+    setIsDirty(true);
     setPlayers((prev) => {
       const unlockedPrev = prev.filter((p) => !p.locked);
       if (unlockedPrev.length === 0) return prev;
@@ -308,7 +345,26 @@ export default function CashOutScreen() {
   const status: 'ready' | 'under' | 'over' = isReady ? 'ready' : remaining > 0 ? 'under' : 'over';
   const statusColor = status === 'ready' ? c.profit : status === 'under' ? c.warning : c.loss;
   const statusPop = usePop(status);
+  const hint = statusHint();
   const { buttonStyle: confirmPulseStyle, ringStyle: confirmRingStyle } = useReadyPulse(isReady);
+
+  function statusHint(): { text: string; color: string } | null {
+    if (balanced) return allFilled ? { text: 'Balanced! Ready to confirm.', color: c.profit } : null;
+    if (remaining > 0) {
+      return {
+        color: c.warning,
+        text: isChipsMode
+          ? `${formatChipsLedger(remaining)} chips left to distribute across players.`
+          : `$${remaining.toFixed(2)} left to distribute across players.`,
+      };
+    }
+    return {
+      color: c.loss,
+      text: isChipsMode
+        ? `${formatChipsLedger(Math.abs(remaining))} chips over-distributed. Reduce some stacks.`
+        : `$${Math.abs(remaining).toFixed(2)} over-distributed. Reduce some cash-outs.`,
+    };
+  }
 
   async function handleConfirm() {
     if (!canEdit) {
@@ -376,6 +432,8 @@ export default function CashOutScreen() {
       });
       await settleSession(id, results);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      allowLeaveRef.current = true;
+      setIsDirty(false);
       router.replace(`../../session/summary/${id}?settled=1`);
     } catch (e) {
       appAlert('Error', userMessage(e, 'Failed to save results.'));
@@ -434,7 +492,7 @@ export default function CashOutScreen() {
                 onFocus={() => focusPlayerRow(index)}
                 placeholder={isChipsMode ? 'Chips' : '0.00'}
                 placeholderTextColor={c.placeholder}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 accessibilityLabel={`Cash-out amount for ${item.playerName}`}
                 accessibilityHint={`Bought in ${isChipsMode ? `${formatChipsLedger(item.totalBuyIn)} chips` : `$${item.totalBuyIn.toFixed(2)}`}, currently ${profit >= 0 ? 'up' : 'down'} ${isChipsMode ? `${formatChipsLedger(Math.abs(profit))} chips` : `$${Math.abs(profit).toFixed(2)}`}`}
                 style={[
@@ -591,37 +649,18 @@ export default function CashOutScreen() {
             </Animated.View>
           </Animated.View>
         </View>
-        {balanced && allFilled && (
-          <Animated.Text
-            entering={fadeIn}
-            exiting={fadeOut}
-            style={[styles.balancedHint, { color: c.profit }]}
-            accessibilityLiveRegion="polite">
-            Balanced! Ready to confirm.
-          </Animated.Text>
-        )}
-        {!balanced && remaining > 0 && (
-          <Animated.Text
-            entering={fadeIn}
-            exiting={fadeOut}
-            style={[styles.remainingHint, { color: c.warning }]}
-            accessibilityLiveRegion="polite">
-            {isChipsMode
-              ? `${formatChipsLedger(remaining)} chips left to distribute across players.`
-              : `$${remaining.toFixed(2)} left to distribute across players.`}
-          </Animated.Text>
-        )}
-        {!balanced && remaining < 0 && (
-          <Animated.Text
-            entering={fadeIn}
-            exiting={fadeOut}
-            style={[styles.overHint, { color: c.loss }]}
-            accessibilityLiveRegion="polite">
-            {isChipsMode
-              ? `${formatChipsLedger(Math.abs(remaining))} chips over-distributed. Reduce some stacks.`
-              : `$${Math.abs(remaining).toFixed(2)} over-distributed. Reduce some cash-outs.`}
-          </Animated.Text>
-        )}
+        {/* One persistent polite region: the hint text changes inside it instead of remounting a new region. */}
+        <View accessibilityLiveRegion="polite" style={hint ? null : styles.hintEmpty}>
+          {hint ? (
+            <Animated.Text
+              key={`hint-${status}`}
+              entering={fadeIn}
+              exiting={fadeOut}
+              style={[styles.statusHint, { color: hint.color }]}>
+              {hint.text}
+            </Animated.Text>
+          ) : null}
+        </View>
         {!allFilled && (
           <Text style={[styles.splitHint, { color: c.textHint }]}>
             Blank cash-outs count as 0 until entered.
@@ -680,7 +719,7 @@ export default function CashOutScreen() {
           accessibilityState={{ disabled: !balanced || saving, busy: saving }}
           disabled={!balanced || saving}>
           <Text style={[styles.buttonLabel, { color: c.onAccent }]}>
-            {saving ? 'Saving...' : 'Confirm & View Summary'}
+            {saving ? 'Saving…' : 'Confirm & View Summary'}
           </Text>
         </PressableScale>
       </Animated.View>
@@ -722,7 +761,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   trackerLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.66,
@@ -739,17 +778,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
-  balancedHint: {
+  statusHint: {
     fontSize: 12,
     textAlign: 'center',
   },
-  remainingHint: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  overHint: {
-    fontSize: 12,
-    textAlign: 'center',
+  hintEmpty: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    overflow: 'hidden',
   },
   splitHint: {
     fontSize: 12,
@@ -812,7 +849,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   earlyBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.5,
   },

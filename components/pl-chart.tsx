@@ -12,7 +12,8 @@ import { LinearGradient, Stop } from 'react-native-svg';
 import { useReducedMotion } from 'react-native-reanimated';
 
 const CHART_HEIGHT = 160;
-const Y_LABEL_WIDTH = 40;
+// Wide enough for labels like "-$1.2k" at the 12px axis font.
+const Y_LABEL_WIDTH = 46;
 const SECTIONS = 4;
 const HEADER_HEIGHT = 52;
 const MAX_BAR_WIDTH = 22;
@@ -26,6 +27,42 @@ type Mode = 'line' | 'bars';
 type Entry = { id: string; date: Date; profit: number };
 type Point = { value: number; date: Date; delta: number; id: string };
 type Axis = { step: number; above: number; below: number };
+
+type WebKeyEvent = {
+  key: string;
+  preventDefault: () => void;
+  currentTarget: unknown;
+};
+
+type FocusableParent = {
+  parentElement?: { querySelectorAll: (selector: string) => ArrayLike<{ focus: () => void }> } | null;
+};
+
+const IS_WEB = Platform.OS === 'web';
+const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
+const PREV_KEYS = new Set(['ArrowLeft', 'ArrowUp']);
+
+function focusRadioAt(target: unknown, index: number): void {
+  const radios = (target as FocusableParent).parentElement?.querySelectorAll('[role="radio"]');
+  radios?.[index]?.focus();
+}
+
+/** Where a plot key press moves the selection; `undefined` means the key is not handled. */
+function nextIndexForKey(key: string, active: number, count: number): number | undefined {
+  if (count === 0) return undefined;
+  switch (key) {
+    case 'ArrowRight':
+      return active < 0 ? 0 : Math.min(count - 1, active + 1);
+    case 'ArrowLeft':
+      return active < 0 ? count - 1 : Math.max(0, active - 1);
+    case 'Home':
+      return 0;
+    case 'End':
+      return count - 1;
+    default:
+      return undefined;
+  }
+}
 
 const MODES: { key: Mode; label: string; title: string; hint: string }[] = [
   {
@@ -69,7 +106,8 @@ export const PLChart = memo(function PLChart({
   onOpen,
 }: {
   entries: readonly Entry[];
-  onOpen: (id: string) => void;
+  /** Omit for a read-only chart (e.g. the landing demo): the selection readout is then plain text. */
+  onOpen?: (id: string) => void;
 }) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
@@ -200,6 +238,49 @@ export const PLChart = memo(function PLChart({
     });
   const plotGesture = Gesture.Exclusive(scrub, tap);
 
+  // Web keyboard parity for the gesture-only plot: arrows/Home/End select, Enter opens, Escape clears.
+  function plotKeyDown(e: WebKeyEvent) {
+    if (e.key === 'Enter') {
+      if (!selected || !onOpen) return;
+      e.preventDefault();
+      onOpen(selected.id);
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (active < 0) return;
+      e.preventDefault();
+      clearSelection();
+      return;
+    }
+    const next = nextIndexForKey(e.key, active, data.length);
+    if (next === undefined) return;
+    e.preventDefault();
+    setActive(next);
+  }
+
+  // Web radio group uses a roving tabindex: one tab stop, arrows move and select.
+  function modeKeyDown(e: WebKeyEvent, index: number) {
+    const step = NEXT_KEYS.has(e.key) ? 1 : PREV_KEYS.has(e.key) ? -1 : 0;
+    if (step === 0) return;
+    e.preventDefault();
+    const next = (index + step + MODES.length) % MODES.length;
+    changeMode(MODES[next].key);
+    focusRadioAt(e.currentTarget, next);
+  }
+
+  const plotWebProps = IS_WEB
+    ? ({ tabIndex: 0, onKeyDown: plotKeyDown, 'aria-keyshortcuts': 'ArrowLeft ArrowRight Home End Enter Escape' } as object)
+    : {};
+
+  const selectedText = selected && (
+    <View style={styles.headerSelectedText}>
+      <Text style={[styles.headerValue, { color: signColor(c, primaryValue) }]}>{formatSignedCurrency(primaryValue)}</Text>
+      <Text style={[styles.headerHint, { color: c.textMuted }]} numberOfLines={1}>
+        {`${formatDateDMY(selected.date)} · ${secondaryLabel}`}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={styles.wrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
       <View style={styles.top}>
@@ -208,8 +289,11 @@ export const PLChart = memo(function PLChart({
           <View
             style={[styles.toggle, { backgroundColor: c.inputBg, borderColor: c.border }]}
             accessibilityRole="radiogroup">
-            {MODES.map((m) => {
+            {MODES.map((m, index) => {
               const on = m.key === mode;
+              const webRadioProps = IS_WEB
+                ? ({ tabIndex: on ? 0 : -1, onKeyDown: (e: WebKeyEvent) => modeKeyDown(e, index) } as object)
+                : {};
               return (
                 <PressableScale
                   key={m.key}
@@ -217,6 +301,8 @@ export const PLChart = memo(function PLChart({
                   onPress={() => changeMode(m.key)}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: on }}
+                  aria-checked={on}
+                  {...webRadioProps}
                   style={[styles.toggleBtn, on && { backgroundColor: c.accentBg }]}>
                   <Text style={[styles.toggleText, { color: on ? c.accentText : c.textMuted }]}>{m.label}</Text>
                 </PressableScale>
@@ -225,24 +311,22 @@ export const PLChart = memo(function PLChart({
           </View>
         </View>
 
+        <View accessibilityLiveRegion="polite" aria-live="polite">
         {selected ? (
           <View style={styles.valueRow}>
-            <PressableScale
-              pressedScale={0.98}
-              onPress={() => onOpen(selected.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`Open session on ${formatDateDMY(selected.date)}`}
-              style={[styles.header, styles.headerBtn]}>
-              <View style={styles.headerSelectedText}>
-                <Text style={[styles.headerValue, { color: signColor(c, primaryValue) }]}>
-                  {formatSignedCurrency(primaryValue)}
-                </Text>
-                <Text style={[styles.headerHint, { color: c.textMuted }]} numberOfLines={1}>
-                  {`${formatDateDMY(selected.date)} · ${secondaryLabel}`}
-                </Text>
-              </View>
-              <Icon name="chevron-right" size={18} color={c.textMuted} />
-            </PressableScale>
+            {onOpen ? (
+              <PressableScale
+                pressedScale={0.98}
+                onPress={() => onOpen(selected.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open session on ${formatDateDMY(selected.date)}`}
+                style={[styles.header, styles.headerBtn]}>
+                {selectedText}
+                <Icon name="chevron-right" size={18} color={c.textMuted} />
+              </PressableScale>
+            ) : (
+              <View style={[styles.header, styles.headerBtn]}>{selectedText}</View>
+            )}
             <PressableScale
               pressedScale={0.9}
               onPress={clearSelection}
@@ -262,6 +346,7 @@ export const PLChart = memo(function PLChart({
             </View>
           </View>
         )}
+        </View>
       </View>
 
       <GestureDetector gesture={plotGesture}>
@@ -269,6 +354,8 @@ export const PLChart = memo(function PLChart({
         style={styles.plot}
         nativeID="pl-chart"
         accessible
+        {...plotWebProps}
+        accessibilityHint={IS_WEB ? `Use arrow keys to pick a session, ${onOpen ? 'Enter to open it, ' : ''}Escape to clear` : undefined}
         accessibilityLabel={
           mode === 'line'
             ? `Running profit over ${data.length} sessions, ending at ${formatSignedCurrency(final)}`
@@ -353,14 +440,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   clearBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -6,
+    marginRight: -12,
   },
-  caption: { fontSize: 11, textAlign: 'center' },
+  caption: { fontSize: 12, textAlign: 'center' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -375,15 +462,15 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   toggleBtn: {
-    minHeight: 28,
-    paddingHorizontal: 12,
+    minHeight: 40,
+    paddingHorizontal: 14,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
   toggleText: { fontSize: 12, fontWeight: '600' },
   plot: { marginTop: 12 },
-  axisText: { fontSize: 10, fontVariant: ['tabular-nums'] },
+  axisText: { fontSize: 12, fontVariant: ['tabular-nums'] },
   marker: {
     width: MARKER_SIZE,
     height: MARKER_SIZE,
@@ -399,10 +486,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerLabel: {
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
   },
   headerSelectedText: { flex: 1, minWidth: 0, gap: 2 },
   headerBtn: {

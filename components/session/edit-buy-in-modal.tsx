@@ -96,7 +96,7 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
                   }}
                   placeholder={unit === 'chips' ? 'Chips' : '0.00'}
                   placeholderTextColor={c.placeholder}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   style={[formStyles.amountInput, { color: c.text }]}
                   autoFocus
                   selectTextOnFocus

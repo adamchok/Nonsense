@@ -1,8 +1,9 @@
 import { Animated, PressableScale, EXIT_AND_LAYOUT_ANIMATIONS } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import {
+  cancelAnimation,
   Easing,
   FadeInDown,
   FadeOutDown,
@@ -13,7 +14,8 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
-export const UNDO_WINDOW_MS = 5000;
+/** Web gets a longer window (and pauses on hover/focus) so pointer and keyboard users can reach Undo. */
+export const UNDO_WINDOW_MS = Platform.OS === 'web' ? 8000 : 5000;
 
 const enter = FadeInDown.duration(220).reduceMotion(ReduceMotion.System);
 const exit = EXIT_AND_LAYOUT_ANIMATIONS
@@ -26,11 +28,15 @@ type Props = {
   onDismiss: () => void;
 };
 
-function UndoCountdown({ color }: { color: string }) {
+function UndoCountdown({ color, isPaused }: { color: string; isPaused: boolean }) {
   const remaining = useSharedValue(1);
   useEffect(() => {
-    remaining.value = withTiming(0, { duration: UNDO_WINDOW_MS, easing: Easing.linear });
-  }, [remaining]);
+    if (isPaused) {
+      cancelAnimation(remaining);
+      return;
+    }
+    remaining.value = withTiming(0, { duration: UNDO_WINDOW_MS * remaining.value, easing: Easing.linear });
+  }, [remaining, isPaused]);
   const style = useAnimatedStyle(() => ({ transform: [{ scaleX: remaining.value }] }));
   return (
     <View style={styles.track} pointerEvents="none" importantForAccessibility="no-hide-descendants">
@@ -42,29 +48,51 @@ function UndoCountdown({ color }: { color: string }) {
 export function UndoSnackbar({ message, onUndo, onDismiss }: Props) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const isPaused = isHovered || isFocused;
+  const remainingMsRef = useRef(UNDO_WINDOW_MS);
 
+  // The dismiss timer only runs while the bar is neither hovered nor focused; pausing keeps the time left.
   useEffect(() => {
-    const timer = setTimeout(onDismiss, UNDO_WINDOW_MS);
-    return () => clearTimeout(timer);
-  }, [onDismiss]);
+    if (isPaused) return;
+    const startedAt = Date.now();
+    const timer = setTimeout(onDismiss, remainingMsRef.current);
+    return () => {
+      clearTimeout(timer);
+      remainingMsRef.current = Math.max(0, remainingMsRef.current - (Date.now() - startedAt));
+    };
+  }, [onDismiss, isPaused]);
+
+  const pauseHandlers: object =
+    Platform.OS === 'web'
+      ? {
+          onMouseEnter: () => setIsHovered(true),
+          onMouseLeave: () => setIsHovered(false),
+          onFocus: () => setIsFocused(true),
+          onBlur: () => setIsFocused(false),
+        }
+      : {};
 
   return (
     <Animated.View
       entering={enter}
       exiting={exit}
       style={[styles.bar, { backgroundColor: c.card, borderColor: c.border }]}
-      accessibilityLiveRegion="polite">
+      accessibilityLiveRegion="polite"
+      {...pauseHandlers}>
       <Text style={[styles.message, { color: c.text }]} numberOfLines={2}>
         {message}
       </Text>
       <PressableScale
         onPress={onUndo}
+        {...({ dataSet: { textButton: 'true' } } as object)}
         style={styles.undoBtn}
         accessibilityRole="button"
         accessibilityLabel={`Undo: ${message}`}>
-        <Text style={[styles.undoLabel, { color: c.accentText }]}>UNDO</Text>
+        <Text style={[styles.undoLabel, { color: c.accentText }]}>Undo</Text>
       </PressableScale>
-      {reduceMotion ? null : <UndoCountdown color={c.accent} />}
+      {reduceMotion ? null : <UndoCountdown color={c.accent} isPaused={isPaused} />}
     </Animated.View>
   );
 }
@@ -105,6 +133,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   track: {
     position: 'absolute',

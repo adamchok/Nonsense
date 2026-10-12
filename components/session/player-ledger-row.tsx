@@ -8,14 +8,27 @@ import { Icon } from '@/components/icon';
 import { Animated, PressableScale } from '@/components/motion';
 import { LedgerSwipeRow } from '@/components/session/ledger-swipe-row';
 import { useAmountFlash } from '@/components/session/use-amount-flash';
-import { memo } from 'react';
+import { PlayerActionMenu, type MenuAnchor, type PlayerMenuAction } from '@/components/session/player-action-menu';
+import { space, tapTarget } from '@/lib/spacing';
+import { memo, useId, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Platform,
   StyleSheet,
   Text,
   View,
   type AccessibilityActionEvent,
   type ViewStyle,
 } from 'react-native';
+
+// Native screen readers reach the row's actions through accessibilityActions, so the visual
+// "more" button stays hidden there to avoid a duplicate focus stop. Web has no accessibility
+// actions, so the button must stay reachable and labeled.
+const IS_WEB = Platform.OS === 'web';
+const ACTIONS_A11Y_HIDDEN =
+  IS_WEB
+    ? {}
+    : ({ importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const);
 
 export type LedgerRowHandlers = {
   onRebuy: (player: LedgerPlayer) => void;
@@ -84,14 +97,48 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   const label = rowLabel(player, isHostRow, values, isCashedOut, displayUnit);
   const flashStyle = useAmountFlash(player.total);
 
-  const rowBg = isHostRow ? c.accentBg : c.card;
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const moreRef = useRef<View>(null);
+  const moreId = `ledger-more-${useId().replace(/:/g, '')}`;
+
+  const openMenu = () => {
+    const node = moreRef.current;
+    if (!node) {
+      setMenuAnchor(null);
+      setMenuOpen(true);
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      setMenuAnchor({ x, y, width, height });
+      setMenuOpen(true);
+    });
+  };
+  const closeMenu = () => {
+    setMenuOpen(false);
+    if (IS_WEB && typeof document !== 'undefined') document.getElementById(moreId)?.focus();
+  };
+  const menuActions: PlayerMenuAction[] = [
+    { key: 'cashOut', label: 'Cash out', icon: 'account-balance-wallet', onSelect: () => onCashOut(player) },
+    { key: 'correctTotal', label: 'Correct total', icon: 'edit', onSelect: () => onCorrectTotal(player) },
+    {
+      key: 'remove',
+      label: 'Remove',
+      icon: 'delete-outline',
+      destructive: true,
+      disabled: isRemoving,
+      onSelect: () => onRemove(player),
+    },
+  ];
+
+  const rowBg = c.card;
   const rowStyle: ViewStyle[] = [ui.row, styles.row, { backgroundColor: rowBg, borderColor: c.border }];
   if (showDivider) rowStyle.push(ui.rowDivider);
 
-  const inner = (
+  const summary = (
     <>
       <View
-        style={[ui.tile, { backgroundColor: isHostRow ? c.card : c.cardAlt, borderColor: c.border }, styles.tile]}
+        style={[ui.tile, { backgroundColor: c.cardAlt, borderColor: c.border }, styles.tile]}
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden>
         <Text style={styles.avatar}>{avatar}</Text>
@@ -109,12 +156,12 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             <View style={styles.badges}>
               {isHostRow ? (
                 <View style={[styles.badge, { backgroundColor: c.badge.host }]}>
-                  <Text style={styles.badgeText}>HOST</Text>
+                  <Text style={[type.micro, styles.badgeText]}>HOST</Text>
                 </View>
               ) : null}
               {isCashedOut ? (
                 <View style={[styles.badge, { backgroundColor: c.badge.cashedOut }]}>
-                  <Text style={styles.badgeText}>CASHED OUT</Text>
+                  <Text style={[type.micro, styles.badgeText]}>CASHED OUT</Text>
                 </View>
               ) : null}
             </View>
@@ -135,18 +182,18 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
           />
           {isCashedOut ? (
             <View style={styles.cashOutSubline}>
-              <Text style={[styles.cashOutResult, { color: c.textMuted }]}>Out:</Text>
+              <Text style={[type.caption, styles.cashOutResult, { color: c.textMuted }]}>Out:</Text>
               <SessionAmountDisplay
                 value={values.cashOut}
                 unit={displayUnit}
                 color={c.textMuted}
                 iconSize={12}
                 valueStyle="ledger"
-                textStyle={[styles.cashOutResult, { color: c.textMuted }]}
+                textStyle={[type.caption, styles.cashOutResult, { color: c.textMuted }]}
               />
-              <Text style={[styles.cashOutResult, { color: c.textMuted }]}>(</Text>
+              <Text style={[type.caption, styles.cashOutResult, { color: c.textMuted }]}>(</Text>
               {values.result >= 0 ? (
-                <Text style={[styles.cashOutResult, { color: resultColor }]}>+</Text>
+                <Text style={[type.caption, styles.cashOutResult, { color: resultColor }]}>+</Text>
               ) : null}
               <SessionAmountDisplay
                 value={values.result}
@@ -154,39 +201,62 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
                 color={resultColor}
                 iconSize={12}
                 valueStyle="ledger"
-                textStyle={[styles.cashOutResult, { color: resultColor }]}
+                textStyle={[type.caption, styles.cashOutResult, { color: resultColor }]}
               />
-              <Text style={[styles.cashOutResult, { color: c.textMuted }]}>)</Text>
+              <Text style={[type.caption, styles.cashOutResult, { color: c.textMuted }]}>)</Text>
             </View>
           ) : null}
         </View>
       </View>
+    </>
+  );
+
+  const webTriggerProps: object = IS_WEB
+    ? { 'aria-haspopup': 'menu', 'aria-expanded': menuOpen }
+    : {};
+
+  const trailing = (
+    <>
       {canAct && !isCashedOut ? (
-        <View style={styles.actions} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <View ref={moreRef} collapsable={false} style={styles.actions} {...ACTIONS_A11Y_HIDDEN}>
           <PressableScale
+            nativeID={moreId}
             pressedScale={0.92}
-            style={[styles.iconBtn, { backgroundColor: c.blueBg }]}
-            hitSlop={4}
-            onPress={() => onCashOut(player)}>
-            <Icon name="account-balance-wallet" size={20} color={c.blue} />
-          </PressableScale>
-          <PressableScale
-            pressedScale={0.92}
-            style={[styles.iconBtn, { borderColor: c.borderDanger }, styles.iconBtnOutline]}
+            style={(state) => [styles.moreBtn, { borderColor: c.border }, pressBg(c, state)]}
             disabled={isRemoving}
             hitSlop={4}
-            onPress={() => onRemove(player)}>
+            accessibilityRole="button"
+            accessibilityLabel={`More actions for ${player.name}`}
+            accessibilityState={{ disabled: isRemoving, busy: isRemoving, expanded: menuOpen }}
+            {...webTriggerProps}
+            onPress={openMenu}>
             {isRemoving ? (
-              <Text style={[styles.removeLabel, { color: c.lossLight }]}>…</Text>
+              <ActivityIndicator size="small" color={c.textSecondary} />
             ) : (
-              <Icon name="delete-outline" size={20} color={c.lossLight} />
+              <Icon name="more-vert" size={20} color={c.textSecondary} weight="bold" />
             )}
           </PressableScale>
         </View>
       ) : null}
+      {canAct && !isCashedOut ? (
+        <PlayerActionMenu
+          visible={menuOpen}
+          title={player.name}
+          actions={menuActions}
+          anchor={menuAnchor}
+          onClose={closeMenu}
+        />
+      ) : null}
       {canAct && isCashedOut ? (
         <Icon name="chevron-right" size={22} color={c.textMuted} importantForAccessibility="no" />
       ) : null}
+    </>
+  );
+
+  const inner = (
+    <>
+      {summary}
+      {trailing}
     </>
   );
 
@@ -219,6 +289,35 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
           break;
       }
     };
+    if (IS_WEB) {
+      // Web: the row is a labelled group, not a button, so the rebuy action and the
+      // "more" menu trigger (Cash out / Correct total / Remove) are siblings instead of nested.
+      // The rebuy button stretches under the summary so the whole row stays clickable.
+      return (
+        <LedgerSwipeRow
+          isRemoving={isRemoving}
+          onCashOut={() => onCashOut(player)}
+          onRemove={() => onRemove(player)}>
+          {(canPress) => (
+            <View style={[...rowStyle, styles.webRow]} role="group" aria-label={label}>
+              <PressableScale
+                pressedScale={1}
+                style={(state) => [StyleSheet.absoluteFill, pressBg(c, state, rowBg)]}
+                onPress={() => {
+                  if (canPress()) onRebuy(player);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Rebuy ${player.name}`}
+              />
+              <View style={styles.webSummary} pointerEvents="none">
+                {summary}
+              </View>
+              {trailing}
+            </View>
+          )}
+        </LedgerSwipeRow>
+      );
+    }
     return (
       <LedgerSwipeRow
         isRemoving={isRemoving}
@@ -261,6 +360,16 @@ const styles = StyleSheet.create({
   row: {
     gap: 12,
   },
+  webRow: {
+    position: 'relative',
+  },
+  webSummary: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   tile: {
     borderWidth: 1,
   },
@@ -298,9 +407,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   badgeText: {
+    // Badge fills are dark in both themes, so the label stays white.
     color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
     letterSpacing: 0.5,
   },
   amounts: {
@@ -325,27 +433,19 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   cashOutResult: {
-    fontSize: 12,
-    marginTop: 2,
+    marginTop: space.xxs,
     fontVariant: ['tabular-nums'],
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
+  moreBtn: {
+    width: tapTarget,
+    height: tapTarget,
     borderRadius: 999,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  iconBtnOutline: {
-    borderWidth: 1,
-  },
-  removeLabel: {
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

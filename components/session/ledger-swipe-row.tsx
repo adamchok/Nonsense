@@ -2,6 +2,7 @@ import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { Icon } from '@/components/icon';
 import { useCallback, useRef, type ReactNode } from 'react';
+import { text } from '@/lib/ui';
 import { StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -54,10 +55,10 @@ export function LedgerSwipeRow({ isRemoving, onCashOut, onRemove, children }: Pr
           <PressableScale
             focusable={false}
             tabIndex={-1}
-            style={[styles.action, { backgroundColor: c.blueBg }]}
+            style={[styles.action, { backgroundColor: c.cardAlt }]}
             onPress={run(onCashOut)}>
-            <Icon name="account-balance-wallet" size={20} color={c.blue} />
-            <Text style={[styles.actionLabel, { color: c.blue }]}>Cash out</Text>
+            <Icon name="account-balance-wallet" size={20} color={c.text} />
+            <Text style={[text.label, { color: c.text }]}>Cash out</Text>
           </PressableScale>
           <PressableScale
             focusable={false}
@@ -66,7 +67,7 @@ export function LedgerSwipeRow({ isRemoving, onCashOut, onRemove, children }: Pr
             disabled={isRemoving}
             onPress={run(onRemove)}>
             <Icon name="delete-outline" size={20} color="#fff" />
-            <Text style={[styles.actionLabel, styles.removeLabel]}>Remove</Text>
+            <Text style={[text.label, styles.removeLabel]}>Remove</Text>
           </PressableScale>
         </View>
       )}>
@@ -95,10 +96,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-  },
-  actionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   removeLabel: {
     color: '#fff',

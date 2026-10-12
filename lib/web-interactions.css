@@ -1,5 +1,6 @@
 :root {
   --accent: #8a5a00;
+  --link-hover: #5c3b00;
   --interaction-hover-filter: brightness(0.97);
   --interaction-hover-overlay: rgba(15, 23, 42, 0.06);
   --danger: #dc2626;
@@ -13,6 +14,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --accent: #f5c451;
+    --link-hover: #f8d27a;
     --interaction-hover-filter: brightness(1.1);
     --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
     --danger: #f87171;
@@ -25,6 +27,7 @@
 
 :root[data-theme='dark'] {
   --accent: #f5c451;
+  --link-hover: #f8d27a;
   --interaction-hover-filter: brightness(1.1);
   --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
   --danger: #f87171;
@@ -82,9 +85,39 @@
       a[href],
       button,
       [tabindex='0']
-    ):not([aria-disabled='true'], :disabled, [aria-selected='true']):hover {
+    ):not([aria-disabled='true'], :disabled, [aria-selected='true'], [aria-hidden='true'], [data-hover-ring]):hover {
     filter: var(--interaction-hover-filter);
     box-shadow: inset 0 0 0 100vmax var(--interaction-hover-overlay);
+  }
+
+  /* Tap target bigger than the visible control (e.g. a 20px box in a 44px hit area): ring the control only. */
+  [data-hover-ring]:not([aria-disabled='true']):hover > :first-child {
+    box-shadow: 0 0 0 5px var(--interaction-hover-overlay);
+  }
+}
+
+@media (hover: hover) {
+  a[data-plain-link][href]:hover {
+    filter: none;
+    box-shadow: none;
+    opacity: 0.8;
+  }
+
+  /* Text links and text-only buttons: underline + colour shift on hover, never the grey button overlay. */
+  :is(a[data-text-link][href], [data-text-button]):not([aria-disabled='true'], :disabled):hover {
+    filter: none;
+    box-shadow: none;
+  }
+
+  a[data-text-link][href]:hover,
+  [data-text-button]:not([aria-disabled='true'], :disabled):hover [dir] {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    color: var(--link-hover) !important;
+  }
+
+  [data-text-button='danger']:not([aria-disabled='true'], :disabled):hover [dir] {
+    color: var(--danger) !important;
   }
 }
 
@@ -179,6 +212,27 @@
   outline: none;
 }
 
+/* Keyboard focus on a valid field gets a clear accent ring on top of the border colour. */
+:is(input, textarea):not([readonly], [aria-invalid='true']):focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Invalid fields keep their danger border, so focus needs its own visible ring. */
+:is(input, textarea)[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+/* No double-tap-zoom delay on tappable controls. */
+:is([role='button'], [role='link'], button, a) {
+  touch-action: manipulation;
+}
+
+/* Scrolling inside a dialog never chains to the page behind it. */
+[aria-modal='true'],
+[aria-modal='true'] * {
+  overscroll-behavior: contain;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :is(
       [role='button'],
@@ -231,8 +285,16 @@
   }
 }
 
+/* Chart is a drag surface, not a button: no hover tint or press nudge. Focus outline stays.
+   Only the surface itself drops transforms: the bars inside are positioned with inline translateY. */
+#pl-chart,
 #pl-chart [tabindex] {
   box-shadow: none !important;
+  filter: none !important;
+}
+
+#pl-chart {
+  transform: none !important;
 }
 
 @media (hover: hover) {
@@ -244,5 +306,20 @@
   [role='link']:not([href]):not([aria-disabled='true']):hover [dir] {
     text-decoration: underline;
     text-underline-offset: 3px;
+    color: var(--link-hover) !important;
+  }
+}
+
+/* Landing showcase: soft handoff when the phone switches to another clip. */
+@keyframes clip-in {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
   }
 }

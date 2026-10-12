@@ -318,7 +318,7 @@ export default function SettingsScreen() {
                   <StatsSkeleton />
                 </ScrollView>
               ) : statsError ? (
-                <Text style={[styles.statsError, { color: '#b91c1c' }]}>{statsError}</Text>
+                <Text style={[styles.statsError, { color: c.loss }]} accessibilityRole="alert">{statsError}</Text>
               ) : stats ? (
                 <ScrollView
                   contentContainerStyle={styles.statsScrollContent}>
@@ -464,12 +464,7 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 48,
   },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
+  title: text.display,
   section: {
     gap: 8,
   },
@@ -488,10 +483,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   cardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.72,
-    textTransform: 'uppercase',
+    ...text.section,
     paddingHorizontal: 4,
   },
   profileRow: {
@@ -525,9 +517,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   editNameBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginVertical: -4,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -539,11 +532,7 @@ const styles = StyleSheet.create({
   displayNameText: {
     flex: 1,
   },
-  displayName: {
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: '700',
-  },
+  displayName: text.title,
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -563,17 +552,9 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  linkedText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  linkedEmail: {
-    fontSize: 13,
-  },
-  primaryBtnLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  linkedText: text.rowTitle,
+  linkedEmail: text.caption,
+  primaryBtnLabel: text.button,
   secondaryBtnRow: {
     flexDirection: 'row',
     gap: 8,
@@ -604,13 +585,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   signOutLabel: {
-    fontSize: 14,
+    ...text.label,
     fontWeight: '600',
   },
-  secondaryBtnLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  secondaryBtnLabel: text.button,
   themeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -630,14 +608,8 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  themeLabel: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '600',
-  },
-  themeDesc: {
-    fontSize: 12,
-  },
+  themeLabel: text.rowTitle,
+  themeDesc: text.rowMeta,
   radioOuter: {
     width: 22,
     height: 22,
@@ -661,7 +633,7 @@ const styles = StyleSheet.create({
   },
   pickerCard: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 480,
     borderRadius: 14,
     borderWidth: 1,
     padding: 20,
@@ -727,12 +699,11 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   statsError: {
+    ...text.caption,
     paddingVertical: 12,
-    fontSize: 14,
   },
   statsFootnote: {
-    fontSize: 11,
-    lineHeight: 16,
+    ...text.caption,
     marginTop: 10,
   },
 });

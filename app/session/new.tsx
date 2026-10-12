@@ -467,7 +467,7 @@ export default function NewSessionScreen() {
                       accessibilityLabel="Select group"
                       onPress={() => setShowGroupPicker(true)}>
                       <Icon name="group" size={18} color={c.textMuted} />
-                      <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group...</Text>
+                      <Text style={[styles.groupPickerLabel, { color: c.textMuted }]}>Select group…</Text>
                     </Pressable>
                   </Animated.View>
                 )}
@@ -494,7 +494,7 @@ export default function NewSessionScreen() {
                         accessibilityLabel={isChipsMode ? 'Chip buy-in per group player' : 'Buy-in per group player'}
                         placeholder={isChipsMode ? 'Chips per player' : 'Buy-in per player'}
                         placeholderTextColor={c.placeholder}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         onFocus={scrollLowerFormIntoView}
                         {...invalidProps(errors.groupBuyIn)}
                         style={[
@@ -547,7 +547,7 @@ export default function NewSessionScreen() {
                       accessibilityLabel={isChipsMode ? 'Your chip buy-in' : 'Your buy-in amount'}
                       placeholder={isChipsMode ? 'Chips' : '0.00'}
                       placeholderTextColor={c.placeholder}
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       onFocus={scrollLowerFormIntoView}
                       {...invalidProps(errors.buyIn)}
                       style={[
@@ -657,6 +657,7 @@ export default function NewSessionScreen() {
                 ))}
               </ScrollView>
               <Pressable
+                {...({ dataSet: { textButton: 'danger' } } as object)}
                 style={styles.pickerCancel}
                 accessibilityRole="button"
                 onPress={() => setShowGroupPicker(false)}>
@@ -703,6 +704,7 @@ export default function NewSessionScreen() {
                 <Text style={[styles.pickerRowText, { color: c.text }]}>Other</Text>
               </Pressable>
               <Pressable
+                {...({ dataSet: { textButton: 'danger' } } as object)}
                 style={styles.pickerCancel}
                 accessibilityRole="button"
                 onPress={() => setShowLocationPicker(false)}>
@@ -946,7 +948,7 @@ const styles = StyleSheet.create({
   },
   pickerCard: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 480,
     borderRadius: 14,
     borderWidth: 1,
     padding: 20,

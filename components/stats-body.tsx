@@ -4,6 +4,7 @@ import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
 import { formatDateDMY } from '@/lib/date-format';
+import { text } from '@/lib/ui';
 import type { PlayerAppStatistics } from '@/lib/firestore';
 import { Fragment } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -130,7 +131,7 @@ export function StatsSkeleton() {
     <SkeletonGroup label="Loading statistics" style={styles.wrap}>
       <View style={[styles.hero, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
         <Text style={[styles.heroLabel, { color: c.textMuted }]}>Lifetime profit / loss</Text>
-        <Skeleton width={160} height={36} radius={8} style={styles.skelHeroValue} />
+        <Skeleton width={160} height={30} radius={8} style={styles.skelHeroValue} />
         <Skeleton width={128} height={12} style={styles.skelHeroSub} />
         <View style={styles.winWrap}>
           <Skeleton height={8} radius={4} />
@@ -239,15 +240,15 @@ function Section({ title, icon, rows, c }: { title: string; icon: IconName; rows
 const styles = StyleSheet.create({
   wrap: { gap: 16, paddingBottom: 4 },
   hero: { borderRadius: 14, borderWidth: 1, padding: 16, alignItems: 'center', gap: 2 },
-  heroLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  heroValue: { fontSize: 32, lineHeight: 40, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  heroSub: { fontSize: 13 },
+  heroLabel: text.label,
+  heroValue: { ...text.display, fontVariant: ['tabular-nums'] },
+  heroSub: text.caption,
   winWrap: { alignSelf: 'stretch', marginTop: 12, gap: 8 },
   winBar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2 },
   winLegend: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
   winLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   winDot: { width: 8, height: 8, borderRadius: 4 },
-  winLegendText: { fontSize: 12, fontVariant: ['tabular-nums'] },
+  winLegendText: { ...text.caption, fontVariant: ['tabular-nums'] },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: {
     flexBasis: '31%',
@@ -258,19 +259,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 2,
   },
-  tileLabel: { fontSize: 12 },
-  tileValue: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  tileLabel: text.rowMeta,
+  tileValue: { ...text.amount, fontWeight: '700' },
   section: { gap: 8 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectionTitle: { fontSize: 12, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
+  sectionTitle: text.section,
   list: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
   divider: { height: StyleSheet.hairlineWidth },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, minHeight: 40 },
-  rowLabel: { flex: 1, fontSize: 14 },
-  rowValue: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  rowLabel: { ...text.rowTitle, fontWeight: '400', flex: 1 },
+  rowValue: text.amount,
   skelHeroValue: { marginVertical: 2 },
   skelHeroSub: { marginVertical: 3 },
   skelLegendText: { marginVertical: 3 },
   skelTileValue: { marginVertical: 3 },
-  footnote: { fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  footnote: { ...text.caption, textAlign: 'center' },
 });

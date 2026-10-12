@@ -7,8 +7,8 @@ import { useAuth } from '@/lib/auth-context';
 import { createGroup } from '@/lib/firestore';
 import { userMessage } from '@/lib/user-message';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { useId, useState } from 'react';
+import { Platform, Text, TextInput, View } from 'react-native';
 
 const MIN_NAME_LEN = 2;
 const MAX_OWNED_GROUPS = 10;
@@ -23,10 +23,15 @@ export function NewGroupModal({ onClose, ownedCount }: Props) {
   const [nameError, setNameError] = useState<string | null>(null);
   const trimmed = name.trim();
   const isAtLimit = ownedCount >= MAX_OWNED_GROUPS;
-  const canCreate = !isSaving && !isAtLimit;
+  const limitMessage = `You own ${MAX_OWNED_GROUPS} of ${MAX_OWNED_GROUPS} groups. Delete one to create another.`;
+  const errorId = `${useId()}-group-name-error`;
 
   async function create() {
-    if (!playerProfile || !canCreate) return;
+    if (!playerProfile || isSaving) return;
+    if (isAtLimit) {
+      setNameError(limitMessage);
+      return;
+    }
     if (trimmed.length < MIN_NAME_LEN) {
       setNameError(trimmed ? `Use at least ${MIN_NAME_LEN} characters` : 'Enter a group name');
       return;
@@ -47,7 +52,7 @@ export function NewGroupModal({ onClose, ownedCount }: Props) {
       visible
       onClose={onClose}
       title="New group"
-      primary={{ label: 'Create', onPress: () => void create(), disabled: !canCreate, busy: isSaving }}>
+      primary={{ label: 'Create', onPress: () => void create(), busy: isSaving }}>
       <View>
         <TextInput
           value={name}
@@ -57,7 +62,7 @@ export function NewGroupModal({ onClose, ownedCount }: Props) {
           }}
           placeholder="Friday Boys"
           accessibilityLabel="Group name"
-          autoFocus
+          autoFocus={Platform.OS !== 'web'}
           autoCapitalize="words"
           maxLength={40}
           returnKeyType="done"
@@ -68,15 +73,12 @@ export function NewGroupModal({ onClose, ownedCount }: Props) {
             { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
             errorBorder(c, nameError),
           ]}
-          {...invalidProps(nameError)}
+          {...invalidProps(nameError, errorId)}
         />
-        {nameError ? (
-          <FieldError message={nameError} />
-        ) : (
+        <FieldError message={nameError} nativeID={errorId} />
+        {nameError ? null : (
           <Text style={{ marginTop: 10, fontSize: 12, lineHeight: 16, color: isAtLimit ? c.loss : c.textMuted }}>
-            {isAtLimit
-              ? `You own ${MAX_OWNED_GROUPS} of ${MAX_OWNED_GROUPS} groups. Delete one to create another.`
-              : `You own ${ownedCount} of ${MAX_OWNED_GROUPS} groups`}
+            {isAtLimit ? limitMessage : `You own ${ownedCount} of ${MAX_OWNED_GROUPS} groups`}
           </Text>
         )}
       </View>

@@ -92,7 +92,7 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
                   }}
                   placeholder={unit === 'chips' ? 'Chips' : '0.00'}
                   placeholderTextColor={c.placeholder}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   autoFocus
                   returnKeyType="done"
                   onSubmitEditing={() => void confirm()}

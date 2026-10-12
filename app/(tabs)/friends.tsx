@@ -13,10 +13,6 @@ import {
   cancelOutgoingFriendRequest,
   declineFriendRequest,
   deleteGroup,
-  fetchFriendsList,
-  fetchGroupsList,
-  fetchIncomingFriendRequests,
-  fetchOutgoingFriendRequests,
   getFriendLeaderboard,
   getGroupLeaderboard,
   leaveGroup,
@@ -39,12 +35,10 @@ import {
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { FriendRecord, FriendRequestRecord, GroupMember, PokerGroup } from '@/types';
 import { Icon } from '@/components/icon';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
-  Easing,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -73,6 +67,54 @@ const menuEntering = webSafe(
     .reduceMotion(ReduceMotion.System),
   FadeIn.duration(160).reduceMotion(ReduceMotion.System),
 );
+
+const IS_WEB = Platform.OS === 'web';
+const SORT_TRIGGER_ID = 'lb-sort-trigger';
+const SORT_MENU_ID = 'lb-sort-menu';
+
+type WebKeyEvent = { key: string; preventDefault: () => void };
+
+function sortMenuItems(): HTMLElement[] {
+  if (!IS_WEB || typeof document === 'undefined') return [];
+  return Array.from(document.querySelectorAll<HTMLElement>(`#${SORT_MENU_ID} [role="menuitemradio"]`));
+}
+
+/** Moves focus between the web sort menu items; returns false when the key is not a menu navigation key. */
+function moveSortMenuFocus(key: string): boolean {
+  const items = sortMenuItems();
+  const count = items.length;
+  if (count === 0) return false;
+  const current = items.indexOf(document.activeElement as HTMLElement);
+  let next: number;
+  switch (key) {
+    case 'ArrowDown':
+      next = current < 0 ? 0 : (current + 1) % count;
+      break;
+    case 'ArrowUp':
+      next = current < 0 ? count - 1 : (current - 1 + count) % count;
+      break;
+    case 'Home':
+      next = 0;
+      break;
+    case 'End':
+      next = count - 1;
+      break;
+    default:
+      return false;
+  }
+  items[next].focus();
+  return true;
+}
+
+function focusSortTrigger(): void {
+  if (!IS_WEB || typeof document === 'undefined') return;
+  document.getElementById(SORT_TRIGGER_ID)?.focus();
+}
+
+/** Web-only ARIA for a sort menu option; native keeps its radio role. */
+function sortItemWebProps(checked: boolean): object {
+  return IS_WEB ? { role: 'menuitemradio', 'aria-checked': checked, tabIndex: -1 } : {};
+}
 
 const FRIENDS_TABS: readonly SegmentedTab<'friends' | 'groups' | 'leaderboard'>[] = [
   { key: 'friends', label: 'Friends', icon: 'people' },
@@ -112,7 +154,6 @@ export default function FriendsScreen() {
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [groupLeaderboard, setGroupLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [groupLbLoading, setGroupLbLoading] = useState(false);
-  const [groupLbRefreshKey, setGroupLbRefreshKey] = useState(0);
   const [groupLeaderboardModalGroup, setGroupLeaderboardModalGroup] = useState<PokerGroup | null>(null);
   const [showGroupLeaderboardModal, setShowGroupLeaderboardModal] = useState(false);
   const [renameGroupTarget, setRenameGroupTarget] = useState<PokerGroup | null>(null);
@@ -125,8 +166,38 @@ export default function FriendsScreen() {
   const [showLeaderboardSortDropdown, setShowLeaderboardSortDropdown] = useState(false);
   const [leaderboardSortBy, setLeaderboardSortBy] = useState<LeaderboardSortKey>('profit');
   const [leaderboardSortDirection, setLeaderboardSortDirection] = useState<SortDirection>('desc');
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshSpin] = useState(() => new Animated.Value(0));
+  // Friends, requests and groups are live subscriptions. The leaderboard is a cached scan, so it
+  // re-scans on every return to this screen (and on "Try again") instead of a manual refresh button.
+  const [lbReloadKey, setLbReloadKey] = useState(0);
+  const hasFocusedRef = useRef(false);
+
+  const closeSortMenu = useCallback((returnFocus: boolean) => {
+    setShowLeaderboardSortDropdown(false);
+    if (returnFocus) focusSortTrigger();
+  }, []);
+
+  // Web: move focus into the sort menu when it opens (checked item first).
+  useEffect(() => {
+    if (!IS_WEB || !showLeaderboardSortDropdown) return;
+    const frame = requestAnimationFrame(() => {
+      const items = sortMenuItems();
+      (items.find((el) => el.getAttribute('aria-checked') === 'true') ?? items[0])?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showLeaderboardSortDropdown]);
+
+  const onSortMenuKeyDown = (e: WebKeyEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSortMenu(true);
+      return;
+    }
+    if (e.key === 'Tab') {
+      closeSortMenu(false);
+      return;
+    }
+    if (moveSortMenuFocus(e.key)) e.preventDefault();
+  };
 
   const sortedLeaderboard = useMemo(() => {
     const next = [...leaderboard];
@@ -170,63 +241,20 @@ export default function FriendsScreen() {
     [groups, user?.uid]
   );
 
-  const refreshRotate = refreshSpin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  useEffect(() => {
-    if (!refreshing) {
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.timing(refreshSpin, {
-        toValue: 1,
-        duration: 700,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [refreshing, refreshSpin]);
-
-  const handleTabRefresh = useCallback(async () => {
-    if (refreshing || !user) return;
-    setShowLeaderboardSortDropdown(false);
-    setRefreshing(true);
-    try {
-      if (activeTab === 'friends') {
-        const [nextFriends, incoming, outgoing] = await Promise.all([
-          fetchFriendsList(user.uid),
-          fetchIncomingFriendRequests(user.uid),
-          fetchOutgoingFriendRequests(user.uid),
-        ]);
-        setFriends(nextFriends);
-        setIncomingRequests(incoming);
-        setOutgoingRequests(outgoing);
-      } else if (activeTab === 'groups') {
-        setGroups(await fetchGroupsList(user.uid));
-      } else {
-        setLbLoading(true);
-        try {
-          const lb = await getFriendLeaderboard(user.uid, true);
-          setLeaderboard(lb);
-          setLbFailed(false);
-        } catch (e) {
-          console.error('Friend leaderboard refresh failed:', e);
-          setLbFailed(true);
-        } finally {
-          setLbLoading(false);
-        }
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedRef.current) {
+        hasFocusedRef.current = true;
+        return;
       }
-    } finally {
-      refreshSpin.stopAnimation(() => {
-        refreshSpin.setValue(0);
-      });
-      setRefreshing(false);
-    }
-  }, [refreshing, user, activeTab, refreshSpin]);
+      setLbReloadKey((k) => k + 1);
+    }, [])
+  );
+
+  const retryLeaderboard = useCallback(() => {
+    if (friends.length > 0) setLbLoading(true);
+    setLbReloadKey((k) => k + 1);
+  }, [friends.length]);
 
   useEffect(() => {
     if (!user) return;
@@ -287,7 +315,7 @@ export default function FriendsScreen() {
   useEffect(() => {
     if (!user || friends.length === 0) return;
     let cancelled = false;
-    getFriendLeaderboard(user.uid)
+    getFriendLeaderboard(user.uid, lbReloadKey > 0)
       .then((lb) => {
         if (cancelled) return;
         setLeaderboard(lb);
@@ -303,7 +331,7 @@ export default function FriendsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user, friends, friendsLoaded]);
+  }, [user, friends, friendsLoaded, lbReloadKey]);
 
   useEffect(() => {
     if (!user) return;
@@ -344,7 +372,7 @@ export default function FriendsScreen() {
       }
       setGroupLbLoading(true);
       try {
-        const lb = await getGroupLeaderboard(user.uid, expandedGroupId, groupLbRefreshKey > 0);
+        const lb = await getGroupLeaderboard(user.uid, expandedGroupId);
         if (!cancelled) setGroupLeaderboard(lb);
       } catch (e) {
         console.error('Group leaderboard load failed:', e);
@@ -357,7 +385,7 @@ export default function FriendsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user, expandedGroupId, groupLbRefreshKey]);
+  }, [user, expandedGroupId]);
 
   function openRenameGroupModal(group: PokerGroup) {
     setRenameGroupTarget(group);
@@ -582,25 +610,11 @@ export default function FriendsScreen() {
             <View style={styles.addBtnGroup}>
               <PressableScale
                 pressedScale={0.92}
-                style={[
-                  styles.refreshBtn,
-                  { backgroundColor: c.cardAlt, borderColor: c.border },
-                  refreshing && styles.refreshDisabled,
-                ]}
-                onPress={() => void handleTabRefresh()}
-                accessibilityRole="button"
-                accessibilityLabel="Refresh friends">
-                <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-                  <Icon name="refresh" size={20} color={c.textMuted} />
-                </Animated.View>
-              </PressableScale>
-              <PressableScale
-                pressedScale={0.92}
-                style={[styles.scanBtn, { backgroundColor: c.friendChipBg, borderColor: c.friendChipBorder }]}
+                style={[styles.scanBtn, { borderColor: c.border }]}
                 onPress={() => router.push('../qr-code?tab=scan')}
                 accessibilityRole="button"
                 accessibilityLabel="Scan a friend's QR code">
-                <Icon name="qr-code-scanner" size={20} color={c.blue} />
+                <Icon name="qr-code-scanner" size={20} color={c.textSecondary} />
               </PressableScale>
               <PressableScale
                 pressedScale={0.97}
@@ -649,6 +663,8 @@ export default function FriendsScreen() {
                     <PressableScale
                       pressedScale={0.97}
                       style={[styles.requestAcceptBtn, { backgroundColor: c.accent }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Accept friend request from ${req.name}`}
                       onPress={async () => {
                         if (!user) return;
                         try {
@@ -814,6 +830,7 @@ export default function FriendsScreen() {
                     pressedScale={0.9}
                     hitSlop={8}
                     accessibilityRole="button"
+                    {...({ dataSet: { textButton: 'danger' } } as object)}
                     accessibilityLabel={`Cancel friend request to ${req.name}`}
                     onPress={() => {
                       appAlert('Cancel request?', `Stop waiting for ${req.name} to accept?`, [
@@ -899,20 +916,6 @@ export default function FriendsScreen() {
               {groupsLoaded ? `Groups (${groups.length})` : 'Groups'}
             </Text>
             <View style={styles.sectionHeaderActions}>
-              <PressableScale
-                pressedScale={0.92}
-                style={[
-                  styles.refreshBtn,
-                  { backgroundColor: c.cardAlt, borderColor: c.border },
-                  refreshing && styles.refreshDisabled,
-                ]}
-                onPress={() => void handleTabRefresh()}
-                accessibilityRole="button"
-                accessibilityLabel="Refresh groups">
-                <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-                  <Icon name="refresh" size={20} color={c.textMuted} />
-                </Animated.View>
-              </PressableScale>
               <PressableScale
                 pressedScale={0.97}
                 style={[
@@ -1057,8 +1060,8 @@ export default function FriendsScreen() {
                                   </View>
                                 ) : (
                                   <View
-                                    style={[styles.groupMemberRoleBadge, { backgroundColor: c.badge.you }]}>
-                                    <Text style={styles.groupMemberRoleBadgeText}>Member</Text>
+                                    style={[styles.groupMemberRoleBadge, { backgroundColor: c.chipBg }]}>
+                                    <Text style={[styles.groupMemberRoleBadgeText, { color: c.chipText }]}>Member</Text>
                                   </View>
                                 )}
                               </View>
@@ -1086,14 +1089,16 @@ export default function FriendsScreen() {
                           pressedScale={0.97}
                           style={[
                             styles.manageBtn,
-                            { backgroundColor: c.blueBg, borderColor: c.blueBorder },
+                            { borderColor: c.border },
                           ]}
                           onPress={() => {
                             setGroupLeaderboardModalGroup(group);
                             setShowGroupLeaderboardModal(true);
-                          }}>
-                          <Icon name="leaderboard" size={16} color={c.blue} />
-                          <Text style={[styles.manageBtnLabel, { color: c.blue }]}>Leaderboard</Text>
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${group.name} leaderboard`}>
+                          <Icon name="leaderboard" size={16} color={c.textSecondary} />
+                          <Text style={[styles.manageBtnLabel, { color: c.textSecondary }]}>Leaderboard</Text>
                         </PressableScale>
                       </View>
                     </View>
@@ -1113,25 +1118,18 @@ export default function FriendsScreen() {
           <View style={[styles.sectionHeader, showLeaderboardSortDropdown && styles.menuAnchorRaised]}>
             <Text style={[styles.sectionTitle, { color: c.text }]}>Leaderboard</Text>
             <View style={styles.sectionHeaderActions}>
-              <PressableScale
-                pressedScale={0.92}
-                style={[
-                  styles.refreshBtn,
-                  { backgroundColor: c.cardAlt, borderColor: c.border },
-                  refreshing && styles.refreshDisabled,
-                ]}
-                onPress={() => void handleTabRefresh()}
-                accessibilityRole="button"
-                accessibilityLabel="Refresh leaderboard">
-                <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-                  <Icon name="refresh" size={20} color={c.textMuted} />
-                </Animated.View>
-              </PressableScale>
               <View style={styles.lbSortWrap}>
               <PressableScale
                 pressedScale={0.97}
                 style={[styles.lbSortBtnLabeled, { backgroundColor: c.cardAlt, borderColor: c.border }]}
-                onPress={() => setShowLeaderboardSortDropdown((prev) => !prev)}>
+                onPress={() => setShowLeaderboardSortDropdown((prev) => !prev)}
+                nativeID={SORT_TRIGGER_ID}
+                accessibilityRole="button"
+                accessibilityLabel={`Sort leaderboard by ${leaderboardSortBy === 'profit' ? 'profit' : 'name'}, ${leaderboardSortDirection === 'asc' ? 'ascending' : 'descending'}`}
+                accessibilityState={{ expanded: showLeaderboardSortDropdown }}
+                aria-expanded={showLeaderboardSortDropdown}
+                aria-haspopup="menu"
+                aria-controls={showLeaderboardSortDropdown ? SORT_MENU_ID : undefined}>
                 <Icon name="sort" size={20} color={c.textMuted} />
                 <Text style={[styles.lbSortBtnText, { color: c.textMuted }]}>
                   {leaderboardSortBy === 'profit' ? 'Profit' : 'Name'} ({leaderboardSortDirection === 'asc' ? 'Asc' : 'Desc'})
@@ -1141,15 +1139,20 @@ export default function FriendsScreen() {
                 <Motion.View
                   entering={menuEntering}
                   exiting={fadeOut}
+                  nativeID={SORT_MENU_ID}
+                  {...(IS_WEB
+                    ? ({ role: 'menu', 'aria-label': 'Sort leaderboard', onKeyDown: onSortMenuKeyDown } as object)
+                    : {})}
                   style={[styles.lbSortDropdown, { backgroundColor: c.card, borderColor: c.border }]}>
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Sort by</Text>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortBy === 'profit' && { backgroundColor: c.accentBg }]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortBy === 'profit' }}
+                    {...sortItemWebProps(leaderboardSortBy === 'profit')}
                     onPress={() => {
                       setLeaderboardSortBy('profit');
-                      setShowLeaderboardSortDropdown(false);
+                      closeSortMenu(IS_WEB);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Profit</Text>
                     {leaderboardSortBy === 'profit' ? <Icon name="check" size={16} color={c.accentText} /> : null}
@@ -1158,22 +1161,24 @@ export default function FriendsScreen() {
                     style={[styles.lbSortOption, leaderboardSortBy === 'name' && { backgroundColor: c.accentBg }]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortBy === 'name' }}
+                    {...sortItemWebProps(leaderboardSortBy === 'name')}
                     onPress={() => {
                       setLeaderboardSortBy('name');
-                      setShowLeaderboardSortDropdown(false);
+                      closeSortMenu(IS_WEB);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Name</Text>
                     {leaderboardSortBy === 'name' ? <Icon name="check" size={16} color={c.accentText} /> : null}
                   </Pressable>
-                  <View style={[styles.lbSortDivider, { backgroundColor: c.border }]} />
+                  <View style={[styles.lbSortDivider, { backgroundColor: c.border }]} {...(IS_WEB ? ({ role: 'separator' } as object) : {})} />
                   <Text style={[styles.lbSortSectionTitle, { color: c.textHint }]}>Direction</Text>
                   <Pressable
                     style={[styles.lbSortOption, leaderboardSortDirection === 'desc' && { backgroundColor: c.accentBg }]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortDirection === 'desc' }}
+                    {...sortItemWebProps(leaderboardSortDirection === 'desc')}
                     onPress={() => {
                       setLeaderboardSortDirection('desc');
-                      setShowLeaderboardSortDropdown(false);
+                      closeSortMenu(IS_WEB);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Descending</Text>
                     {leaderboardSortDirection === 'desc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
@@ -1182,9 +1187,10 @@ export default function FriendsScreen() {
                     style={[styles.lbSortOption, leaderboardSortDirection === 'asc' && { backgroundColor: c.accentBg }]}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: leaderboardSortDirection === 'asc' }}
+                    {...sortItemWebProps(leaderboardSortDirection === 'asc')}
                     onPress={() => {
                       setLeaderboardSortDirection('asc');
-                      setShowLeaderboardSortDropdown(false);
+                      closeSortMenu(IS_WEB);
                     }}>
                     <Text style={[styles.lbSortOptionText, { color: c.text }]}>Ascending</Text>
                     {leaderboardSortDirection === 'asc' ? <Icon name="check" size={16} color={c.accentText} /> : null}
@@ -1200,7 +1206,8 @@ export default function FriendsScreen() {
             <EmptyState
               icon="leaderboard"
               title={lbFailed ? "Couldn't load the leaderboard" : 'No results yet'}
-              message={lbFailed ? 'Tap refresh to try again.' : 'Finish a session with friends to see the rankings.'}
+              message={lbFailed ? 'Check your connection and try again.' : 'Finish a session with friends to see the rankings.'}
+              action={lbFailed ? { label: 'Try again', icon: 'refresh', onPress: retryLeaderboard } : undefined}
             />
           ) : (
             sortedLeaderboard.map((entry, idx) => {
@@ -1272,7 +1279,10 @@ export default function FriendsScreen() {
                     placeholderTextColor={c.placeholder}
                     maxLength={6}
                     autoCapitalize="characters"
-                    autoFocus
+                    autoCorrect={false}
+                    spellCheck={false}
+                    autoComplete="off"
+                    autoFocus={!IS_WEB}
                     onFocus={() => scrollModalFieldToTop(addFriendScrollRef)}
                     style={[
                       styles.codeInput,
@@ -1285,7 +1295,9 @@ export default function FriendsScreen() {
                 </ScrollView>
                 <View style={styles.addCardActions}>
                   <Pressable
+                    {...({ dataSet: { textButton: 'danger' } } as object)}
                     style={styles.cancelBtn}
+                    accessibilityRole="button"
                     onPress={() => { setShowAddModal(false); setRefCodeInput(''); setRefCodeError(null); }}>
                     <Text style={[styles.cancelLabel, { color: c.lossLight }]}>Cancel</Text>
                   </Pressable>
@@ -1296,7 +1308,10 @@ export default function FriendsScreen() {
                       adding && styles.disabled,
                     ]}
                     onPress={handleAddFriend}
-                    disabled={adding}>
+                    disabled={adding}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send request"
+                    accessibilityState={{ disabled: adding, busy: adding }}>
                     {adding ? (
                       <ActivityIndicator size="small" color={c.onAccent} />
                     ) : (
@@ -1330,16 +1345,6 @@ export default function FriendsScreen() {
                 <Text style={[styles.leaderboardTitle, { color: c.text }]}>
                   {groupLeaderboardModalGroup?.name ? `${groupLeaderboardModalGroup.name} Leaderboard` : 'Leaderboard'}
                 </Text>
-                <PressableScale
-                  pressedScale={0.9}
-                  disabled={groupLbLoading}
-                  onPress={() => setGroupLbRefreshKey((k) => k + 1)}
-                  style={[styles.requestCloseBtn, groupLbLoading && styles.disabled]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Refresh leaderboard"
-                  accessibilityState={{ disabled: groupLbLoading, busy: groupLbLoading }}>
-                  <Icon name="refresh" size={18} color={c.textMuted} />
-                </PressableScale>
                 <PressableScale
                   pressedScale={0.9}
                   onPress={() => setShowGroupLeaderboardModal(false)}
@@ -1432,9 +1437,11 @@ export default function FriendsScreen() {
                       setRenameGroupError(null);
                     }}
                     placeholder="Group name"
+                    accessibilityLabel="Group name"
                     placeholderTextColor={c.placeholder}
                     autoCapitalize="words"
-                    autoFocus
+                    autoComplete="off"
+                    autoFocus={!IS_WEB}
                     editable={!renameGroupSaving}
                     style={[
                       styles.renameGroupInput,
@@ -1447,8 +1454,11 @@ export default function FriendsScreen() {
                 </View>
                 <View style={styles.addCardActions}>
                   <Pressable
+                    {...({ dataSet: { textButton: 'danger' } } as object)}
                     style={styles.cancelBtn}
                     disabled={renameGroupSaving}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: renameGroupSaving }}
                     onPress={() => {
                       setRenameGroupTarget(null);
                       setRenameGroupName('');
@@ -1462,7 +1472,10 @@ export default function FriendsScreen() {
                       renameGroupSaving && styles.disabled,
                     ]}
                     disabled={renameGroupSaving}
-                    onPress={handleConfirmRenameGroup}>
+                    onPress={handleConfirmRenameGroup}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save group name"
+                    accessibilityState={{ disabled: renameGroupSaving, busy: renameGroupSaving }}>
                     {renameGroupSaving ? (
                       <ActivityIndicator size="small" color={c.onAccent} />
                     ) : (
@@ -1571,12 +1584,7 @@ const styles = StyleSheet.create({
     paddingTop: 48,
     gap: 16,
   },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
+  title: text.display,
   vRow: {
     minHeight: 52,
     borderRadius: 0,
@@ -1631,17 +1639,6 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 30,
   },
-  refreshBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  refreshDisabled: {
-    opacity: 0.6,
-  },
   lbSortWrap: {
     position: 'relative',
     zIndex: 20,
@@ -1654,10 +1651,10 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    height: 40,
+    height: 44,
   },
   lbSortBtnText: {
-    fontSize: 14,
+    ...text.label,
     fontWeight: '600',
   },
   menuBackdrop: {
@@ -1680,10 +1677,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   lbSortSectionTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.66,
-    textTransform: 'uppercase',
+    ...text.section,
     paddingHorizontal: 14,
     paddingTop: 4,
     paddingBottom: 4,
@@ -1692,13 +1686,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 36,
+    minHeight: 44,
     paddingHorizontal: 10,
     marginHorizontal: 4,
     borderRadius: 8,
   },
   lbSortOptionText: {
-    fontSize: 14,
+    ...text.rowTitle,
     fontWeight: '500',
   },
   lbSortDivider: {
@@ -1706,19 +1700,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     marginVertical: 4,
   },
-  sectionTitle: {
-    fontWeight: '600',
-    fontSize: 17,
-    lineHeight: 22,
-  },
+  sectionTitle: text.heading,
   addBtnGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   scanBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 999,
@@ -1729,24 +1719,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    minHeight: 40,
+    minHeight: 44,
     paddingLeft: 12,
     paddingRight: 16,
     borderRadius: 999,
     borderWidth: 1,
   },
-  addBtnLabel: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  addBtnLabel: text.button,
   requestBlock: {
     gap: 0,
   },
   requestBlockTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.72,
-    textTransform: 'uppercase',
+    ...text.section,
     paddingHorizontal: 4,
     marginBottom: 8,
   },
@@ -1772,12 +1756,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   requestAcceptLabel: {
+    ...text.label,
     fontWeight: '600',
-    fontSize: 13,
   },
   pendingHint: {
-    fontSize: 12,
-    fontWeight: '500',
+    ...text.label,
     marginTop: 2,
   },
   guestLinkAcceptBtn: {
@@ -1789,14 +1772,14 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   guestLinkBody: {
-    fontSize: 14,
-    lineHeight: 19,
+    ...text.rowTitle,
+    fontWeight: '400',
   },
   guestLinkStrong: {
     fontWeight: '600',
   },
   cancelRequestLabel: {
-    fontSize: 13,
+    ...text.label,
     fontWeight: '600',
   },
   friendList: {
@@ -1818,22 +1801,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  friendName: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  friendName: text.rowTitle,
   friendTextBlock: {
     minWidth: 0,
   },
   friendMeta: {
+    ...text.rowMeta,
     marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
   },
-  friendAvatar: {
-    fontSize: 17,
-    lineHeight: 22,
-  },
+  friendAvatar: text.heading,
   lbRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1862,23 +1838,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   lbRank: {
+    ...text.label,
     fontWeight: '600',
-    fontSize: 13,
     width: 28,
     fontVariant: ['tabular-nums'],
   },
-  lbName: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  lbAvatar: {
-    fontSize: 18,
-  },
-  lbProfit: {
-    fontWeight: '600',
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
-  },
+  lbName: text.rowTitle,
+  lbAvatar: text.heading,
+  lbProfit: text.amount,
   groupCard: {
     borderRadius: 14,
     borderWidth: 1,
@@ -1898,23 +1865,20 @@ const styles = StyleSheet.create({
     gap: 10,
     flex: 1,
   },
-  groupName: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  groupCount: {
-    fontSize: 12,
-  },
+  groupName: text.rowTitle,
+  groupCount: text.rowMeta,
   groupHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginRight: -8,
+    // Offsets the 44px icon buttons so header height and icon alignment stay as before.
+    marginRight: -12,
+    marginVertical: -4,
   },
   groupIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1925,7 +1889,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   groupEmpty: {
-    fontSize: 13,
+    ...text.caption,
     textAlign: 'center',
     paddingVertical: 12,
   },
@@ -1944,8 +1908,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   memberName: {
+    ...text.rowTitle,
     fontWeight: '500',
-    fontSize: 15,
   },
   groupMemberRoleBadge: {
     borderRadius: 4,
@@ -1953,10 +1917,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   groupMemberRoleBadgeText: {
+    ...text.label,
     color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '600',
   },
   manageBtn: {
     minHeight: 44,
@@ -1969,10 +1932,7 @@ const styles = StyleSheet.create({
     gap: 6,
     flex: 1,
   },
-  manageBtnLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  manageBtnLabel: text.button,
   groupActionsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1993,7 +1953,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 480,
   },
   addFriendModalFieldsScroll: {
     width: '100%',
@@ -2003,21 +1963,18 @@ const styles = StyleSheet.create({
   },
   addCard: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 480,
     borderRadius: 14,
     borderWidth: 1,
     padding: 20,
     gap: 12,
   },
   addCardTitle: text.modalTitle,
-  addCardSub: {
-    fontSize: 13,
-  },
+  addCardSub: text.caption,
   codeInput: {
     borderRadius: 9,
     borderWidth: 1,
-    fontSize: 22,
-    fontWeight: '700',
+    ...text.title,
     letterSpacing: 4,
     textAlign: 'center',
     paddingVertical: 14,
@@ -2027,7 +1984,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 9,
     borderWidth: 1,
-    fontSize: 15,
+    fontSize: text.body.fontSize,
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
@@ -2043,20 +2000,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  cancelLabel: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  cancelLabel: text.button,
   confirmBtn: {
     minHeight: 48,
     justifyContent: 'center',
     borderRadius: 14,
     paddingHorizontal: 18,
   },
-  confirmLabel: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  confirmLabel: text.button,
   disabled: {
     opacity: 0.4,
   },
@@ -2075,8 +2026,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   leaderboardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+    ...text.heading,
     flex: 1,
     marginRight: 12,
   },

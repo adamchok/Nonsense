@@ -22,7 +22,7 @@ export function sectionGapFor(width: number): number {
   return width >= BREAKPOINT_MD ? 32 : 24;
 }
 
-export const radius = { xs: 4, sm: 8, tight: 9, md: 14, lg: 20, pill: 999 } as const;
+export const radius = { xs: 4, sm: 8, tight: 8, md: 14, lg: 20, pill: 999 } as const;
 
 export const tapTarget = 44;
 export const rowMinHeight = 52;

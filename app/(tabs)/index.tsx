@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useResolvedColorScheme } from '@/lib/theme-context';
 import { formatSessionBlindsForDisplay } from '@/lib/currency-format';
-import { formatDateTimeDMY } from '@/lib/date-format';
+import { formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
 import { getBuyIns, getRecentSessionsForPlayer } from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 import { Icon } from '@/components/icon';
@@ -20,7 +20,7 @@ import {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { Animated, AppState, type AppStateStatus, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, type AppStateStatus, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { text as type, pressBg, ui } from '@/lib/ui';
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
@@ -38,7 +38,6 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshSpin] = useState(() => new Animated.Value(0));
 
   const loadSessions = useCallback(
     async (opts?: { signal?: AbortSignal }) => {
@@ -99,48 +98,32 @@ export default function HomeScreen() {
     () => sessions.filter((s) => s.status === 'active'),
     [sessions]
   );
-  const refreshRotate = refreshSpin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  useEffect(() => {
-    if (!isRefreshing) {
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.timing(refreshSpin, {
-        toValue: 1,
-        duration: 700,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [isRefreshing, refreshSpin]);
-
+  // Pull-to-refresh (native only); the list also reloads on every screen focus.
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    let loaded = false;
     try {
       await loadSessions();
-      loaded = true;
     } finally {
       setIsRefreshing(false);
-      if (loaded) {
-        refreshSpin.stopAnimation(() => {
-          refreshSpin.setValue(0);
-        });
-      }
     }
-  }, [isRefreshing, loadSessions, refreshSpin]);
+  }, [isRefreshing, loadSessions]);
 
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: c.bg }]}
-      contentContainerStyle={[layout.content, styles.content, layout.tabTop]}>
+      contentContainerStyle={[layout.content, styles.content, layout.tabTop]}
+      refreshControl={
+        Platform.OS === 'web' ? undefined : (
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => void handleRefresh()}
+            tintColor={c.textMuted}
+            colors={[c.accent]}
+            progressBackgroundColor={c.card}
+          />
+        )
+      }>
       {isMd ? null : (
         <Motion.Image
           entering={fadeIn}
@@ -206,18 +189,6 @@ export default function HomeScreen() {
               </View>
             ) : null}
           </View>
-          <PressableScale
-            pressedScale={0.92}
-            style={(state) => [ui.iconButton, styles.refreshBtn, pressBg(c, state, 'transparent')]}
-            onPress={() => void handleRefresh()}
-            disabled={isRefreshing}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Refresh active sessions">
-            <Animated.View style={{ transform: [{ rotate: refreshRotate }] }}>
-              <Icon name="refresh" size={18} color={c.textMuted} />
-            </Animated.View>
-          </PressableScale>
         </View>
         <View style={[ui.card, { backgroundColor: c.card, borderColor: c.border }]}>
           {!isLoaded && playerProfile ? (
@@ -248,8 +219,8 @@ export default function HomeScreen() {
                 onPress={() => router.push(`../session/${session.id}`)}
                 accessibilityRole="button"
                 accessibilityLabel={[
-                  `Live session ${formatDateTimeDMY(session.date)}`,
-                  session.location ? session.location : 'No location',
+                  `Live session ${formatSessionTitle(session.date, session.location)}`,
+                  `started ${formatSessionTime(session.date)}`,
                   `${sessionMetaById[session.id]?.playerCount ?? 0} players`,
                   blindsText ? `blinds ${blindsText}` : null,
                 ]
@@ -266,11 +237,11 @@ export default function HomeScreen() {
                 </View>
                 <View style={ui.rowBody}>
                   <Text style={[type.rowTitle, { color: c.text }]} numberOfLines={1}>
-                    {formatDateTimeDMY(session.date)}
+                    {formatSessionTitle(session.date, session.location)}
                   </Text>
                   <View style={styles.sessionMetaRow}>
                     <Text style={[styles.sessionMeta, { color: c.textMuted }]}>
-                      {session.location ? session.location : 'No location'}
+                      {formatSessionTime(session.date)}
                     </Text>
                     <Text style={[styles.sessionMeta, { color: c.textMuted }]}> • </Text>
                     <View style={styles.sessionMetaWithIcon}>
@@ -363,20 +334,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 2,
   },
-  eyebrow: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  name: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-  },
+  eyebrow: type.label,
+  name: type.display,
   headerSub: {
-    fontSize: 15,
-    lineHeight: 21,
+    ...type.caption,
     marginTop: 2,
   },
   avatar: {
@@ -401,11 +362,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   ctaText: {
-    fontSize: 16,
+    fontSize: type.body.fontSize,
   },
   ctaHint: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...type.caption,
     textAlign: 'center',
   },
   sectionTitleRow: {
@@ -422,16 +382,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   countPillText: {
-    fontSize: 12,
+    ...type.label,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
   section: {
     gap: 14,
-  },
-  refreshBtn: {
-    width: 36,
-    height: 36,
   },
   live: {
     flexDirection: 'row',
@@ -444,7 +400,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   liveText: {
-    fontSize: 13,
+    ...type.label,
     fontWeight: '600',
   },
   sessionMetaRow: {
@@ -458,8 +414,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
-  sessionMeta: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
+  sessionMeta: type.rowMeta,
 });

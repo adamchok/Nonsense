@@ -5,8 +5,11 @@ import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatSessionBlindsForDisplay, formatSignedCurrency } from '@/lib/currency-format';
-import { formatDateTimeDMY } from '@/lib/date-format';
+import { formatSessionTitle } from '@/components/session/session-title';
+import { radius, space } from '@/lib/spacing';
+import { text } from '@/lib/ui';
 import {
+  deleteSession,
   getEarlyCashOuts,
   getPlayerProfile,
   getResults,
@@ -27,6 +30,7 @@ import { useNavigation } from "expo-router/react-navigation";
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   BackHandler,
   Linking,
   Platform,
@@ -97,26 +101,27 @@ function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: Resul
         <View style={styles.resultTop}>
           <View style={styles.resultLeft}>
             <View style={[styles.rankBadge, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-              <Text style={[styles.rankBadgeText, { color: c.textSecondary }]}>{index + 1}</Text>
+              <Text style={[text.label, styles.rankBadgeText, { color: c.textSecondary }]}>{index + 1}</Text>
             </View>
-            <Text style={[styles.resultName, { color: c.text }]} numberOfLines={1}>
+            <Text style={[text.rowTitle, styles.resultName, { color: c.text }]} numberOfLines={1}>
               {item.playerName}
             </Text>
             <View style={styles.badgesRow}>
               {isMe && (
                 <View style={[styles.youBadge, { backgroundColor: c.badge.you }]}>
-                  <Text style={styles.youBadgeText}>YOU</Text>
+                  <Text style={[text.micro, styles.badgeText]}>YOU</Text>
                 </View>
               )}
               {isEarly && (
                 <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
-                  <Text style={styles.earlyBadgeText}>Early</Text>
+                  <Text style={[text.micro, styles.badgeText]}>Early</Text>
                 </View>
               )}
             </View>
           </View>
           <Text
             style={[
+              text.heading,
               styles.resultProfit,
               { color: item.profit >= 0 ? c.profit : c.loss },
             ]}>
@@ -125,13 +130,13 @@ function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: Resul
         </View>
         <View style={styles.amountChips}>
           <View style={[styles.amountChip, { backgroundColor: c.chipMinusBg, borderColor: c.border }]}>
-            <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>In</Text>
-            <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.totalBuyIn)}</Text>
+            <Text style={[text.micro, { color: c.textMuted }]}>In</Text>
+            <Text style={[text.label, styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.totalBuyIn)}</Text>
           </View>
           <Icon name="arrow-right" size={14} color={c.textHint} />
           <View style={[styles.amountChip, { backgroundColor: c.chipPlusBg, borderColor: c.border }]}>
-            <Text style={[styles.amountChipLabel, { color: c.textMuted }]}>Out</Text>
-            <Text style={[styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.cashOut)}</Text>
+            <Text style={[text.micro, { color: c.textMuted }]}>Out</Text>
+            <Text style={[text.label, styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.cashOut)}</Text>
           </View>
         </View>
       </View>
@@ -167,6 +172,7 @@ export default function SessionSummaryScreen() {
   const [sessionHostId, setSessionHostId] = useState<string | undefined>();
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const goToHistory = useCallback(() => {
@@ -241,8 +247,8 @@ export default function SessionSummaryScreen() {
         <Icon name="map-marker-outline" size={16} color={c.green} />
       </View>
       <View style={styles.metaItemText}>
-        <Text style={[styles.metaLabel, { color: c.textMuted }]}>Location</Text>
-        <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+        <Text style={[text.label, { color: c.textMuted }]}>Location</Text>
+        <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
           {locationText}
         </Text>
       </View>
@@ -260,6 +266,34 @@ export default function SessionSummaryScreen() {
       appAlert('Could not save location', userMessage(e, 'Please try again.'));
     }
   }
+  function confirmDeleteSession() {
+    if (!id || !isHost) return;
+    appAlert(
+      'Delete this session?',
+      "It's removed for every player, along with its buy-ins and results, and drops out of everyone's history, statistics and leaderboards. This cannot be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                setIsDeleting(true);
+                await deleteSession(id);
+                invalidateSessionScanCache();
+                goToHistory();
+              } catch (e) {
+                setIsDeleting(false);
+                appAlert('Error', userMessage(e, 'Failed to delete session.'));
+              }
+            })();
+          },
+        },
+      ]
+    );
+  }
+
   const durationMs =
     sessionDate && sessionFinishedAt
       ? Math.max(0, sessionFinishedAt.getTime() - sessionDate.getTime())
@@ -338,12 +372,12 @@ export default function SessionSummaryScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: sessionDate ? formatDateTimeDMY(sessionDate) : 'Session Summary',
+      title: sessionDate ? formatSessionTitle(sessionDate, sessionLocation) : 'Session Summary',
       headerLeft: () => (
         <Pressable
           onPress={goToHistory}
           hitSlop={8}
-          style={[styles.headerBackBtn, Platform.OS === 'web' && { marginLeft: layout.gutter - 4 }]}
+          style={[styles.headerBackBtn, Platform.OS === 'web' && { marginLeft: layout.gutter - 10 }]}
           accessibilityRole="button"
           accessibilityLabel="Back to history">
           <Icon name="arrow-left" size={20} color={c.text} />
@@ -373,6 +407,7 @@ export default function SessionSummaryScreen() {
   }, [
     navigation,
     sessionDate,
+    sessionLocation,
     handleShareWhatsApp,
     handleCopyResults,
     isCopied,
@@ -394,10 +429,10 @@ export default function SessionSummaryScreen() {
         <View style={[styles.emptyIconWrap, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
           <Icon name="clipboard-text-outline" size={40} color={c.accentText} />
         </View>
-        <Text style={[styles.emptyTitle, { color: c.text }]}>
+        <Text style={[text.title, styles.centered, { color: c.text }]}>
           {loadError ? "Couldn't load summary" : 'No results yet'}
         </Text>
-        <Text style={[styles.emptySubtitle, { color: c.textMuted }]}>
+        <Text style={[text.body, styles.emptySubtitle, { color: c.textMuted }]}>
           {loadError ?? 'Finish cash-out for this session to see standings and settlement here.'}
         </Text>
         <Pressable
@@ -407,7 +442,7 @@ export default function SessionSummaryScreen() {
           ]}
           accessibilityRole="button"
           onPress={() => router.back()}>
-          <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Go back</Text>
+          <Text style={[text.button, { color: c.onAccent }]}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -415,8 +450,8 @@ export default function SessionSummaryScreen() {
 
   const rankBarColor = (rank: number) => {
     if (rank === 0) return c.accent;
-    if (rank === 1) return c.blue;
-    if (rank === 2) return c.warning;
+    if (rank === 1) return c.textHint;
+    if (rank === 2) return c.accentBorder;
     return 'transparent';
   };
 
@@ -453,8 +488,8 @@ export default function SessionSummaryScreen() {
                   <Icon name="crown-outline" size={16} color={c.yellow} />
                 </View>
                 <View style={styles.metaItemText}>
-                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Host</Text>
-                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+                  <Text style={[text.label, { color: c.textMuted }]}>Host</Text>
+                  <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
                     {sessionHostName?.trim() ? sessionHostName.trim() : '—'}
                   </Text>
                 </View>
@@ -462,12 +497,12 @@ export default function SessionSummaryScreen() {
             </View>
             <View style={styles.metaGridRow}>
               <View style={styles.metaGridCell}>
-                <View style={[styles.metaIconWrapSmall, { backgroundColor: c.blueBg }]}>
-                  <Icon name="clock-outline" size={16} color={c.blue} />
+                <View style={[styles.metaIconWrapSmall, { backgroundColor: c.cardAlt }]}>
+                  <Icon name="clock-outline" size={16} color={c.textSecondary} />
                 </View>
                 <View style={styles.metaItemText}>
-                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Duration</Text>
-                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+                  <Text style={[text.label, { color: c.textMuted }]}>Duration</Text>
+                  <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
                     {durationText}
                   </Text>
                 </View>
@@ -481,8 +516,8 @@ export default function SessionSummaryScreen() {
                   <Icon name="cash-multiple" size={16} color={c.chipText} />
                 </View>
                 <View style={styles.metaItemText}>
-                  <Text style={[styles.metaLabel, { color: c.textMuted }]}>Blinds</Text>
-                  <Text style={[styles.metaValue, styles.metaGridValue, { color: c.text }]} numberOfLines={1}>
+                  <Text style={[text.label, { color: c.textMuted }]}>Blinds</Text>
+                  <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
                     {blindsShareText ?? '—'}
                   </Text>
                 </View>
@@ -493,8 +528,8 @@ export default function SessionSummaryScreen() {
 
         <View style={styles.resultsBlock}>
           <View style={styles.sectionHeader}>
-            <Icon name="trophy-outline" size={20} color={c.warning} />
-            <Text style={[styles.sectionTitle, { color: c.text }]}>Standings</Text>
+            <Icon name="trophy-outline" size={20} color={c.accentText} />
+            <Text style={[text.heading, { color: c.text }]}>Standings</Text>
           </View>
           {results.map((item, index) => (
             <ResultRow
@@ -513,7 +548,7 @@ export default function SessionSummaryScreen() {
         <Animated.View entering={settlementEntering} style={styles.settlementBlock}>
           <View style={styles.sectionHeader}>
             <Icon name="bank-transfer" size={26} color={c.green} />
-            <Text style={[styles.sectionTitle, { color: c.text }]}>Settlement</Text>
+            <Text style={[text.heading, { color: c.text }]}>Settlement</Text>
           </View>
           {settlements.length > 0 ? (
             <View style={[styles.settlementCard, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -525,18 +560,18 @@ export default function SessionSummaryScreen() {
                     accessible
                     accessibilityLabel={`${s.from} pays ${s.to} ${formatCurrency(s.amount)}`}>
                     <View style={styles.settlementNames}>
-                      <Text style={[styles.settlementFrom, { color: c.text }]} numberOfLines={1}>
+                      <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
                         {s.from}
                       </Text>
                       <View style={styles.settlementFlow}>
                         <Icon name="arrow-right-bold" size={14} color={c.textMuted} />
-                        <Text style={[styles.settlementTo, { color: c.textSecondary }]} numberOfLines={1}>
+                        <Text style={[text.label, styles.settlementTo, { color: c.textSecondary }]} numberOfLines={1}>
                           {s.to}
                         </Text>
                       </View>
                     </View>
                     <View style={[styles.settlementAmountPill, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
-                      <Text style={[styles.settlementAmount, { color: c.warning }]}>{formatCurrency(s.amount)}</Text>
+                      <Text style={[text.amount, { color: c.accentText }]}>{formatCurrency(s.amount)}</Text>
                     </View>
                   </View>
                 </View>
@@ -545,13 +580,35 @@ export default function SessionSummaryScreen() {
           ) : (
             <View style={[styles.settlementEmpty, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
               <Icon name="check-circle-outline" size={28} color={c.accentText} />
-              <Text style={[styles.settlementEmptyTitle, { color: c.text }]}>All square</Text>
-              <Text style={[styles.settlementEmptySub, { color: c.textMuted }]}>
+              <Text style={[text.heading, { color: c.text }]}>All square</Text>
+              <Text style={[text.caption, styles.centered, { color: c.textMuted }]}>
                 No transfers needed — chip counts already match.
               </Text>
             </View>
           )}
         </Animated.View>
+
+        {isHost ? (
+          <PressableScale
+            onPress={confirmDeleteSession}
+            disabled={isDeleting}
+            style={(state) => [
+              styles.deleteBtn,
+              { borderColor: c.border },
+              (state as { hovered?: boolean }).hovered || state.pressed ? { backgroundColor: c.cardAlt } : null,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Delete session"
+            accessibilityHint="Removes this session for every player"
+            accessibilityState={{ disabled: isDeleting, busy: isDeleting }}>
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={c.lossLight} />
+            ) : (
+              <Icon name="delete-outline" size={18} color={c.lossLight} importantForAccessibility="no" />
+            )}
+            <Text style={[text.button, { color: c.lossLight }]}>Delete session</Text>
+          </PressableScale>
+        ) : null}
       </ScrollView>
       {celebrate ? <ConfettiBurst colors={[c.accent, c.green, c.yellow]} /> : null}
       {isEditingLocation ? (
@@ -585,14 +642,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
   emptySubtitle: {
-    fontSize: 15,
-    lineHeight: 22,
     textAlign: 'center',
     maxWidth: 300,
   },
@@ -640,19 +690,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 3,
   },
-  metaLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.66,
-  },
-  metaValue: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  metaGridValue: {
-    fontSize: 14,
-  },
   resultsBlock: {
     gap: 8,
   },
@@ -664,11 +701,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 4,
-  },
-  sectionTitle: {
-    fontWeight: '600',
-    fontSize: 17,
-    lineHeight: 22,
   },
   resultRow: {
     flexDirection: 'row',
@@ -713,13 +745,9 @@ const styles = StyleSheet.create({
   },
   rankBadgeText: {
     fontWeight: '700',
-    fontSize: 13,
     fontVariant: ['tabular-nums'],
   },
   resultName: {
-    fontWeight: '600',
-    fontSize: 15,
-    lineHeight: 20,
     flexShrink: 1,
   },
   badgesRow: {
@@ -733,29 +761,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  youBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
   earlyBadge: {
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  earlyBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
   resultProfit: {
     fontWeight: '700',
-    fontSize: 17,
-    lineHeight: 22,
     fontVariant: ['tabular-nums'],
   },
   amountChips: {
@@ -773,14 +785,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  amountChipLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.66,
-  },
   amountChipValue: {
-    fontSize: 14,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -806,19 +811,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 4,
   },
-  settlementFrom: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '600',
-  },
   settlementFlow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   settlementTo: {
-    fontSize: 13,
-    fontWeight: '500',
     flex: 1,
   },
   settlementAmountPill: {
@@ -826,11 +824,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 6,
     paddingHorizontal: 10,
-  },
-  settlementAmount: {
-    fontWeight: '600',
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
   },
   settlementEmpty: {
     borderRadius: 14,
@@ -840,14 +833,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  settlementEmptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+  badgeText: {
+    // Badge fills stay dark in both themes, so the label stays white.
+    color: '#fff',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
-  settlementEmptySub: {
-    fontSize: 14,
-    lineHeight: 20,
+  centered: {
     textAlign: 'center',
+  },
+  deleteBtn: {
+    marginTop: space.sm,
+    minHeight: 48,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.sm,
   },
   headerActions: {
     flexDirection: 'row',
@@ -855,31 +859,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerCopyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerShareBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#25D366',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerBackBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    // Offsets the larger target so the arrow stays where the 32px button drew it.
+    marginLeft: -6,
+    marginRight: 2,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  buttonLabel: {
-    fontWeight: '600',
-    fontSize: 15,
   },
 });

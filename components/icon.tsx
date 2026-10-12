@@ -32,7 +32,9 @@ import { MapPinLineIcon } from 'phosphor-react-native/src/icons/MapPinLine';
 import { MicrophoneIcon } from 'phosphor-react-native/src/icons/Microphone';
 import { MoneyIcon } from 'phosphor-react-native/src/icons/Money';
 import { MoonIcon } from 'phosphor-react-native/src/icons/Moon';
+import { PauseIcon } from 'phosphor-react-native/src/icons/Pause';
 import { PencilSimpleIcon } from 'phosphor-react-native/src/icons/PencilSimple';
+import { PlayIcon } from 'phosphor-react-native/src/icons/Play';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
 import { PokerChipIcon } from 'phosphor-react-native/src/icons/PokerChip';
 import { QrCodeIcon } from 'phosphor-react-native/src/icons/QrCode';
@@ -55,6 +57,10 @@ import { UsersThreeIcon } from 'phosphor-react-native/src/icons/UsersThree';
 import { WalletIcon } from 'phosphor-react-native/src/icons/Wallet';
 import { WarningCircleIcon } from 'phosphor-react-native/src/icons/WarningCircle';
 import { WhatsappLogoIcon } from 'phosphor-react-native/src/icons/WhatsappLogo';
+import { BugIcon } from 'phosphor-react-native/src/icons/Bug';
+import { EnvelopeSimpleIcon } from 'phosphor-react-native/src/icons/EnvelopeSimple';
+import { LightbulbIcon } from 'phosphor-react-native/src/icons/Lightbulb';
+import { UserMinusIcon } from 'phosphor-react-native/src/icons/UserMinus';
 import { XIcon } from 'phosphor-react-native/src/icons/X';
 import type { Icon as PhosphorIcon } from 'phosphor-react-native';
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
@@ -77,6 +83,8 @@ const ICONS = {
   logout: SignOutIcon,
   mic: MicrophoneIcon,
   stop: StopIcon,
+  pause: PauseIcon,
+  play: PlayIcon,
   home: HouseIcon,
   history: ClockCounterClockwiseIcon,
   settings: GearIcon,
@@ -125,6 +133,10 @@ const ICONS = {
   'nights-stay': MoonIcon,
   whatsapp: WhatsappLogoIcon,
   'error-outline': WarningCircleIcon,
+  mail: EnvelopeSimpleIcon,
+  bug: BugIcon,
+  lightbulb: LightbulbIcon,
+  'person-remove': UserMinusIcon,
 } satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;

@@ -3,6 +3,8 @@ import { useAppColors } from '@/lib/app-theme';
 import { formatSessionAmountValue } from '@/lib/currency-format';
 import { Animated, useCountUp, usePop } from '@/components/motion';
 import type { SessionAmountUnit } from '@/types';
+import { radius, space } from '@/lib/spacing';
+import { text } from '@/lib/ui';
 import { StyleSheet, Text, View } from 'react-native';
 
 function settle(value: number, target: number): number {
@@ -20,14 +22,14 @@ export function PotBadge({ total, unit }: { total: number; unit: SessionAmountUn
         accessible
         accessibilityLabel={`Pot ${formatSessionAmountValue(total, unit, 'ledger')}${unit === 'chips' ? ' chips' : ''}`}
         accessibilityLiveRegion="polite">
-        <Text style={[styles.label, { color: c.accentText }]}>POT</Text>
+        <Text style={[text.label, { color: c.accentText }]}>Pot</Text>
         <SessionAmountDisplay
           value={shown}
           unit={unit}
           color={c.text}
           iconSize={14}
           valueStyle="compact"
-          textStyle={[styles.value, { color: c.text }]}
+          textStyle={[text.title, text.tabular, { color: c.text }]}
           rowStyle={styles.valueRow}
         />
       </Animated.View>
@@ -44,23 +46,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: radius.md,
     borderWidth: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
     gap: 2,
     minWidth: 0,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.72,
-  },
-  value: {
-    fontWeight: '700',
-    fontSize: 20,
-    lineHeight: 26,
-    fontVariant: ['tabular-nums'],
   },
   valueRow: {
     flexDirection: 'row',

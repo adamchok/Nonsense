@@ -159,7 +159,7 @@ export function BuyInModal({
                     placeholder={unit === 'chips' ? 'Chips' : '0.00'}
                     placeholderTextColor={c.placeholder}
                     accessibilityLabel={unit === 'chips' ? 'Buy-in chips' : 'Buy-in amount'}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     style={[formStyles.amountInput, { color: c.text }]}
                     {...invalidProps(amountError)}
                   />

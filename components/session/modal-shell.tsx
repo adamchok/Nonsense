@@ -4,7 +4,7 @@ import { useAppColors } from '@/lib/app-theme';
 import { pressBg, text } from '@/lib/ui';
 import { BREAKPOINT_MD, SHEET_BREAKPOINT, gutterFor } from '@/lib/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useId, type ReactNode } from 'react';
 import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import {
   ActivityIndicator,
@@ -26,6 +26,8 @@ export type ModalPrimaryAction = {
   busy?: boolean;
   busyLabel?: string;
 };
+
+const MODAL_MAX_WIDTH = 480;
 
 type Props = {
   visible: boolean;
@@ -68,9 +70,15 @@ export function ModalShell({
   const insets = useSafeAreaInsets();
   const isSheet = width < SHEET_BREAKPOINT;
   const isWide = width >= BREAKPOINT_MD;
-  const frame = { maxWidth: isSheet ? undefined : isWide ? 480 : 400 };
+  const frame = { maxWidth: isSheet ? undefined : MODAL_MAX_WIDTH };
   const primaryDisabled = Boolean(primary?.disabled || primary?.busy);
   const entrance = useCardEntrance(visible, isWide);
+  const idBase = useId();
+  const titleId = `${idBase}-modal-title`;
+  const hasTitle = title != null;
+  // react-native-web's Modal renders the role="dialog" element itself and forwards extra props
+  // to it, so the accessible name goes on the Modal rather than on the card.
+  const webDialogProps: object = Platform.OS === 'web' && hasTitle ? { 'aria-labelledby': titleId } : {};
 
   const card = (
     <Animated.View
@@ -84,29 +92,27 @@ export function ModalShell({
       accessibilityViewIsModal
       onAccessibilityEscape={onClose}>
       {isSheet ? <View style={[styles.grabber, { backgroundColor: c.border }]} /> : null}
-      {title != null ? (
-        <Text style={[styles.title, { color: c.text }]} accessibilityRole="header">
+      {hasTitle ? (
+        <Text nativeID={titleId} style={[styles.title, { color: c.text }]} accessibilityRole="header">
           {title}
         </Text>
       ) : null}
       {children}
       <View style={[styles.actions, isSheet && styles.actionsSheet]}>
-        {isSheet && primary ? null : (
-          <PressableScale
-            style={(state) => [
-              styles.cancelBtn,
-              isSheet && styles.flexBtn,
-              { borderColor: c.inputBorder },
-              pressBg(c, state, c.card),
-            ]}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel={primary ? 'Cancel' : 'Close'}>
-            <Text style={[styles.cancelLabel, { color: c.text }]}>
-              {primary ? 'Cancel' : 'Close'}
-            </Text>
-          </PressableScale>
-        )}
+        <PressableScale
+          style={(state) => [
+            styles.cancelBtn,
+            isSheet && styles.flexBtn,
+            { borderColor: c.inputBorder },
+            pressBg(c, state, c.card),
+          ]}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={primary ? 'Cancel' : 'Close'}>
+          <Text style={[styles.cancelLabel, { color: c.text }]}>
+            {primary ? 'Cancel' : 'Close'}
+          </Text>
+        </PressableScale>
         {primary ? (
           <PressableScale
             style={[
@@ -132,7 +138,13 @@ export function ModalShell({
   );
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+      {...webDialogProps}>
       <View style={styles.root}>
         <ModalBackdrop
                     onPress={onClose}

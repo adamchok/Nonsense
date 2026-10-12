@@ -227,6 +227,7 @@ function Section({
             onPress={onClear}
             accessibilityRole="link"
             accessibilityLabel={`Clear ${title.toLowerCase()}`}
+            {...({ dataSet: { textButton: 'true' } } as object)}
             style={styles.clearLink}>
             <Text style={[styles.clearText, { color: c.accentText }]}>Clear</Text>
           </PressableScale>

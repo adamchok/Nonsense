@@ -4,8 +4,8 @@ import { formStyles } from '@/components/session/session-form-styles';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { userMessage } from '@/lib/user-message';
-import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useId, useState } from 'react';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
 const MIN_NAME_LEN = 2;
 const MAX_NAME_LEN = 15;
@@ -22,12 +22,16 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const trimmed = name.trim();
-  const canSave = trimmed !== initialName && !isSaving;
+  const errorId = `${useId()}-display-name-error`;
 
   async function save() {
-    if (!canSave) return;
+    if (isSaving) return;
     if (trimmed.length < MIN_NAME_LEN) {
       setNameError(trimmed ? `Use at least ${MIN_NAME_LEN} characters` : 'Enter a display name');
+      return;
+    }
+    if (trimmed === initialName) {
+      onClose();
       return;
     }
     setIsSaving(true);
@@ -46,7 +50,7 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
       visible
       onClose={onClose}
       title="Display name"
-      primary={{ label: 'Save', onPress: () => void save(), disabled: !canSave, busy: isSaving }}>
+      primary={{ label: 'Save', onPress: () => void save(), busy: isSaving }}>
       <View style={styles.body}>
         <Text style={[styles.hint, { color: c.textMuted }]}>Shown to everyone in your poker sessions.</Text>
         <View>
@@ -59,7 +63,7 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
             maxLength={MAX_NAME_LEN}
             placeholder="Enter display name"
             accessibilityLabel="Display name"
-            autoFocus
+            autoFocus={Platform.OS !== 'web'}
             autoCapitalize="words"
             returnKeyType="done"
             onSubmitEditing={() => void save()}
@@ -69,9 +73,9 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
               { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
               errorBorder(c, nameError),
             ]}
-            {...invalidProps(nameError)}
+            {...invalidProps(nameError, errorId)}
           />
-          <FieldError message={nameError} />
+          <FieldError message={nameError} nativeID={errorId} />
         </View>
         <Text style={[styles.counter, { color: c.textMuted }]}>
           {name.length} / {MAX_NAME_LEN}

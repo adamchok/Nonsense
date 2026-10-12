@@ -4,6 +4,9 @@ import { contentMaxWidth } from '@/lib/spacing';
 import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
+/** Column width for data-heavy screens (feeds, leaderboards, stats) on desktop web. */
+export const WIDE_CONTENT_MAX_WIDTH = 960;
+
 export function WebAppFrame({ children }: { children: ReactNode }) {
   const c = useAppColors();
   if (Platform.OS !== 'web') return <>{children}</>;
@@ -11,14 +14,22 @@ export function WebAppFrame({ children }: { children: ReactNode }) {
   return <View style={[styles.fill, { backgroundColor: c.bg }]}>{children}</View>;
 }
 
-export function WebContentColumn({ children }: { children: ReactNode; besideSidebar?: boolean }) {
+type WebContentColumnProps = {
+  children: ReactNode;
+  /** Use the wider column for data-heavy screens; form-like routes keep the narrow reading width. */
+  wide?: boolean;
+};
+
+export function WebContentColumn({ children, wide = false }: WebContentColumnProps) {
   const c = useAppColors();
   const { isMd } = useBreakpoint();
   if (!isMd) return <>{children}</>;
 
   return (
     <View style={[styles.fill, styles.page, { backgroundColor: c.bg }]}>
-      <View style={[styles.fill, styles.column, { backgroundColor: c.bg }]}>{children}</View>
+      <View style={[styles.fill, styles.column, wide && styles.columnWide, { backgroundColor: c.bg }]}>
+        {children}
+      </View>
     </View>
   );
 }
@@ -34,5 +45,8 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: contentMaxWidth,
     overflow: 'hidden',
+  },
+  columnWide: {
+    maxWidth: WIDE_CONTENT_MAX_WIDTH,
   },
 });

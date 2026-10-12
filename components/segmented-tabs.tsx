@@ -2,10 +2,28 @@ import { Icon, type IconName } from '@/components/icon';
 import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type LayoutRectangle } from 'react-native';
+import { Platform, StyleSheet, Text, View, type LayoutRectangle } from 'react-native';
 import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 export type SegmentedTab<K extends string> = { key: K; label: string; icon: IconName };
+
+const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
+const PREV_KEYS = new Set(['ArrowLeft', 'ArrowUp']);
+
+type WebKeyEvent = {
+  key: string;
+  preventDefault: () => void;
+  currentTarget: unknown;
+};
+
+type FocusableParent = {
+  parentElement?: { querySelectorAll: (selector: string) => ArrayLike<{ focus: () => void }> } | null;
+};
+
+function focusRadioAt(target: unknown, index: number): void {
+  const radios = (target as FocusableParent).parentElement?.querySelectorAll('[role="radio"]');
+  radios?.[index]?.focus();
+}
 
 type Props<K extends string> = {
   tabs: readonly SegmentedTab<K>[];
@@ -22,6 +40,21 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
   const width = useSharedValue(0);
   const placed = useRef(false);
   const selectedLayout = layouts[value];
+  const isWebRadio = isRadio && Platform.OS === 'web';
+  const selectedIndex = Math.max(
+    0,
+    tabs.findIndex((tab) => tab.key === value),
+  );
+
+  // Web radio groups use a roving tabindex: one tab stop, arrows move and select.
+  const radioKeyDown = (e: WebKeyEvent, index: number) => {
+    const step = NEXT_KEYS.has(e.key) ? 1 : PREV_KEYS.has(e.key) ? -1 : 0;
+    if (step === 0 || tabs.length === 0) return;
+    e.preventDefault();
+    const next = (index + step + tabs.length) % tabs.length;
+    onChange(tabs[next].key);
+    focusRadioAt(e.currentTarget, next);
+  };
 
   useEffect(() => {
     if (!selectedLayout) return;
@@ -48,9 +81,15 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
           style={[styles.indicator, { backgroundColor: c.accentBg, top: selectedLayout.y, height: selectedLayout.height }, indicatorStyle]}
         />
       ) : null}
-      {tabs.map((tab) => {
+      {tabs.map((tab, index) => {
         const selected = tab.key === value;
         const color = selected ? c.accentText : c.textMuted;
+        const webRadioProps = isWebRadio
+          ? ({
+              tabIndex: index === selectedIndex ? 0 : -1,
+              onKeyDown: (e: WebKeyEvent) => radioKeyDown(e, index),
+            } as object)
+          : {};
         return (
           <PressableScale
             key={tab.key}
@@ -69,6 +108,7 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
             aria-checked={isRadio ? selected : undefined}
             accessibilityLabel={tab.label}
             onPress={() => onChange(tab.key)}
+            {...webRadioProps}
             style={[styles.tab, selected && !selectedLayout && { backgroundColor: c.accentBg }]}>
             <Icon name={tab.icon} size={18} color={color} weight={selected ? 'fill' : 'regular'} />
             <Text style={[styles.label, { color }]} numberOfLines={1}>
@@ -97,8 +137,9 @@ const styles = StyleSheet.create({
   tab: {
     flexGrow: 1,
     flexShrink: 1,
-    flexBasis: 'auto',
-    minHeight: 40,
+    flexBasis: 0,
+    minWidth: 0,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

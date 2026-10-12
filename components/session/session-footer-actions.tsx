@@ -1,5 +1,7 @@
 import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
+import { space } from '@/lib/spacing';
+import { text, ui } from '@/lib/ui';
 import { StyleSheet, Text, View } from 'react-native';
 
 type Props = {
@@ -11,23 +13,24 @@ type Props = {
 
 export function SessionFooterActions({ canManage, isFinished, onEndSession, onViewSummary }: Props) {
   const c = useAppColors();
+  if (!canManage && !isFinished) return null;
   return (
     <View style={styles.actions}>
       {canManage ? (
         <PressableScale
-          style={[styles.button, { backgroundColor: c.destructive }]}
+          style={[ui.button, { backgroundColor: c.accent }]}
           onPress={onEndSession}
           accessibilityRole="button"
           accessibilityHint="Opens the cash-out screen. You can go back.">
-          <Text style={styles.label}>End Session & Cash Out</Text>
+          <Text style={[text.button, { color: c.onAccent }]}>End Session & Cash Out</Text>
         </PressableScale>
       ) : null}
       {isFinished ? (
         <PressableScale
-          style={[styles.button, { backgroundColor: c.accent }]}
+          style={[ui.button, { backgroundColor: c.accent }]}
           onPress={onViewSummary}
           accessibilityRole="button">
-          <Text style={[styles.label, { color: c.onAccent }]}>View Summary</Text>
+          <Text style={[text.button, { color: c.onAccent }]}>View Summary</Text>
         </PressableScale>
       ) : null}
     </View>
@@ -36,19 +39,6 @@ export function SessionFooterActions({ canManage, isFinished, onEndSession, onVi
 
 const styles = StyleSheet.create({
   actions: {
-    gap: 12,
-  },
-  button: {
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-  },
-  label: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
+    gap: space.md,
   },
 });
