@@ -1,3 +1,4 @@
+import { Icon } from '@/components/icon';
 import { SiteFooter, SiteNav, SkipLink, chromeStyles, siteLogo } from '@/components/web/site-chrome';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useHydrated } from '@/hooks/use-hydrated';
@@ -8,10 +9,12 @@ import { useResolvedColorScheme } from '@/lib/theme-context';
 import { text } from '@/lib/ui';
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
-import { Fragment } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Fragment, useState } from 'react';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-const WIDE_BREAKPOINT = 1024;
+const WIDE_BREAKPOINT = 1024;
+/** Below this the contents list collapses; between it and WIDE_BREAKPOINT it shows in two columns. */
+const TWO_COLUMN_BREAKPOINT = 600;
 const IS_WEB = Platform.OS === 'web';
 
 function webStyle(style: Record<string, string | number>): object {
@@ -71,25 +74,62 @@ function BlockView({ block, c }: { block: Block; c: AppColors }) {
   );
 }
 
-function Contents({ doc, c, isWide }: { doc: LegalDoc; c: AppColors; isWide: boolean }) {
+function Contents({ doc, c, width, isWide }: { doc: LegalDoc; c: AppColors; width: number; isWide: boolean }) {
+  // Wide: sticky sidebar. Medium: two columns above the text. Phones: a collapsed row, so the list
+  // does not push the policy itself off screen.
+  const [isOpen, setIsOpen] = useState(false);
+  const label = doc.tocLabel ?? 'On this page';
+  const isTwoColumn = !isWide && width >= TWO_COLUMN_BREAKPOINT;
+  const isCollapsible = !isWide && !isTwoColumn;
+  const showLinks = !isCollapsible || isOpen;
+  // Two columns read down: 01-07 on the left, 08-14 on the right.
+  const numbered = doc.sections.map((s, i) => ({ s, i }));
+  const half = Math.ceil(numbered.length / 2);
+  const columns = isTwoColumn ? [numbered.slice(0, half), numbered.slice(half)] : [numbered];
   return (
     <View
       role="navigation"
-      aria-label="On this page"
+      aria-label={label}
       style={[
         styles.toc,
         isWide && styles.tocWide,
+        isCollapsible && styles.tocCompact,
         { backgroundColor: c.card, borderColor: c.border },
         isWide && webStyle({ position: 'sticky', top: 24 }),
       ]}>
-      <Text style={[text.label, styles.tocTitle, { color: c.textMuted }]}>On this page</Text>
-      {doc.sections.map((s, i) => (
-        <Text key={s.id} role="link" {...linkProps(`#${s.id}`)} style={[styles.tocLink, { color: c.textSecondary }]}>
-          <Text style={[styles.tocNumber, { color: c.accentText }]}>{String(i + 1).padStart(2, '0')}</Text>
-          {'  '}
-          {s.title}
-        </Text>
-      ))}
+      {!isCollapsible ? (
+        <Text style={[text.label, styles.tocTitle, { color: c.textMuted }]}>{label}</Text>
+      ) : (
+        <Pressable
+          onPress={() => setIsOpen((v) => !v)}
+          accessibilityRole="button"
+          aria-expanded={isOpen}
+          style={styles.tocToggle}>
+          <Text style={[text.label, styles.tocToggleLabel, { color: c.textSecondary }]}>
+            {label} <Text style={{ color: c.textMuted }}>({doc.sections.length})</Text>
+          </Text>
+          <Icon name={isOpen ? 'expand-less' : 'expand-more'} size={20} color={c.textMuted} />
+        </Pressable>
+      )}
+      {showLinks ? (
+        <View style={[isTwoColumn && styles.tocColumns, isCollapsible && styles.tocListCompact]}>
+          {columns.map((col, ci) => (
+            <View key={ci} style={isTwoColumn && styles.tocColumn}>
+              {col.map(({ s, i }) => (
+                <Text
+                  key={s.id}
+                  role="link"
+                  {...linkProps(`#${s.id}`)}
+                  style={[styles.tocLink, !isWide && styles.tocLinkCompact, { color: c.textSecondary }]}>
+                  <Text style={[styles.tocNumber, { color: c.accentText }]}>{String(i + 1).padStart(2, '0')}</Text>
+                  {'  '}
+                  {s.title}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -111,7 +151,8 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
     <ScrollView
       key={hydrated ? 'client' : 'static'}
       style={{ flex: 1, backgroundColor: c.bg }}
-      contentContainerStyle={{ flexGrow: 1 }}>
+      contentContainerStyle={{ flexGrow: 1 }}
+      {...({ lang: doc.lang ?? 'en' } as object)}>
       <Head>
         <title>{doc.metaTitle}</title>
         <meta name="description" content={doc.description} />
@@ -132,8 +173,8 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
         nativeID="content"
         {...({ tabIndex: -1 } as object)}
         style={[container, styles.layout, isWide && styles.layoutWide]}>
-        <Contents doc={doc} c={c} isWide={isWide} />
-        <View style={styles.article}>
+        <Contents doc={doc} c={c} width={width} isWide={isWide} />
+        <View style={[styles.article, isWide && styles.articleWide]}>
           <Text style={[styles.lede, { color: c.text }]}>
             <Rich parts={doc.intro} c={c} />
           </Text>
@@ -164,10 +205,26 @@ const styles = StyleSheet.create({
   layoutWide: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xxl * 2 },
   toc: { borderWidth: 1, borderRadius: radius.md, padding: space.lg },
   tocWide: { width: 280, flexShrink: 0 },
+  // Collapsible row: padding moves inside the toggle so its hover fill reaches the card edges.
+  tocCompact: { padding: 0, overflow: 'hidden' },
+  tocToggle: {
+    minHeight: 48,
+    paddingHorizontal: space.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tocToggleLabel: { fontSize: 14 },
+  tocListCompact: { paddingHorizontal: space.lg, paddingBottom: space.sm },
+  tocLinkCompact: { paddingVertical: 8 },
+  tocColumns: { flexDirection: 'row', columnGap: space.lg },
+  tocColumn: { flex: 1, minWidth: 0 },
   tocTitle: { marginBottom: space.xs },
   tocLink: { fontSize: 15, lineHeight: 22, paddingVertical: 11 },
   tocNumber: { fontVariant: ['tabular-nums'], fontWeight: '700' },
-  article: { flex: 1, maxWidth: 720, gap: space.xl },
+  article: { flex: 1, gap: space.xl },
+  // Readable line length beside the sidebar; narrower layouts use the full column.
+  articleWide: { maxWidth: 720 },
   lede: { fontSize: 19, lineHeight: 30 },
   section: { gap: space.md },
   h2: { fontSize: 24, lineHeight: 30, fontWeight: '700', letterSpacing: -0.4 },
