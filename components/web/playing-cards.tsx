@@ -2,14 +2,15 @@ import { Icon, type IconName } from '@/components/icon';
 import { pointer } from '@/lib/ui';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import Svg, { Circle, Rect } from 'react-native-svg';
 import { useReducedMotion } from 'react-native-reanimated';
 
 export type Suit = 'spade' | 'heart' | 'diamond' | 'club';
 
-// Classic card inks, independent of the app theme: a card is white paper in light and dark mode alike.
 const CARD_RED = '#c8102e';
 const CARD_BLACK = '#1e293b';
 const CARD_PAPER = '#fffdf8';
+const CHIP_INSERT = '#fffdf8';
 const SUIT_ICON: Record<Suit, IconName> = {
   spade: 'suit-spade',
   heart: 'suit-heart',
@@ -17,12 +18,10 @@ const SUIT_ICON: Record<Suit, IconName> = {
   club: 'suit-club',
 };
 
-/** Web-only CSS (filters, shadows, keyframes) that RN's style types do not model. */
 function web(style: Record<string, unknown>): ViewStyle {
   return style as unknown as ViewStyle;
 }
 
-/** A clean face card: rank and suit in two corners, one large pip in the middle. */
 export function PlayingCard({
   rank,
   suit,
@@ -37,7 +36,7 @@ export function PlayingCard({
   const ink = suit === 'heart' || suit === 'diamond' ? CARD_RED : CARD_BLACK;
   const corner = Math.max(10, Math.round(width * 0.2));
   const corners = (flip: boolean) => (
-    <View style={[styles.corner, flip ? styles.cornerFlip : null, { padding: width * 0.07 }]}>
+    <View style={[flip ? styles.cornerBottomRight : styles.cornerTopLeft, { padding: width * 0.07 }]}>
       <Text style={{ color: ink, fontSize: corner, lineHeight: corner * 1.05, fontWeight: '800' }}>{rank}</Text>
       <Icon name={SUIT_ICON[suit]} size={Math.round(corner * 0.8)} color={ink} weight="fill" />
     </View>
@@ -57,23 +56,18 @@ export function PlayingCard({
   );
 }
 
-/** A casino chip: coloured disc, dashed white edge spots, inner ring. */
 export function PokerChip({ size, color }: { size: number; color: string }) {
-  const inner = Math.round(size * 0.56);
   return (
-    <View
-      style={[
-        styles.chip,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: color,
-          borderWidth: Math.max(3, Math.round(size * 0.13)),
-        },
-        web({ boxShadow: '0 6px 14px -8px rgba(15,23,42,0.45)' }),
-      ]}>
-      <View style={[styles.chipInner, { width: inner, height: inner, borderRadius: inner / 2, backgroundColor: color }]} />
+    <View style={[{ width: size, height: size, borderRadius: size / 2 }, web({ boxShadow: '0 6px 14px -8px rgba(15,23,42,0.45)' })]}>
+      <Svg width={size} height={size} viewBox="0 0 100 100">
+        <Circle cx={50} cy={50} r={50} fill={color} />
+        {[0, 60, 120, 180, 240, 300].map((deg) => (
+          <Rect key={deg} x={42} y={1} width={16} height={17} rx={3} fill={CHIP_INSERT} transform={`rotate(${deg} 50 50)`} />
+        ))}
+        <Circle cx={50} cy={50} r={48.5} fill="none" stroke="rgba(0,0,0,0.18)" strokeWidth={3} />
+        <Circle cx={50} cy={50} r={31} fill={color} stroke={CHIP_INSERT} strokeWidth={4} />
+        <Circle cx={50} cy={50} r={24} fill="none" stroke={CHIP_INSERT} strokeWidth={2} strokeDasharray="5 4" opacity={0.8} />
+      </Svg>
     </View>
   );
 }
@@ -82,10 +76,8 @@ const CHIP_COLORS = ['#c8102e', '#1d4ed8', '#1e293b', '#d4a017', '#047857'];
 const RANKS = ['A', 'K', 'Q', 'J', '10', '9', '8', '7'];
 const SUITS: Suit[] = ['spade', 'heart', 'diamond', 'club'];
 const PIECES = 100;
-/** Fall speeds in px per second: near pieces a little faster than far ones (parallax). */
 const NEAR_SPEED = 46;
 const FAR_SPEED = 30;
-/** Page height is rounded to this before compiling keyframes, so small resizes reuse the same styles. */
 const HEIGHT_STEP = 200;
 
 type Drop = {
@@ -93,19 +85,15 @@ type Drop = {
   rank: string;
   suit: Suit;
   chipColor: string;
-  /** Horizontal start, % of the page width. */
   left: number;
   size: number;
-  /** Multiplier on the near or far fall speed, so pieces do not move in lockstep. */
   pace: number;
-  /** 0 to 1: how far along its fall the piece starts, so the page is covered from the first frame. */
   phase: number;
   spin: number;
   drift: number;
   far: boolean;
 };
 
-/** Small deterministic generator: the same layout on the server render and after hydration. */
 function seeded(seed: number): () => number {
   let x = seed;
   return () => {
@@ -128,8 +116,6 @@ const DROPS: Drop[] = (() => {
       rank: RANKS[i % RANKS.length],
       suit: SUITS[(i * 3) % SUITS.length],
       chipColor: CHIP_COLORS[i % CHIP_COLORS.length],
-      // R2 low-discrepancy sequence: width and fall position step by two unrelated constants, so pieces
-      // cover the page evenly in both directions (one shared step would tie height to side).
       left: ((0.5 + i * 0.7548777) % 1) * 96,
       size,
       pace: 0.85 + rand() * 0.3,
@@ -141,11 +127,6 @@ const DROPS: Drop[] = (() => {
   });
 })();
 
-/**
- * One CSS keyframe animation per piece, moving it with transforms only (cheap to animate, no layout work).
- * React Native Web only honours animationKeyframes inside StyleSheet.create (inline styles drop it, like
- * pointerEvents), so the styles are compiled here for the measured page height.
- */
 function compileFalls(height: number) {
   return StyleSheet.create(
     Object.fromEntries(
@@ -172,11 +153,6 @@ function compileFalls(height: number) {
   );
 }
 
-/**
- * Faint cards and chips drifting down the whole landing page, top to bottom and edge to edge. Sits behind
- * the content and ignores pointer input. Until the page is measured, and for readers who prefer reduced
- * motion, the pieces hold still, scattered over the page.
- */
 export function CardRain({ dark }: { dark: boolean }) {
   const reduceMotion = useReducedMotion();
   const [height, setHeight] = useState(0);
@@ -216,11 +192,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  corner: { position: 'absolute', top: 0, left: 0, alignItems: 'center' },
-  cornerFlip: { top: undefined, left: undefined, bottom: 0, right: 0, transform: [{ rotate: '180deg' }] },
-  // Covers the full page height (the scroll content), not just the first screen.
+  cornerTopLeft: { position: 'absolute', top: 0, left: 0, alignItems: 'center' },
+  cornerBottomRight: { position: 'absolute', bottom: 0, right: 0, alignItems: 'center', transform: [{ rotate: '180deg' }] },
   rain: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', zIndex: 0 },
-  chip: { borderColor: 'rgba(255,255,255,0.92)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  chipInner: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.85)' },
   drop: { position: 'absolute', top: 0 },
 });
