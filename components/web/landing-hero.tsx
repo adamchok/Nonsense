@@ -419,7 +419,7 @@ export function LandingHero({
   const fill = { minHeight: isWide ? Math.max(height, HERO_MIN_HEIGHT) : height };
   const glow = webStyle({
     backgroundImage: dark
-      ? `radial-gradient(60% 45% at 50% 78%, ${c.accentBg} 0%, transparent 70%)`
+      ? `radial-gradient(60% 40% at 50% 64%, ${c.accentBg} 0%, transparent 70%)`
       : `radial-gradient(closest-side at ${isWide ? '72%' : '50%'} ${isWide ? '55%' : '72%'}, ${withAlpha(c.accent, 0.42)} 0%, ${withAlpha(c.accent, 0)} 100%), radial-gradient(closest-side at ${isWide ? '22%' : '50%'} ${isWide ? '30%' : '20%'}, ${withAlpha(c.borderBlue, 0.16)} 0%, ${withAlpha(c.borderBlue, 0)} 100%)`,
   });
 

@@ -166,14 +166,12 @@ function PhoneVideo({
   c,
   dark,
   paused,
-  onProgress,
   onEnded,
 }: {
   clip: Clip;
   c: AppColors;
   dark: boolean;
   paused: boolean;
-  onProgress: (fraction: number) => void;
   onEnded: () => void;
 }) {
   const reduceMotion = useReducedMotion();
@@ -183,14 +181,10 @@ function PhoneVideo({
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
-    const handleTime = () =>
-      onProgress(video.duration ? video.currentTime / video.duration : 0);
-    video.addEventListener("timeupdate", handleTime);
     video.addEventListener("ended", onEnded);
     if (paused) video.pause();
     if (paused || reduceMotion || typeof IntersectionObserver === "undefined") {
       return () => {
-        video.removeEventListener("timeupdate", handleTime);
         video.removeEventListener("ended", onEnded);
       };
     }
@@ -204,10 +198,9 @@ function PhoneVideo({
     observer.observe(video);
     return () => {
       observer.disconnect();
-      video.removeEventListener("timeupdate", handleTime);
       video.removeEventListener("ended", onEnded);
     };
-  }, [clip.key, dark, paused, reduceMotion, onProgress, onEnded]);
+  }, [clip.key, dark, paused, reduceMotion, onEnded]);
 
   const file = dark ? clip.key : `${clip.key}-light`;
   const halo = webStyle({
@@ -246,8 +239,6 @@ function FeatureTab({
   clip,
   index,
   selected,
-  progress,
-  showProgress,
   c,
   onSelect,
   onKey,
@@ -260,8 +251,6 @@ function FeatureTab({
   clip: Clip;
   index: number;
   selected: boolean;
-  progress: number;
-  showProgress: boolean;
   c: AppColors;
   onSelect: (i: number) => void;
   onKey: (event: { key: string; preventDefault: () => void }) => void;
@@ -280,7 +269,6 @@ function FeatureTab({
         },
   );
   const idleIconBg = dark ? withAlpha(c.cardAlt, 0.6) : c.card;
-  const accentFill = c.accent;
 
   return (
     <Pressable
@@ -325,23 +313,6 @@ function FeatureTab({
       >
         {clip.title}
       </Text>
-      {selected && showProgress && (
-        <View
-          style={[styles.track, { backgroundColor: withAlpha(accentFill, 0.18) }]}
-          aria-hidden
-        >
-          <View
-            style={[
-              styles.fill,
-              { backgroundColor: accentFill, transform: [{ scaleX: progress }] },
-              webStyle({
-                transformOrigin: "left center",
-                transition: "transform 260ms linear",
-              }),
-            ]}
-          />
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -422,24 +393,15 @@ export function LandingShowcase({
   cta: ReactNode;
 }) {
   const [active, setActive] = useState(0);
-  const [progress, setProgress] = useState(0);
   const reduceMotion = useReducedMotion();
   const dark = useResolvedColorScheme() === "dark";
   const tabRefs = useRef<(View | null)[]>([]);
   const clip = CLIPS[active];
 
-  const select = useCallback((i: number) => {
-    setProgress(0);
-    setActive(i);
-  }, []);
-  const handleProgress = useCallback(
-    (fraction: number) => setProgress(fraction),
-    [],
-  );
+  const select = useCallback((i: number) => setActive(i), []);
   const [paused, setPaused] = useState(false);
   const handleEnded = useCallback(() => {
     if (reduceMotion || paused) return;
-    setProgress(0);
     setActive((i) => (i + 1) % CLIPS.length);
   }, [reduceMotion, paused]);
 
@@ -499,7 +461,15 @@ export function LandingShowcase({
         <View
           role="tablist"
           aria-label="App features"
-          style={[styles.tabs, isWide && styles.tabsWide]}
+          style={[
+            styles.tabs,
+            isWide && styles.tabsWide,
+            { backgroundColor: c.card, borderColor: c.border },
+            !dark &&
+              webStyle({
+                boxShadow: `0 1px 2px ${withAlpha(c.text, 0.05)}, 0 12px 28px -16px ${withAlpha(c.text, 0.16)}`,
+              }),
+          ]}
         >
           {CLIPS.map((item, i) => (
             <FeatureTab
@@ -509,8 +479,6 @@ export function LandingShowcase({
               clip={item}
               index={i}
               selected={i === active}
-              progress={progress}
-              showProgress={!reduceMotion}
               c={c}
               onSelect={select}
               onKey={handleKey}
@@ -546,7 +514,6 @@ export function LandingShowcase({
               c={c}
               dark={dark}
               paused={paused}
-              onProgress={handleProgress}
               onEnded={handleEnded}
             />
           </Pressable>
@@ -574,7 +541,14 @@ const styles = StyleSheet.create({
   field: { pointerEvents: "none" },
   lead: { gap: space.xl },
   leadWide: { flexBasis: 340, flexShrink: 1, minWidth: 280 },
-  tabs: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  tabs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: space.sm,
+    padding: space.xs,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+  },
   tabsWide: { flexDirection: "column", flexWrap: "nowrap", gap: space.xs },
   tab: {
     position: "relative",
@@ -585,8 +559,7 @@ const styles = StyleSheet.create({
     gap: space.md,
     minHeight: 56,
     paddingHorizontal: space.md,
-    paddingTop: space.md,
-    paddingBottom: space.md + space.sm,
+    paddingVertical: space.md,
     borderRadius: radius.md,
     borderWidth: 1,
     overflow: "hidden",
@@ -607,16 +580,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.2,
   },
-  track: {
-    position: "absolute",
-    left: space.md,
-    right: space.md,
-    bottom: space.sm,
-    height: 2,
-    borderRadius: 1,
-    overflow: "hidden",
-  },
-  fill: { height: 2, width: "100%", borderRadius: 1 },
   panel: { gap: space.xl, alignItems: "center" },
   panelWide: {
     flex: 1,
