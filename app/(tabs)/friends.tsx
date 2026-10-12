@@ -1,4 +1,5 @@
 import { text } from '@/lib/ui';
+import { PlayerAvatar } from '@/components/player-avatar';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
@@ -655,7 +656,7 @@ export default function FriendsScreen() {
                   ]}>
                   <View style={styles.friendInfo}>
                     <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
-                      <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                      <PlayerAvatar value={req.avatarEmoji} size={38} />
                     </View>
                     <Text style={[styles.friendName, { color: c.textSecondary }]}>{req.name}</Text>
                   </View>
@@ -819,7 +820,7 @@ export default function FriendsScreen() {
                   ]}>
                   <View style={styles.friendInfo}>
                     <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
-                      <Text style={styles.friendAvatar}>{req.avatarEmoji ?? '🙂'}</Text>
+                      <PlayerAvatar value={req.avatarEmoji} size={38} />
                     </View>
                     <View>
                       <Text style={[styles.friendName, { color: c.textSecondary }]}>{req.name}</Text>
@@ -884,7 +885,7 @@ export default function FriendsScreen() {
                   ]}>
                   <View style={styles.friendInfo}>
                     <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
-                      <Text style={styles.friendAvatar}>{item.avatarEmoji ?? '🙂'}</Text>
+                      <PlayerAvatar value={item.avatarEmoji} size={38} />
                     </View>
                     <View style={styles.friendTextBlock}>
                       <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
@@ -964,8 +965,10 @@ export default function FriendsScreen() {
                   exiting={fadeOut}
                   layout={layoutTransition}
                   style={[styles.groupCard, { backgroundColor: c.card, borderColor: isExpanded ? c.borderAccent : c.border }]}>
+                  {/* Toggle and actions are siblings: buttons can't nest (invalid HTML on web, broken for assistive tech). */}
+                  <View style={styles.groupHeader}>
                   <Pressable
-                    style={styles.groupHeader}
+                    style={styles.groupToggle}
                     onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}
                     accessibilityRole="button"
                     accessibilityLabel={`${group.name}, ${group.memberCount ?? 0} players`}
@@ -979,6 +982,7 @@ export default function FriendsScreen() {
                         {group.memberCount ?? 0} {(group.memberCount ?? 0) === 1 ? 'player' : 'players'}
                       </Text>
                     </View>
+                  </Pressable>
                     <View style={styles.groupHeaderRight}>
                       {isGroupOwner ? (
                         <>
@@ -1012,16 +1016,23 @@ export default function FriendsScreen() {
                           <Icon name="logout" size={20} color={c.textHint} />
                         </PressableScale>
                       )}
-                      <View style={styles.groupIconBtn}>
+                      {/* Mouse/touch shortcut for the toggle; the labelled toggle above is the accessible control. */}
+                      <Pressable
+                        style={styles.groupIconBtn}
+                        onPress={() => setExpandedGroupId(isExpanded ? null : group.id)}
+                        accessible={false}
+                        focusable={false}
+                        aria-hidden
+                        {...({ tabIndex: -1 } as object)}>
                         <Icon
                           name={isExpanded ? 'expand-less' : 'expand-more'}
                           size={22}
                           color={c.textMuted}
                           importantForAccessibility="no"
                         />
-                      </View>
+                      </Pressable>
                     </View>
-                  </Pressable>
+                  </View>
 
                   {isExpanded && (
                     <View style={styles.groupBody}>
@@ -1228,7 +1239,7 @@ export default function FriendsScreen() {
                   ]}>
                   <View style={styles.lbLeft}>
                     <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
-                    <Text style={styles.lbAvatar}>{entry.avatarEmoji ?? '🙂'}</Text>
+                    <PlayerAvatar value={entry.avatarEmoji} size={34} />
                     <Text style={[styles.lbName, { color: isMe ? c.text : c.textSecondary }]}>
                       {entry.name}
                     </Text>
@@ -1253,7 +1264,7 @@ export default function FriendsScreen() {
           <ModalBackdrop
                         onPress={() => setShowAddModal(false)}
           />
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
             <KeyboardAvoidingView
               behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
@@ -1335,7 +1346,7 @@ export default function FriendsScreen() {
           <ModalBackdrop
                         onPress={() => setShowGroupLeaderboardModal(false)}
           />
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
             <View
               style={[
                 styles.leaderboardCard,
@@ -1382,7 +1393,7 @@ export default function FriendsScreen() {
                         ]}>
                         <View style={styles.lbLeft}>
                           <Text style={[styles.lbRank, { color: c.textMuted }]}>#{idx + 1}</Text>
-                          <Text style={styles.lbAvatar}>{entry.avatarEmoji ?? '🙂'}</Text>
+                          <PlayerAvatar value={entry.avatarEmoji} size={34} />
                           <Text style={[styles.lbName, { color: isMe ? c.text : c.textSecondary }]}>
                             {entry.name}
                           </Text>
@@ -1419,7 +1430,7 @@ export default function FriendsScreen() {
               setRenameGroupName('');
             }}
           />
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
             <KeyboardAvoidingView
               behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
@@ -1606,9 +1617,10 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 14,
   },
   avatarTile: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1854,10 +1866,16 @@ const styles = StyleSheet.create({
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     minHeight: 52,
+    paddingRight: 16,
+  },
+  groupToggle: {
+    flex: 1,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 8,
   },
   groupHeaderLeft: {
     flexDirection: 'row',

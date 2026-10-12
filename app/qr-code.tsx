@@ -1,4 +1,5 @@
 import { text } from '@/lib/ui';
+import { PlayerAvatar } from '@/components/player-avatar';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
@@ -380,9 +381,7 @@ export default function QrCodeScreen() {
             <View style={[styles.shareExportCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={[styles.nameRow, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
                 <View style={[styles.avatarCircle, { backgroundColor: c.avatarBg }]}>
-                  <Text style={[styles.avatarEmoji, { color: c.text }]}>
-                    {playerProfile?.avatarEmoji ?? '🙂'}
-                  </Text>
+                  <PlayerAvatar value={playerProfile?.avatarEmoji} size={38} />
                 </View>
                 <View style={styles.nameText}>
                   <Text style={[styles.name, { color: c.text }]}>{playerProfile?.name ?? 'Guest'}</Text>
@@ -535,7 +534,7 @@ export default function QrCodeScreen() {
           <ModalBackdrop
                         onPress={dismissAddFriendModal}
           />
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
             <View style={[styles.confirmCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <Text style={[styles.confirmTitle, { color: c.text }]}>Send friend request?</Text>
               <Text style={[styles.confirmSub, { color: c.textMuted }]}>

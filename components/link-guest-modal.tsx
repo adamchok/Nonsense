@@ -1,4 +1,5 @@
 import { FieldError } from '@/components/field-error';
+import { PlayerAvatar } from '@/components/player-avatar';
 import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/motion';
 import { ModalShell } from '@/components/session/modal-shell';
@@ -91,7 +92,7 @@ export function LinkGuestModal({ guest, owner, friends, onClose }: Props) {
                   accessibilityLabel={f.name}
                   accessibilityState={{ checked: isSelected }}>
                   <View style={[styles.avatarTile, { backgroundColor: c.cardAlt }]}>
-                    <Text style={styles.avatar}>{f.avatarEmoji ?? '🙂'}</Text>
+                    <PlayerAvatar value={f.avatarEmoji} size={36} />
                   </View>
                   <Text style={[text.rowTitle, styles.name, { color: c.text }]} numberOfLines={1}>
                     {f.name}
@@ -134,9 +135,10 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   avatarTile: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },

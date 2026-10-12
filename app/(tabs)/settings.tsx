@@ -1,5 +1,6 @@
 import { ModalBackdrop } from '@/components/modal-backdrop';
-import { AVATAR_EMOJIS } from '@/constants/avatar';
+import { PlayerAvatar } from '@/components/player-avatar';
+import { faceValue, isFaceAvatar, randomFaceSeeds } from '@/lib/avatar-face';
 import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
@@ -31,6 +32,9 @@ const checkEntering = webSafe(
   FadeIn.duration(150).reduceMotion(ReduceMotion.System),
 );
 
+const FACE_BATCH = 30;
+const FACE_TILE = 56;
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, email, signOutUser } =
@@ -45,6 +49,10 @@ export default function SettingsScreen() {
   const signInMethodLabel = isLinked ? 'Signed in with Google' : 'Signed in with email';
   const accountEmail = (isLinked ? linkedEmail : null) ?? email;
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [faceSeeds, setFaceSeeds] = useState(() => randomFaceSeeds(FACE_BATCH));
+  // Keep the current face as the first tile so it stays visible (and selectable) across shuffles.
+  const currentFace = isFaceAvatar(playerProfile?.avatarEmoji) ? playerProfile.avatarEmoji : null;
+  const pickerFaces = [...(currentFace ? [currentFace] : []), ...faceSeeds.map(faceValue).filter((f) => f !== currentFace)];
   const [showNameEditor, setShowNameEditor] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [pendingAvatarEmoji, setPendingAvatarEmoji] = useState<string | null>(null);
@@ -141,8 +149,8 @@ export default function SettingsScreen() {
               style={[styles.avatar, { backgroundColor: t.avatarBg }]}
               onPress={() => setShowAvatarPicker(true)}
               accessibilityRole="button"
-              accessibilityLabel="Edit avatar emoji">
-              <Text style={styles.avatarEmoji}>{playerProfile?.avatarEmoji ?? '🙂'}</Text>
+              accessibilityLabel="Change avatar">
+              <PlayerAvatar value={playerProfile?.avatarEmoji} size={62} />
               <View style={[styles.avatarEditBadge, { backgroundColor: t.accent, borderColor: t.border }]}>
                 <Icon name="edit" size={13} color={t.onAccent} />
               </View>
@@ -291,7 +299,7 @@ export default function SettingsScreen() {
           <ModalBackdrop
                         onPress={() => setShowStatsModal(false)}
           />
-          <View pointerEvents="box-none" style={[styles.statsModalCenter, isSheet && styles.statsModalSheet]}>
+          <View style={[styles.statsModalCenter, isSheet && styles.statsModalSheet, { pointerEvents: 'box-none' }]}>
             <View
               style={[
                 styles.statsCard,
@@ -348,36 +356,55 @@ export default function SettingsScreen() {
           <ModalBackdrop
                         onPress={() => setShowAvatarPicker(false)}
           />
-          <View pointerEvents="box-none" style={styles.modalCenter}>
+          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
             <View style={[styles.pickerCard, { backgroundColor: t.card, borderColor: t.border }]}>
-              <Text style={[styles.pickerTitle, { color: t.text }]}>Pick an avatar</Text>
+              <View style={styles.pickerHead}>
+                <Text style={[styles.pickerTitle, styles.pickerTitleFlex, { color: t.text }]}>Pick an avatar</Text>
+                <PressableScale
+                  pressedScale={0.94}
+                  onPress={() => setFaceSeeds(randomFaceSeeds(FACE_BATCH))}
+                  disabled={savingAvatar}
+                  accessibilityRole="button"
+                  accessibilityLabel="Shuffle avatars"
+                  style={[styles.shuffleBtn, { borderColor: t.border, backgroundColor: t.chipBg }]}>
+                  <Icon name="refresh" size={16} color={t.accentText} />
+                  <Text style={[styles.shuffleText, { color: t.text }]}>Shuffle</Text>
+                </PressableScale>
+                <PressableScale
+                  pressedScale={0.9}
+                  onPress={() => setShowAvatarPicker(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  hitSlop={4}
+                  style={[styles.closeBtn, { borderColor: t.border, backgroundColor: t.chipBg }]}>
+                  <Icon name="close" size={18} color={t.muted} />
+                </PressableScale>
+              </View>
               <View style={styles.emojiGrid} accessibilityRole="radiogroup">
-                {AVATAR_EMOJIS.map((emoji) => (
-                  <PressableScale
-                    key={emoji}
-                    pressedScale={0.92}
-                    style={[
-                      styles.emojiBtn,
-                      { borderColor: t.border, backgroundColor: t.chipBg },
-                      (savingAvatar ? pendingAvatarEmoji : playerProfile?.avatarEmoji) === emoji && {
-                        borderColor: t.accentText,
-                      },
-                    ]}
-                    onPress={() => onPickAvatar(emoji)}
-                    disabled={savingAvatar}
-                    accessibilityRole="radio"
-                    accessibilityLabel={`Avatar ${emoji}`}
-                    accessibilityState={{
-                      checked: (savingAvatar ? pendingAvatarEmoji : playerProfile?.avatarEmoji) === emoji,
-                      disabled: savingAvatar,
-                    }}>
-                    {savingAvatar && pendingAvatarEmoji === emoji ? (
-                      <ActivityIndicator size="small" color={t.accentText} />
-                    ) : (
-                      <Text style={styles.emojiBtnText}>{emoji}</Text>
-                    )}
-                  </PressableScale>
-                ))}
+                {pickerFaces.map((face, i) => {
+                  const current = savingAvatar ? pendingAvatarEmoji : playerProfile?.avatarEmoji;
+                  const checked = current === face;
+                  return (
+                    <PressableScale
+                      key={face}
+                      pressedScale={0.92}
+                      style={[
+                        styles.emojiBtn,
+                        { borderColor: checked ? t.accentText : 'transparent' },
+                      ]}
+                      onPress={() => onPickAvatar(face)}
+                      disabled={savingAvatar}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`Avatar ${i + 1}`}
+                      accessibilityState={{ checked, disabled: savingAvatar }}>
+                      {savingAvatar && pendingAvatarEmoji === face ? (
+                        <ActivityIndicator size="small" color={t.accentText} />
+                      ) : (
+                        <PlayerAvatar value={face} size={FACE_TILE - 8} />
+                      )}
+                    </PressableScale>
+                  );
+                })}
               </View>
             </View>
           </View>
@@ -648,16 +675,26 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   emojiBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 9,
-    borderWidth: 1,
+    width: FACE_TILE,
+    height: FACE_TILE,
+    borderRadius: FACE_TILE / 2,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emojiBtnText: {
-    fontSize: 24,
+  pickerHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pickerTitleFlex: { flex: 1 },
+  shuffleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
   },
+  shuffleText: { fontSize: 14, fontWeight: '600' },
+  closeBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   statsModalCenter: {
     ...StyleSheet.absoluteFill,
     justifyContent: 'center',

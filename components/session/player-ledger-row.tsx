@@ -1,4 +1,5 @@
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
+import { PlayerAvatar } from '@/components/player-avatar';
 import { useAppColors } from '@/lib/app-theme';
 import { formatSessionAmountValue } from '@/lib/currency-format';
 import { text as type, pressBg, ui } from '@/lib/ui';
@@ -29,6 +30,8 @@ const ACTIONS_A11Y_HIDDEN =
   IS_WEB
     ? {}
     : ({ importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const);
+
+const AVATAR_SIZE = 38;
 
 export type LedgerRowHandlers = {
   onRebuy: (player: LedgerPlayer) => void;
@@ -138,10 +141,10 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   const summary = (
     <>
       <View
-        style={[ui.tile, { backgroundColor: c.cardAlt, borderColor: c.border }, styles.tile]}
+        style={[styles.avatarRing, { backgroundColor: c.cardAlt, borderColor: c.border }]}
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden>
-        <Text style={styles.avatar}>{avatar}</Text>
+        <PlayerAvatar value={avatar} size={AVATAR_SIZE} />
       </View>
       <View style={styles.left}>
         <View style={styles.info}>
@@ -169,8 +172,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
         </View>
         <View style={styles.amounts}>
           <Animated.View
-            pointerEvents="none"
-            style={[styles.flash, { backgroundColor: c.accent }, flashStyle]}
+            style={[styles.flash, { backgroundColor: c.accent }, flashStyle, { pointerEvents: 'none' }]}
           />
           <SessionAmountDisplay
             value={values.buyIn}
@@ -309,7 +311,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
                 accessibilityRole="button"
                 accessibilityLabel={`Rebuy ${player.name}`}
               />
-              <View style={styles.webSummary} pointerEvents="none">
+              <View style={[styles.webSummary, { pointerEvents: 'none' }]}>
                 {summary}
               </View>
               {trailing}
@@ -370,8 +372,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  tile: {
+  avatarRing: {
+    width: AVATAR_SIZE + 2,
+    height: AVATAR_SIZE + 2,
+    borderRadius: (AVATAR_SIZE + 2) / 2,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   left: {
     flex: 1,

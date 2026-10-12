@@ -1,13 +1,8 @@
-import { AVATAR_EMOJIS } from '@/constants/avatar';
+import { faceValue } from '@/lib/avatar-face';
 
-const DEFAULT_AVATAR = '🙂';
-
+/** Players without a chosen avatar get a stable illustrated face derived from their id. */
 export function pickGuestAvatar(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_EMOJIS[hash % AVATAR_EMOJIS.length];
+  return faceValue(seed);
 }
 
 export function getAvatarEmoji(
@@ -15,7 +10,7 @@ export function getAvatarEmoji(
   self: { id: string; avatarEmoji?: string } | null | undefined,
   friendAvatarMap: ReadonlyMap<string, string | undefined>
 ): string {
-  if (self && playerId === self.id) return self.avatarEmoji ?? DEFAULT_AVATAR;
-  if (friendAvatarMap.has(playerId)) return friendAvatarMap.get(playerId) ?? DEFAULT_AVATAR;
+  if (self && playerId === self.id) return self.avatarEmoji ?? pickGuestAvatar(playerId);
+  if (friendAvatarMap.has(playerId)) return friendAvatarMap.get(playerId) ?? pickGuestAvatar(playerId);
   return pickGuestAvatar(playerId);
 }

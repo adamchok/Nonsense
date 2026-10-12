@@ -1,4 +1,5 @@
 import type { BottomTabBarProps } from "expo-router/js-tabs";
+import { PlayerAvatar } from "@/components/player-avatar";
 import { PlatformPressable, CommonActions, useLinkBuilder } from "expo-router/react-navigation";
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'expo-router';
@@ -85,8 +86,7 @@ export function WebSidebar({ state, descriptors, navigation }: BottomTabBarProps
 
       <View style={styles.items}>
         <Animated.View
-          pointerEvents="none"
-          style={[styles.activePill, { backgroundColor: withAlpha(c.accentText, ACTIVE_BG_ALPHA) }, pillStyle]}
+          style={[styles.activePill, { backgroundColor: withAlpha(c.accentText, ACTIVE_BG_ALPHA) }, pillStyle, { pointerEvents: 'none' }]}
         />
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -149,9 +149,7 @@ function ProfileRow({ href, onPress }: { href: string | undefined; onPress: () =
         pressOpacity={0.7}
         style={styles.profileRow}>
         <View style={[styles.avatar, { backgroundColor: c.bg, borderColor: c.border }]}>
-          <Text style={styles.avatarEmoji} importantForAccessibility="no">
-            {avatar}
-          </Text>
+          <PlayerAvatar value={avatar} size={AVATAR_SIZE - 2} />
         </View>
         <View style={styles.profileText}>
           <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>

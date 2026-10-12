@@ -1,6 +1,8 @@
+import { PlayerAvatar } from '@/components/player-avatar';
+import { pickGuestAvatar } from '@/lib/avatar';
 import { useAppColors } from '@/lib/app-theme';
 import type { GroupMember, PlayerProfile } from '@/types';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 export function groupMemberDisplayEmoji(
   member: GroupMember,
@@ -12,7 +14,7 @@ export function groupMemberDisplayEmoji(
   }
   const stored = member.avatarEmoji?.trim();
   if (stored) return stored;
-  return member.isRegistered ? '🙂' : '🎭';
+  return pickGuestAvatar(member.id);
 }
 
 type GroupMemberAvatarProps = {
@@ -24,7 +26,6 @@ type GroupMemberAvatarProps = {
 export function GroupMemberAvatar({ member, viewerProfile, size = 'default' }: GroupMemberAvatarProps) {
   const c = useAppColors();
   const dim = size === 'compact' ? 28 : 32;
-  const fontSize = size === 'compact' ? 14 : 16;
   const emoji = groupMemberDisplayEmoji(member, viewerProfile);
 
   return (
@@ -38,7 +39,7 @@ export function GroupMemberAvatar({ member, viewerProfile, size = 'default' }: G
           backgroundColor: c.avatarBg,
         },
       ]}>
-      <Text style={[styles.emoji, { color: c.text, fontSize }]}>{emoji}</Text>
+      <PlayerAvatar value={emoji} size={dim} style={{ color: c.text }} />
     </View>
   );
 }
@@ -47,8 +48,5 @@ const styles = StyleSheet.create({
   circle: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emoji: {
-    fontWeight: '700',
   },
 });

@@ -1,4 +1,5 @@
 import { usePageLayout } from '@/hooks/use-page-layout';
+import { PlayerAvatar } from '@/components/player-avatar';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
@@ -133,6 +134,7 @@ export default function HomeScreen() {
               : require('@/assets/images/logo-light-large.png')
           }
           style={styles.logo}
+          resizeMode="contain"
           accessibilityLabel="Nonsense"
         />
       )}
@@ -159,7 +161,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open settings"
             style={[styles.avatar, { backgroundColor: c.card, borderColor: c.border }]}>
-            <Text style={styles.avatarEmoji}>{playerProfile.avatarEmoji ?? '🙂'}</Text>
+            <PlayerAvatar value={playerProfile.avatarEmoji} size={46} />
           </PressableScale>
         ) : null}
       </View>
@@ -321,7 +323,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 128,
     height: 128,
-    resizeMode: 'contain',
     alignSelf: 'center',
   },
   header: {

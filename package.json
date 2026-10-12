@@ -21,6 +21,8 @@
     "deploy:web": "expo export -p web --output-dir dist --clear && node scripts/fix-web-assets.js dist && cd cloudflare && npx wrangler pages deploy ../dist --project-name nonsense --branch master"
   },
   "dependencies": {
+    "@dicebear/core": "^9.4.3",
+    "@dicebear/notionists": "^9.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
