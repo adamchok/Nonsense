@@ -33,6 +33,7 @@ export function CashedOutDetailModal({ detail, unit, canBuyBack, onClose, onBuyB
       visible={detail != null}
       onClose={onClose}
       title={detail?.name}
+      titleIcon={{ name: 'receipt', color: c.textMuted }}
       avoidKeyboard={false}
       cardStyle={styles.card}>
       {detail ? (

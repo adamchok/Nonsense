@@ -1,3 +1,4 @@
+import { Icon } from '@/components/icon';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
@@ -6,16 +7,15 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createGroup } from '@/lib/firestore';
 import { userMessage } from '@/lib/user-message';
-import { router } from 'expo-router';
 import { useId, useState } from 'react';
-import { Platform, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
 const MIN_NAME_LEN = 2;
 const MAX_OWNED_GROUPS = 10;
 
-type Props = { onClose: () => void; ownedCount: number };
+type Props = { onClose: () => void; ownedCount: number; onCreated: (groupId: string) => void };
 
-export function NewGroupModal({ onClose, ownedCount }: Props) {
+export function NewGroupModal({ onClose, ownedCount, onCreated }: Props) {
   const c = useAppColors();
   const { playerProfile } = useAuth();
   const [name, setName] = useState('');
@@ -39,8 +39,7 @@ export function NewGroupModal({ onClose, ownedCount }: Props) {
     setIsSaving(true);
     try {
       const groupId = await createGroup(playerProfile.id, trimmed);
-      onClose();
-      router.push(`../group/${groupId}/members`);
+      onCreated(groupId);
     } catch (e) {
       appAlert('Unable to create group', userMessage(e, 'Please try again.'));
       setIsSaving(false);
@@ -52,7 +51,8 @@ export function NewGroupModal({ onClose, ownedCount }: Props) {
       visible
       onClose={onClose}
       title="New group"
-      primary={{ label: 'Create', onPress: () => void create(), busy: isSaving }}>
+      titleIcon={{ name: 'group', color: c.textMuted }}
+      primary={{ label: 'Create', onPress: () => void create(), busy: isSaving, icon: 'add' }}>
       <View>
         <TextInput
           value={name}
@@ -77,11 +77,27 @@ export function NewGroupModal({ onClose, ownedCount }: Props) {
         />
         <FieldError message={nameError} nativeID={errorId} />
         {nameError ? null : (
-          <Text style={{ marginTop: 10, fontSize: 12, lineHeight: 16, color: isAtLimit ? c.loss : c.textMuted }}>
-            {isAtLimit ? limitMessage : `You own ${ownedCount} of ${MAX_OWNED_GROUPS} groups`}
-          </Text>
+          // One line: muted label, bold count (red once the allowance is used up).
+          <View style={styles.usage}>
+            <Icon name={isAtLimit ? 'error-outline' : 'group'} size={14} color={isAtLimit ? c.loss : c.textMuted} />
+            <Text style={[styles.usageLabel, { color: isAtLimit ? c.loss : c.textMuted }]}>
+              {isAtLimit ? 'Limit reached. Delete a group to create another' : 'Groups you own'}
+              {isAtLimit ? null : (
+                <Text style={[styles.usageCount, { color: c.text }]}>
+                  {'  '}
+                  {ownedCount} / {MAX_OWNED_GROUPS}
+                </Text>
+              )}
+            </Text>
+          </View>
         )}
       </View>
     </ModalShell>
   );
 }
+
+const styles = StyleSheet.create({
+  usage: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  usageLabel: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
+  usageCount: { fontWeight: '700', fontVariant: ['tabular-nums'] },
+});

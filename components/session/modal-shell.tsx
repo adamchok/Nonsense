@@ -1,15 +1,17 @@
+import { Icon, type IconName } from '@/components/icon';
 import { ModalBackdrop } from '@/components/modal-backdrop';
 import { Animated, PressableScale, SPRING } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
-import { pressBg, text } from '@/lib/ui';
+import { pressBg, text, pointer } from '@/lib/ui';
 import { BREAKPOINT_MD, SHEET_BREAKPOINT, gutterFor } from '@/lib/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useEffect, useId, type ReactNode } from 'react';
-import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { useEffect, useId, useMemo, type ReactNode } from 'react';
+import { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   StyleSheet,
   Text,
@@ -25,7 +27,13 @@ export type ModalPrimaryAction = {
   disabled?: boolean;
   busy?: boolean;
   busyLabel?: string;
+  /** Red fill for irreversible actions (delete, remove, sign out). */
+  destructive?: boolean;
+  /** Leading icon in the button. */
+  icon?: IconName;
 };
+
+export const DANGER_FILL = '#dc2626';
 
 const MODAL_MAX_WIDTH = 480;
 
@@ -37,22 +45,60 @@ type Props = {
   primary?: ModalPrimaryAction;
   avoidKeyboard?: boolean;
   cardStyle?: StyleProp<ViewStyle>;
+  /** Overrides the Cancel / Close label (e.g. "Keep editing", "OK"). */
+  cancelLabel?: string;
+  /** Extra web-only props for the dialog element (role ref, aria-describedby). */
+  dialogProps?: object;
+  /** Icon before the title (alerts: info / warning). */
+  titleIcon?: { name: IconName; color: string };
+  /** Replaces the Cancel button (e.g. Reset in the history filters); closing stays on x / backdrop / swipe. */
+  secondary?: { label: string; onPress: () => void; disabled?: boolean; icon?: IconName };
+  /** Extra control before the close (x), e.g. a Shuffle button. */
+  headerAction?: ReactNode;
 };
 
 const PHONE_RISE_PX = 48;
 const WIDE_START_SCALE = 0.96;
 
+// Swipe-down-to-close on phone sheets: past this drag distance or flick speed, the sheet closes.
+const DISMISS_DRAG_PX = 80;
+const DISMISS_VELOCITY = 0.8;
+
 function useCardEntrance(visible: boolean, isWide: boolean) {
   const progress = useSharedValue(visible ? 0 : 1);
+  const dragY = useSharedValue(0);
   useEffect(() => {
     if (!visible) return;
+    dragY.value = 0;
     progress.value = 0;
     progress.value = withSpring(1, SPRING);
-  }, [visible, progress]);
-  return useAnimatedStyle(() =>
+  }, [visible, progress, dragY]);
+  const style = useAnimatedStyle(() =>
     isWide
       ? { transform: [{ scale: WIDE_START_SCALE + (1 - WIDE_START_SCALE) * progress.value }] }
-      : { transform: [{ translateY: (1 - progress.value) * PHONE_RISE_PX }] }
+      : { transform: [{ translateY: (1 - progress.value) * PHONE_RISE_PX + dragY.value }] },
+  );
+  return { style, dragY };
+}
+
+/** Drag handlers for the sheet's top strip (grabber + header), so inner scroll views keep their gestures. */
+function useSwipeToClose(dragY: SharedValue<number>, onClose: () => void, enabled: boolean) {
+  return useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) => enabled && g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderMove: (_, g) => {
+          dragY.set(Math.max(0, g.dy));
+        },
+        onPanResponderRelease: (_, g) => {
+          if (g.dy > DISMISS_DRAG_PX || g.vy > DISMISS_VELOCITY) onClose();
+          else dragY.set(withSpring(0, SPRING));
+        },
+        onPanResponderTerminate: () => {
+          dragY.set(withSpring(0, SPRING));
+        },
+      }),
+    [dragY, onClose, enabled],
   );
 }
 
@@ -64,6 +110,11 @@ export function ModalShell({
   primary,
   avoidKeyboard = true,
   cardStyle,
+  cancelLabel,
+  dialogProps,
+  titleIcon,
+  headerAction,
+  secondary,
 }: Props) {
   const c = useAppColors();
   const { width } = useWindowDimensions();
@@ -72,13 +123,16 @@ export function ModalShell({
   const isWide = width >= BREAKPOINT_MD;
   const frame = { maxWidth: isSheet ? undefined : MODAL_MAX_WIDTH };
   const primaryDisabled = Boolean(primary?.disabled || primary?.busy);
-  const entrance = useCardEntrance(visible, isWide);
+  const { style: entrance, dragY } = useCardEntrance(visible, isWide);
+  const swipe = useSwipeToClose(dragY, onClose, isSheet);
   const idBase = useId();
   const titleId = `${idBase}-modal-title`;
   const hasTitle = title != null;
   // react-native-web's Modal renders the role="dialog" element itself and forwards extra props
   // to it, so the accessible name goes on the Modal rather than on the card.
-  const webDialogProps: object = Platform.OS === 'web' && hasTitle ? { 'aria-labelledby': titleId } : {};
+  const webDialogProps: object =
+    Platform.OS === 'web' ? { ...(hasTitle ? { 'aria-labelledby': titleId } : {}), ...dialogProps } : {};
+  const cancelText = cancelLabel ?? (primary ? 'Cancel' : 'Close');
 
   const card = (
     <Animated.View
@@ -91,34 +145,61 @@ export function ModalShell({
       ]}
       accessibilityViewIsModal
       onAccessibilityEscape={onClose}>
-      {isSheet ? <View style={[styles.grabber, { backgroundColor: c.border }]} /> : null}
-      {hasTitle ? (
-        <Text nativeID={titleId} style={[styles.title, { color: c.text }]} accessibilityRole="header">
-          {title}
-        </Text>
-      ) : null}
+      {/* Phone sheets: drag the grabber / header down to close. */}
+      <View {...(isSheet ? swipe.panHandlers : {})} style={styles.dragZone}>
+        {isSheet ? <View style={[styles.grabber, { backgroundColor: c.border }]} /> : null}
+        {/* Every modal gets the same top-right close (x), alongside Cancel, the backdrop and Escape. */}
+        <View style={styles.header}>
+          {titleIcon ? <Icon name={titleIcon.name} size={isWide ? 26 : 22} color={titleIcon.color} /> : null}
+          {hasTitle ? (
+            <Text
+              nativeID={titleId}
+              style={[styles.title, isWide && styles.titleWide, styles.titleText, { color: c.text }]}
+              accessibilityRole="header">
+              {title}
+            </Text>
+          ) : (
+            <View style={styles.titleText} />
+          )}
+          {headerAction}
+          <PressableScale
+            pressedScale={0.9}
+            onPress={onClose}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            style={(state) => [styles.closeBtn, pressBg(c, state, c.card)]}>
+            <Icon name="close" size={20} color={c.textMuted} />
+          </PressableScale>
+        </View>
+      </View>
       {children}
       <View style={[styles.actions, isSheet && styles.actionsSheet]}>
         <PressableScale
           style={(state) => [
             styles.cancelBtn,
             isSheet && styles.flexBtn,
-            { borderColor: c.inputBorder },
-            pressBg(c, state, c.card),
+            // Secondary buttons: chip fill (light grey; a step lighter than the card in dark mode).
+            { borderColor: c.border },
+            pressBg(c, state, c.chipBg),
+            secondary?.disabled && styles.disabled,
           ]}
-          onPress={onClose}
+          onPress={secondary?.onPress ?? onClose}
+          disabled={secondary?.disabled}
           accessibilityRole="button"
-          accessibilityLabel={primary ? 'Cancel' : 'Close'}>
-          <Text style={[styles.cancelLabel, { color: c.text }]}>
-            {primary ? 'Cancel' : 'Close'}
-          </Text>
+          accessibilityState={{ disabled: Boolean(secondary?.disabled) }}
+          accessibilityLabel={secondary?.label ?? cancelText}>
+          <View style={styles.primaryContent}>
+            {secondary?.icon ? <Icon name={secondary.icon} size={18} color={c.text} /> : null}
+            <Text style={[styles.cancelLabel, { color: c.text }]}>{secondary?.label ?? cancelText}</Text>
+          </View>
         </PressableScale>
         {primary ? (
           <PressableScale
             style={[
               styles.primaryBtn,
               isSheet && styles.flexBtn,
-              { backgroundColor: c.accent },
+              { backgroundColor: primary.destructive ? DANGER_FILL : c.accent },
               primaryDisabled && styles.disabled,
             ]}
             onPress={primary.onPress}
@@ -127,9 +208,16 @@ export function ModalShell({
             accessibilityLabel={primary.busy ? (primary.busyLabel ?? `${primary.label}, saving`) : primary.label}
             accessibilityState={{ disabled: primaryDisabled, busy: Boolean(primary.busy) }}>
             {primary.busy ? (
-              <ActivityIndicator size="small" color={c.onAccent} />
+              <ActivityIndicator size="small" color={primary.destructive ? '#fff' : c.onAccent} />
             ) : (
-              <Text style={[styles.primaryLabel, { color: c.onAccent }]}>{primary.label}</Text>
+              <View style={styles.primaryContent}>
+                {primary.icon ? (
+                  <Icon name={primary.icon} size={18} color={primary.destructive ? '#fff' : c.onAccent} weight="bold" />
+                ) : null}
+                <Text style={[styles.primaryLabel, { color: primary.destructive ? '#fff' : c.onAccent }]}>
+                  {primary.label}
+                </Text>
+              </View>
             )}
           </PressableScale>
         ) : null}
@@ -146,22 +234,26 @@ export function ModalShell({
       onRequestClose={onClose}
       {...webDialogProps}>
       <View style={styles.root}>
-        <ModalBackdrop
-                    onPress={onClose}
-          importantForAccessibility="no"
-          accessibilityElementsHidden
-        />
+        <ModalBackdrop onPress={onClose} importantForAccessibility="no" accessibilityElementsHidden />
         <View
-          style={[styles.centerWrap, isSheet ? styles.sheetWrap : { paddingHorizontal: gutterFor(width) }, { pointerEvents: 'box-none' }]}>
+          style={[
+            styles.centerWrap,
+            isSheet ? styles.sheetWrap : { paddingHorizontal: gutterFor(width) },
+            pointer.boxNone,
+          ]}>
           {avoidKeyboard ? (
             <KeyboardAvoidingView
               behavior="padding"
               keyboardVerticalOffset={Platform.OS === 'ios' && !isSheet ? 64 : 0}
-              style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet, { pointerEvents: 'box-none' }]}>
+              style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet, pointer.boxNone]}>
               {card}
             </KeyboardAvoidingView>
           ) : (
-            <View style={[styles.keyboard, frame]}>{card}</View>
+            // Full height like the keyboard path: the sheet's maxHeight '92%' must resolve against the screen,
+            // not this wrapper (a content-height wrapper clipped the card and left a gap under it).
+            <View style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet, pointer.boxNone]}>
+              {card}
+            </View>
           )}
         </View>
       </View>
@@ -188,7 +280,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    maxHeight: '92%',
+    // Leaves a visible strip of the page above, so the sheet reads as dismissible (tap it or swipe down).
+    maxHeight: '85%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 0,
@@ -215,12 +308,41 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
+    // Long content scrolls inside (children use a ScrollView with flexShrink) instead of overflowing.
+    maxHeight: '90%',
     borderRadius: 14,
     borderWidth: 1,
     padding: 20,
     gap: 12,
   },
   title: text.modalTitle,
+  dragZone: {
+    gap: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  // Desktop has room for a bigger title; phone sheets keep the standard 20px.
+  titleWide: {
+    fontSize: 24,
+    lineHeight: 30,
+    letterSpacing: -0.3,
+  },
+  titleText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  // Pulled into the card padding so the x sits in the corner without pushing the title down.
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: -8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -247,6 +369,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 14,
     paddingHorizontal: 18,
+  },
+  primaryContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   primaryLabel: {
     fontSize: 15,

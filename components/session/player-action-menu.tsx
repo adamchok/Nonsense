@@ -6,14 +6,16 @@ import { SHEET_BREAKPOINT, radius, rowMinHeight, space } from '@/lib/spacing';
 import { pressBg, text } from '@/lib/ui';
 import { useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Modal, Platform, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 
 const IS_WEB = Platform.OS === 'web';
-const MENU_WIDTH = 240;
+const MENU_WIDTH = 220;
+/** Desktop menus use tighter rows than the 52px touch rows of the phone sheet. */
+const POPOVER_ITEM_HEIGHT = 40;
 const ANCHOR_GAP = 4;
 const EDGE_GAP = 8;
-/** Three 52px items plus padding; used to flip the popover above the trigger near the bottom edge. */
-const MENU_HEIGHT_ESTIMATE = rowMinHeight * 3 + space.sm * 2;
+/** Three items plus padding; used to flip the popover above the trigger near the bottom edge. */
+const MENU_HEIGHT_ESTIMATE = POPOVER_ITEM_HEIGHT * 3 + space.sm * 3;
 
 export type MenuAnchor = { x: number; y: number; width: number; height: number };
 
@@ -111,7 +113,17 @@ export function PlayerActionMenu({ visible, title, actions, anchor, onClose }: P
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => onClose()}>
       <View style={styles.root}>
-        <ModalBackdrop onPress={() => onClose()} importantForAccessibility="no" accessibilityElementsHidden />
+        {isSheet ? (
+          <ModalBackdrop onPress={() => onClose()} importantForAccessibility="no" accessibilityElementsHidden />
+        ) : (
+          // A popover keeps the ledger visible (no scrim) so it's clear which player it belongs to.
+          <Pressable
+            accessible={false}
+            {...(IS_WEB ? ({ tabIndex: -1 } as object) : {})}
+            onPress={() => onClose()}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <View
           ref={menuRef}
           accessibilityRole="menu"
@@ -127,24 +139,36 @@ export function PlayerActionMenu({ visible, title, actions, anchor, onClose }: P
               </Text>
             </>
           ) : null}
-          {actions.map((action) => {
+          {actions.map((action, index) => {
+            const startsDanger = action.destructive && index > 0 && !actions[index - 1].destructive;
             const color = action.destructive ? c.lossLight : c.text;
             return (
-              <PressableScale
-                key={action.key}
-                pressedScale={0.98}
-                disabled={action.disabled}
-                accessibilityRole="menuitem"
-                accessibilityState={{ disabled: !!action.disabled }}
-                {...(IS_WEB ? ({ tabIndex: -1 } as object) : {})}
-                onPress={() => {
-                  onClose();
-                  action.onSelect();
-                }}
-                style={(state) => [styles.item, pressBg(c, state), action.disabled && styles.disabled]}>
-                <Icon name={action.icon} size={20} color={action.destructive ? c.lossLight : c.textSecondary} />
-                <Text style={[text.body, { color }]}>{action.label}</Text>
-              </PressableScale>
+              <View key={action.key}>
+                {startsDanger ? <View style={[styles.divider, { backgroundColor: c.border }]} /> : null}
+                <PressableScale
+                  pressedScale={0.98}
+                  disabled={action.disabled}
+                  accessibilityRole="menuitem"
+                  accessibilityState={{ disabled: !!action.disabled }}
+                  {...(IS_WEB ? ({ tabIndex: -1 } as object) : {})}
+                  onPress={() => {
+                    onClose();
+                    action.onSelect();
+                  }}
+                  style={(state) => [
+                    styles.item,
+                    !isSheet && styles.popoverItem,
+                    pressBg(c, state),
+                    action.disabled && styles.disabled,
+                  ]}>
+                  <Icon
+                    name={action.icon}
+                    size={isSheet ? 20 : 18}
+                    color={action.destructive ? c.lossLight : c.textSecondary}
+                  />
+                  <Text style={[text.body, { color }]}>{action.label}</Text>
+                </PressableScale>
+              </View>
             );
           })}
         </View>
@@ -196,6 +220,15 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingHorizontal: space.md,
     borderRadius: radius.sm,
+  },
+  popoverItem: {
+    minHeight: POPOVER_ITEM_HEIGHT,
+    gap: space.sm + 2,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: space.xs,
+    marginHorizontal: space.sm,
   },
   disabled: {
     opacity: 0.4,

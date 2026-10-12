@@ -16,15 +16,17 @@ import { cancelGuestLink, subscribeOutgoingGuestLinks, type GuestLink } from '@/
 import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
 import { Icon } from '@/components/icon';
 import { Animated, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { ModalShell } from '@/components/session/modal-shell';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
 const INITIAL_STAGGER_WINDOW_MS = 600;
 
-export default function GroupMembersScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+type Props = { groupId: string; onClose: () => void };
+
+/** Add / remove / link group members, as a modal over the Friends screen (was its own route). */
+export function GroupMembersModal({ groupId: id, onClose }: Props) {
   const c = useAppColors();
   const { user, playerProfile } = useAuth();
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -176,16 +178,13 @@ export default function GroupMembersScreen() {
   const showQuickAdd = isOwner && (friendsNotInGroup.length > 0 || (playerProfile && !selfInGroup));
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: c.bg }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Stack.Screen
-        options={{
-          title: groupName ?? 'Group Members',
-          headerBackTitle: 'Back',
-        }}
-      />
-
+    <>
+    <ModalShell
+      visible
+      onClose={onClose}
+      title={groupName ?? 'Group members'}
+      titleIcon={{ name: 'group', color: c.textMuted }}
+      cancelLabel="Done">
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {!isOwner ? (
           <Text style={[styles.ownerNote, { color: c.textMuted }]}>Only the group owner can add or remove people.</Text>
@@ -390,14 +389,7 @@ export default function GroupMembersScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: c.bg }]}>
-        <PressableScale
-          style={[styles.doneBtn, { backgroundColor: c.accent }]}
-          accessibilityRole="button"
-          onPress={() => router.back()}>
-          <Text style={[styles.doneLabel, { color: c.onAccent }]}>Done</Text>
-        </PressableScale>
-      </View>
+    </ModalShell>
       {linkTarget && playerProfile ? (
         <LinkGuestModal
           guest={linkTarget}
@@ -406,19 +398,16 @@ export default function GroupMembersScreen() {
           onClose={() => setLinkTarget(null)}
         />
       ) : null}
-    </KeyboardAvoidingView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
+  // Bounded by the modal's max height; scrolls when the member list is long.
   scroll: {
-    flex: 1,
+    flexShrink: 1,
   },
   content: {
-    padding: 16,
     gap: 16,
   },
   ownerNote: {
@@ -595,21 +584,5 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  footer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  doneBtn: {
-    minHeight: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  doneLabel: {
-    fontWeight: '600',
-    fontSize: 15,
   },
 });

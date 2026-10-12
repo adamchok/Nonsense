@@ -57,11 +57,13 @@ export function BlindsEditorModal({
       visible={visible}
       onClose={onClose}
       title="Edit blinds"
+      titleIcon={{ name: 'payments', color: c.textMuted }}
       primary={{
         label: 'Save',
         onPress: () => void save(),
         disabled: isSaving,
         busy: isSaving,
+        icon: 'check',
       }}>
       <Text style={[formStyles.hint, { color: c.textMuted }]}>
         {unit === 'chips'

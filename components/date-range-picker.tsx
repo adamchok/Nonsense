@@ -2,12 +2,30 @@ import { Icon } from '@/components/icon';
 import { Animated, PressableScale, fadeIn } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { DATE_PRESETS, monthGrid, parseYmd, presetRange, toYmd } from '@/lib/history-filters';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS_LONG = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+// Calendar popover height (month row + weekdays + 6 rows + hint); used to flip it above the field.
+const CALENDAR_HEIGHT = 420;
+const GAP = 6;
+
+type Anchor = { x: number; y: number; width: number; height: number };
 
 const fmt = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 
@@ -30,7 +48,16 @@ export function DateRangePicker({ start, end, onChange }: Props) {
   const todayYmd = toYmd(today);
   const startDate = parseYmd(start);
   const endDate = parseYmd(end);
-  const [open, setOpen] = useState(false);
+  const { height: winH } = useWindowDimensions();
+  const fieldRef = useRef<View>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const open = anchor != null;
+  const close = () => setAnchor(null);
+  // Floats over the sheet in its own Modal, so the sheet's scroll area cannot clip it.
+  const toggle = () => {
+    if (open) return close();
+    fieldRef.current?.measureInWindow((x, y, width, height) => setAnchor({ x, y, width, height }));
+  };
   const [view, setView] = useState(() => {
     const anchor = endDate ?? startDate ?? today;
     return { year: anchor.getFullYear(), month: anchor.getMonth() };
@@ -80,16 +107,20 @@ export function DateRangePicker({ start, end, onChange }: Props) {
         })}
       </View>
 
-      <View style={[styles.field, { backgroundColor: c.inputBg, borderColor: open ? c.accentBorder : c.border }]}>
+      <View
+        ref={fieldRef}
+        collapsable={false}
+        {...({ dataSet: { hoverField: 'true' } } as object)}
+        style={[styles.field, { backgroundColor: c.inputBg, borderColor: open ? c.accentBorder : c.border }]}>
         <PressableScale
           pressedScale={0.99}
-          onPress={() => setOpen((o) => !o)}
+          onPress={toggle}
           accessibilityRole="button"
           accessibilityLabel={`Dates: ${summary(startDate, endDate)}`}
           accessibilityHint={open ? 'Hides the calendar' : 'Shows a calendar to pick a custom range'}
           accessibilityState={{ expanded: open }}
           style={styles.fieldBtn}>
-          <Icon name="calendar" size={18} color={hasValue ? c.accentText : c.textMuted} />
+          <Icon name="calendar" size={18} color={c.textMuted} />
           <Text style={[styles.fieldText, { color: hasValue ? c.text : c.placeholder }]} numberOfLines={1}>
             {summary(startDate, endDate)}
           </Text>
@@ -102,93 +133,116 @@ export function DateRangePicker({ start, end, onChange }: Props) {
             hitSlop={6}
             accessibilityRole="button"
             accessibilityLabel="Clear dates"
+            {...({ dataSet: { hoverDot: 'true' } } as object)}
             style={styles.clearBtn}>
-            <Icon name="close" size={16} color={c.textMuted} />
+            <View style={styles.clearDot}>
+              <Icon name="close" size={16} color={c.textMuted} />
+            </View>
           </PressableScale>
         ) : null}
       </View>
 
-      {open ? (
-        <Animated.View entering={fadeIn} style={[styles.calendar, { backgroundColor: c.inputBg, borderColor: c.border }]}>
-          <View style={styles.monthRow}>
-            <PressableScale
-              pressedScale={0.9}
-              onPress={() => shiftMonth(-1)}
-              accessibilityRole="button"
-              accessibilityLabel="Previous month"
-              style={styles.navBtn}>
-              <Icon name="chevron-left" size={18} color={c.text} />
-            </PressableScale>
-            <Text style={[styles.monthLabel, { color: c.text }]} accessibilityRole="header">
-              {MONTHS_LONG[view.month]} {view.year}
-            </Text>
-            <PressableScale
-              pressedScale={0.9}
-              onPress={() => shiftMonth(1)}
-              disabled={isCurrentMonth}
-              accessibilityRole="button"
-              accessibilityLabel="Next month"
-              accessibilityState={{ disabled: isCurrentMonth }}
-              style={[styles.navBtn, isCurrentMonth && styles.disabled]}>
-              <Icon name="chevron-right" size={18} color={c.text} />
-            </PressableScale>
-          </View>
-
-          <View style={styles.grid} importantForAccessibility="no-hide-descendants">
-            {WEEKDAYS.map((w, i) => (
-              <Text key={i} style={[styles.weekday, { color: c.textHint }]}>
-                {w}
+      <Modal visible={open} transparent animationType="none" statusBarTranslucent onRequestClose={close}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close calendar" />
+        {anchor ? (
+          <Animated.View
+            entering={fadeIn}
+            style={[
+              styles.calendar,
+              { backgroundColor: c.card, borderColor: c.border, left: anchor.x, width: anchor.width },
+              anchor.y + anchor.height + GAP + CALENDAR_HEIGHT > winH
+                ? { bottom: winH - anchor.y + GAP }
+                : { top: anchor.y + anchor.height + GAP },
+            ]}>
+            <View style={styles.monthRow}>
+              <PressableScale
+                pressedScale={0.9}
+                onPress={() => shiftMonth(-1)}
+                accessibilityRole="button"
+                accessibilityLabel="Previous month"
+                style={styles.navBtn}>
+                <Icon name="chevron-left" size={18} color={c.text} />
+              </PressableScale>
+              <Text style={[styles.monthLabel, { color: c.text }]} accessibilityRole="header">
+                {MONTHS_LONG[view.month]} {view.year}
               </Text>
-            ))}
-          </View>
+              <PressableScale
+                pressedScale={0.9}
+                onPress={() => shiftMonth(1)}
+                disabled={isCurrentMonth}
+                accessibilityRole="button"
+                accessibilityLabel="Next month"
+                accessibilityState={{ disabled: isCurrentMonth }}
+                style={[styles.navBtn, isCurrentMonth && styles.disabled]}>
+                <Icon name="chevron-right" size={18} color={c.text} />
+              </PressableScale>
+            </View>
 
-          <View style={styles.grid}>
-            {monthGrid(view.year, view.month).map((d, i) => {
-              if (!d) return <View key={i} style={styles.cell} />;
-              const ymd = toYmd(d);
-              const isStart = ymd === start;
-              const isEnd = ymd === end;
-              const isEdge = isStart || isEnd;
-              const inRange = Boolean(start && end && ymd > start && ymd < end);
-              const isFuture = ymd > todayYmd;
-              const bandLeft = inRange || (isEnd && Boolean(start) && start !== end);
-              const bandRight = inRange || (isStart && Boolean(end) && start !== end);
-              return (
-                <View key={i} style={styles.cell}>
-                  {bandLeft ? <View style={[styles.band, styles.bandLeft, { backgroundColor: c.accentBg }]} /> : null}
-                  {bandRight ? <View style={[styles.band, styles.bandRight, { backgroundColor: c.accentBg }]} /> : null}
-                  <PressableScale
-                    pressedScale={0.9}
-                    onPress={() => pick(ymd)}
-                    disabled={isFuture}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${d.getDate()} ${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`}
-                    accessibilityState={{ selected: isEdge || inRange, disabled: isFuture }}
-                    style={[
-                      styles.day,
-                      isEdge && { backgroundColor: c.accent },
-                      !isEdge && ymd === todayYmd && { borderWidth: 1, borderColor: c.textMuted },
-                    ]}>
-                    <Text
+            <View style={styles.grid} importantForAccessibility="no-hide-descendants">
+              {WEEKDAYS.map((w, i) => (
+                <Text key={i} style={[styles.weekday, { color: c.textHint }]}>
+                  {w}
+                </Text>
+              ))}
+            </View>
+
+            <View style={styles.grid}>
+              {monthGrid(view.year, view.month).map((d, i) => {
+                if (!d) return <View key={i} style={styles.cell} />;
+                const ymd = toYmd(d);
+                const isStart = ymd === start;
+                const isEnd = ymd === end;
+                const isEdge = isStart || isEnd;
+                const inRange = Boolean(start && end && ymd > start && ymd < end);
+                const isFuture = ymd > todayYmd;
+                const bandLeft = inRange || (isEnd && Boolean(start) && start !== end);
+                const bandRight = inRange || (isStart && Boolean(end) && start !== end);
+                return (
+                  <View key={i} style={styles.cell}>
+                    {bandLeft ? <View style={[styles.band, styles.bandLeft, { backgroundColor: c.accentBg }]} /> : null}
+                    {bandRight ? (
+                      <View style={[styles.band, styles.bandRight, { backgroundColor: c.accentBg }]} />
+                    ) : null}
+                    <PressableScale
+                      pressedScale={0.9}
+                      onPress={() => pick(ymd)}
+                      disabled={isFuture}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${d.getDate()} ${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`}
+                      accessibilityState={{ selected: isEdge || inRange, disabled: isFuture }}
                       style={[
-                        styles.dayText,
-                        { color: isEdge ? c.onAccent : isFuture ? c.textHint : c.text },
-                        isEdge && styles.dayTextEdge,
-                        isFuture && styles.disabled,
+                        styles.day,
+                        isEdge && { backgroundColor: c.accent },
+                        !isEdge && ymd === todayYmd && { borderWidth: 1, borderColor: c.textMuted },
                       ]}>
-                      {d.getDate()}
-                    </Text>
-                  </PressableScale>
-                </View>
-              );
-            })}
-          </View>
+                      <Text
+                        style={[
+                          styles.dayText,
+                          { color: isEdge ? c.onAccent : isFuture ? c.textHint : c.text },
+                          isEdge && styles.dayTextEdge,
+                          isFuture && styles.disabled,
+                        ]}>
+                        {d.getDate()}
+                      </Text>
+                    </PressableScale>
+                  </View>
+                );
+              })}
+            </View>
 
-          <Text style={[styles.hint, { color: c.textMuted }]}>
-            {start && !end ? 'Now tap an end date' : start ? 'Tap any day to start a new range' : 'Tap a start date'}
-          </Text>
-        </Animated.View>
-      ) : null}
+            <View style={styles.hintRow}>
+              <Icon name="tap" size={14} color={c.textMuted} />
+              <Text style={[styles.hint, { color: c.textMuted }]}>
+                {start && !end
+                  ? 'Now tap an end date'
+                  : start
+                    ? 'Tap any day to start a new range'
+                    : 'Tap a start date'}
+              </Text>
+            </View>
+          </Animated.View>
+        ) : null}
+      </Modal>
     </View>
   );
 }
@@ -200,11 +254,35 @@ const styles = StyleSheet.create({
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, justifyContent: 'center' },
   chipText: { fontSize: 13, fontWeight: '600' },
-  field: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, minHeight: 48, paddingRight: 2 },
-  fieldBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 8, minHeight: 46 },
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    minHeight: 48,
+    paddingRight: 2,
+  },
+  fieldBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingLeft: 14,
+    paddingRight: 8,
+    minHeight: 46,
+  },
   fieldText: { flex: 1, fontSize: 15, fontVariant: ['tabular-nums'] },
   clearBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  calendar: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 4 },
+  // Visible hover target (the 44px button stays the tap area).
+  clearDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  calendar: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    gap: 4,
+    boxShadow: '0 12px 32px rgba(15, 23, 42, 0.24)',
+  },
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   monthLabel: { fontSize: 15, fontWeight: '600' },
   navBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
@@ -219,5 +297,13 @@ const styles = StyleSheet.create({
   dayText: { fontSize: 14, fontVariant: ['tabular-nums'] },
   dayTextEdge: { fontWeight: '700' },
   disabled: { opacity: 0.4 },
-  hint: { fontSize: 12, textAlign: 'center', marginTop: 4 },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  hint: { fontSize: 12 },
 });

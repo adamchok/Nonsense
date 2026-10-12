@@ -54,6 +54,7 @@ export function LinkGuestModal({ guest, owner, friends, onClose }: Props) {
       visible
       onClose={onClose}
       title={`Link ${guest.name} to a friend`}
+      titleIcon={{ name: 'link', color: c.textMuted }}
       avoidKeyboard={false}
       primary={{
         label: 'Send request',
@@ -61,6 +62,7 @@ export function LinkGuestModal({ guest, owner, friends, onClose }: Props) {
         disabled: friends.length === 0,
         busy: isSending,
         busyLabel: 'Sending request',
+        icon: 'link',
       }}>
       <Text style={[styles.sub, { color: c.textMuted }]}>
         Once they accept, {guest.name}’s past sessions you hosted move to their account.

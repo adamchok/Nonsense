@@ -50,7 +50,8 @@ export function EditNameModal({ initialName, onClose, onSave }: Props) {
       visible
       onClose={onClose}
       title="Display name"
-      primary={{ label: 'Save', onPress: () => void save(), busy: isSaving }}>
+      titleIcon={{ name: 'person', color: c.textMuted }}
+      primary={{ label: 'Save', onPress: () => void save(), busy: isSaving, icon: 'check' }}>
       <View style={styles.body}>
         <Text style={[styles.hint, { color: c.textMuted }]}>Shown to everyone in your poker sessions.</Text>
         <View>

@@ -53,11 +53,13 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
       visible={visible && target != null}
       onClose={onClose}
       title={target ? `Correct total: ${target.playerName}` : undefined}
+      titleIcon={{ name: 'edit', color: c.textMuted }}
       primary={{
         label: 'Save',
         onPress: () => void save(),
         disabled: isSaving,
         busy: isSaving,
+        icon: 'check',
       }}>
       {target ? (
         <>

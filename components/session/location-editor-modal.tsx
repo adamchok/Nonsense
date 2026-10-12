@@ -32,7 +32,8 @@ export function LocationEditorModal({ visible, initialLocation, onClose, onSubmi
       visible={visible}
       onClose={onClose}
       title="Edit location"
-      primary={{ label: 'Save', onPress: () => void save(), disabled: isSaving, busy: isSaving }}>
+      titleIcon={{ name: 'place', color: c.textMuted }}
+      primary={{ label: 'Save', onPress: () => void save(), disabled: isSaving, busy: isSaving, icon: 'check' }}>
       <ScrollView
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"

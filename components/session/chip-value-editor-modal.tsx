@@ -45,11 +45,13 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
       visible={visible}
       onClose={onClose}
       title="Dollars per chip"
+      titleIcon={{ name: 'poker-chip', color: c.textMuted }}
       primary={{
         label: 'Save',
         onPress: () => void save(),
         disabled: isSaving,
         busy: isSaving,
+        icon: 'check',
       }}>
       <Text style={[formStyles.hint, { color: c.textMuted }]}>
         Used to show dollar equivalents for chip stacks, blinds, and the ledger. Buy-ins and cash-outs stay in

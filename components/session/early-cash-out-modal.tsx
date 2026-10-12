@@ -54,10 +54,12 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
       visible={visible && target != null}
       onClose={onClose}
       title={target ? `Cash out: ${target.playerName}` : undefined}
+      titleIcon={{ name: 'money-out', color: c.textMuted }}
       primary={{
         label: 'Confirm',
         onPress: () => void confirm(),
         busy: isSaving,
+        icon: 'check',
       }}>
       {target ? (
         <>
