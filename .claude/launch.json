@@ -23,6 +23,12 @@
         "BROWSER": "none"
       },
       "port": 8081
+    },
+    {
+      "name": "pages",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd cloudflare && npx wrangler pages dev ../dist --port 8788"],
+      "port": 8788
     }
   ]
 }
