@@ -1,4 +1,6 @@
 import { appAlert } from '@/lib/app-alert';
+import { ConsentCheckbox } from '@/components/consent-checkbox';
+import { CONSENT_REQUIRED } from '@/components/email-auth-form';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
@@ -28,13 +30,16 @@ export default function NameScreen() {
   const insets = useSafeAreaInsets();
   const nameScrollRef = useRef<ScrollView>(null);
   const navigation = useNavigation();
-  const { isReady, user, playerProfile, saveDisplayName } = useAuth();
+  const { isReady, user, playerProfile, saveDisplayName, termsAccepted, setTermsAccepted } = useAuth();
   const MAX_NAME_LEN = 15;
   const profileName = playerProfile?.name;
   const [name, setName] = useState(() => profileName?.slice(0, MAX_NAME_LEN) ?? '');
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [syncedProfileName, setSyncedProfileName] = useState(profileName);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  // Snapshot at mount: email sign-ups already ticked the box, so only first-time Google users see it here.
+  const [askConsent] = useState(() => !profileName && !termsAccepted);
 
   const isEditing = !!profileName;
 
@@ -73,6 +78,10 @@ export default function NameScreen() {
     }
     if (trimmed.length > MAX_NAME_LEN) {
       setNameError(`Use at most ${MAX_NAME_LEN} characters`);
+      return;
+    }
+    if (askConsent && !termsAccepted) {
+      setConsentError(CONSENT_REQUIRED);
       return;
     }
 
@@ -159,6 +168,17 @@ export default function NameScreen() {
               {name.length} / {MAX_NAME_LEN}
             </Text>
           </View>
+          {askConsent ? (
+            <ConsentCheckbox
+              checked={termsAccepted}
+              onChange={(next) => {
+                setTermsAccepted(next);
+                if (next) setConsentError(null);
+              }}
+              error={consentError}
+              disabled={isBusy}
+            />
+          ) : null}
           {isEditing ? (
             <View style={styles.buttonRow}>
               <Pressable

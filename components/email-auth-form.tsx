@@ -1,3 +1,4 @@
+import { ConsentCheckbox } from '@/components/consent-checkbox';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { Animated, PressableScale, fadeIn } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
@@ -12,7 +13,7 @@ import {
 import { Icon } from '@/components/icon';
 import { EyeIcon } from 'phosphor-react-native/src/icons/Eye';
 import { EyeSlashIcon } from 'phosphor-react-native/src/icons/EyeSlash';
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export type EmailAuthMode = 'signin' | 'create';
@@ -23,18 +24,32 @@ type Props = {
   onSubmit: (email: string, password: string) => Promise<void>;
   busy?: boolean;
   showForgot?: boolean;
+  /** Create mode asks for Terms/Privacy agreement unless the screen collects it elsewhere. */
+  requireConsent?: boolean;
 };
 
-export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, showForgot = false }: Props) {
+export function EmailAuthForm({
+  mode,
+  onModeChange,
+  onSubmit,
+  busy = false,
+  showForgot = false,
+  requireConsent = true,
+}: Props) {
   const c = useAppColors();
-  const { sendPasswordReset } = useAuth();
+  const { sendPasswordReset, termsAccepted, setTermsAccepted } = useAuth();
+  const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
+  const idBase = useId();
+  const emailErrorId = `${idBase}-email-error`;
+  const passwordErrorId = `${idBase}-password-error`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [resetNote, setResetNote] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
@@ -46,10 +61,18 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
     setPasswordError(null);
     setFormError(null);
     setResetNote(null);
+    setConsentError(null);
   }
 
   const isCreate = mode === 'create';
   const isBusy = busy || isSubmitting || isSendingReset;
+  const needsConsent = isCreate && requireConsent;
+
+  // Web: send keyboard and screen-reader users straight to the field that needs fixing.
+  function focusInvalid(field: 'email' | 'password') {
+    if (Platform.OS !== 'web') return;
+    (field === 'email' ? emailRef : passwordRef).current?.focus();
+  }
 
   function clearMessages() {
     setFormError(null);
@@ -61,18 +84,28 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
     clearMessages();
     const nextEmailError = emailInputError(email);
     const nextPasswordError = passwordInputError(password, mode);
+    const nextConsentError = needsConsent && !termsAccepted ? CONSENT_REQUIRED : null;
     setEmailError(nextEmailError);
     setPasswordError(nextPasswordError);
-    if (nextEmailError || nextPasswordError) return;
+    setConsentError(nextConsentError);
+    if (nextEmailError || nextPasswordError) {
+      focusInvalid(nextEmailError ? 'email' : 'password');
+      return;
+    }
+    if (nextConsentError) return;
 
     setIsSubmitting(true);
     try {
       await onSubmit(email.trim(), password);
     } catch (error) {
       const info = authErrorInfo(error);
-      if (info.field === 'email') setEmailError(info.message);
-      else if (info.field === 'password') setPasswordError(info.message);
-      else setFormError(info.message);
+      if (info.field === 'email') {
+        setEmailError(info.message);
+        focusInvalid('email');
+      } else if (info.field === 'password') {
+        setPasswordError(info.message);
+        focusInvalid('password');
+      } else setFormError(info.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -84,7 +117,10 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
     setPasswordError(null);
     const nextEmailError = emailInputError(email);
     setEmailError(nextEmailError);
-    if (nextEmailError) return;
+    if (nextEmailError) {
+      focusInvalid('email');
+      return;
+    }
 
     const trimmed = email.trim();
     const sentNote = `If an account exists for ${trimmed}, we've sent a reset link.`;
@@ -99,8 +135,10 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
         return;
       }
       const info = authErrorInfo(error);
-      if (info.field === 'email') setEmailError(info.message);
-      else setFormError(info.message);
+      if (info.field === 'email') {
+        setEmailError(info.message);
+        focusInvalid('email');
+      } else setFormError(info.message);
     } finally {
       setIsSendingReset(false);
     }
@@ -115,6 +153,7 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
       <View>
         <Text style={[styles.label, { color: c.textSecondary }]}>Email</Text>
         <TextInput
+          ref={emailRef}
           value={email}
           onChangeText={(t) => {
             setEmail(t);
@@ -135,9 +174,9 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
           onSubmitEditing={() => passwordRef.current?.focus()}
           editable={!isBusy}
           style={[inputStyle, errorBorder(c, emailError)]}
-          {...invalidProps(emailError)}
+          {...invalidProps(emailError, emailErrorId)}
         />
-        <FieldError message={emailError} />
+        <FieldError message={emailError} nativeID={emailErrorId} />
       </View>
 
       <View>
@@ -169,7 +208,7 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
             onSubmitEditing={handleSubmit}
             editable={!isBusy}
             style={[inputStyle, styles.passwordInput, errorBorder(c, passwordError)]}
-            {...invalidProps(passwordError)}
+            {...invalidProps(passwordError, passwordErrorId)}
           />
           <PressableScale
             onPress={() => setIsPasswordVisible((v) => !v)}
@@ -180,7 +219,7 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
             <EyeGlyph size={20} color={c.textMuted} {...eyeA11yHidden} />
           </PressableScale>
         </View>
-        <FieldError message={passwordError} />
+        <FieldError message={passwordError} nativeID={passwordErrorId} />
         {isCreate ? (
           <View style={styles.rules} accessibilityLabel="Password requirements">
             {PASSWORD_RULES.map((rule) => {
@@ -207,8 +246,9 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
           <PressableScale
             onPress={handleForgot}
             disabled={isBusy}
-            accessibilityRole="link"
+            accessibilityRole="button"
             accessibilityState={{ disabled: isBusy, busy: isSendingReset }}
+            {...({ dataSet: { textButton: 'true' } } as object)}
             style={styles.forgotButton}>
             {isSendingReset ? (
               <ActivityIndicator size="small" color={c.accentText} />
@@ -221,12 +261,23 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
           <Animated.View
             entering={fadeIn}
             style={[styles.note, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
-            accessibilityLiveRegion="polite"
-            accessibilityRole="alert">
+            accessibilityLiveRegion="polite">
             <Text style={[styles.noteText, { color: c.text }]}>{resetNote}</Text>
           </Animated.View>
         ) : null}
       </View>
+
+      {needsConsent ? (
+        <ConsentCheckbox
+          checked={termsAccepted}
+          onChange={(next) => {
+            setTermsAccepted(next);
+            if (next) setConsentError(null);
+          }}
+          error={consentError}
+          disabled={isBusy}
+        />
+      ) : null}
 
       <FieldError message={formError} />
 
@@ -253,7 +304,8 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
         <PressableScale
           onPress={() => onModeChange(isCreate ? 'signin' : 'create')}
           disabled={isBusy}
-          accessibilityRole="link"
+          accessibilityRole="button"
+          {...({ dataSet: { textButton: 'true' } } as object)}
           style={styles.switchButton}>
           <Text style={[styles.switchLabel, { color: c.textMuted }]}>
             {isCreate ? 'Already have an account? ' : 'New to Nonsense? '}
@@ -264,6 +316,8 @@ export function EmailAuthForm({ mode, onModeChange, onSubmit, busy = false, show
     </View>
   );
 }
+
+export const CONSENT_REQUIRED = 'Tick the box to accept the Terms of Service and Privacy Policy.';
 
 const eyeA11yHidden: object =
   Platform.OS === 'web' ? { 'aria-hidden': true } : { importantForAccessibility: 'no', accessibilityElementsHidden: true };
@@ -280,20 +334,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 16,
   },
   passwordRow: { justifyContent: 'center' },
   passwordInput: { paddingRight: 52 },
   eyeButton: {
     position: 'absolute',
-    right: 6,
-    width: 36,
-    height: 36,
+    right: 2,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 22,
   },
-  forgotButton: { alignSelf: 'flex-end', minHeight: 36, justifyContent: 'center', paddingHorizontal: 4, marginTop: 4 },
+  forgotButton: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 4, marginTop: 4 },
   forgotLabel: { fontSize: 13, fontWeight: '600' },
   note: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6 },
   noteText: { fontSize: 13, lineHeight: 18 },
@@ -306,7 +360,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   primaryLabel: { fontSize: 15, fontWeight: '600' },
-  switchButton: { alignSelf: 'center', minHeight: 40, justifyContent: 'center', paddingHorizontal: 8 },
+  switchButton: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
   switchLabel: { fontSize: 13, textAlign: 'center' },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.5 },

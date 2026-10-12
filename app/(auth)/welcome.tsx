@@ -1,6 +1,8 @@
+import { LegalLink } from '@/components/consent-checkbox';
 import { EmailAuthForm, type EmailAuthMode } from '@/components/email-auth-form';
 import { FieldError } from '@/components/field-error';
 import { GoogleButton } from '@/components/google-button';
+import { Icon } from '@/components/icon';
 import { Animated } from '@/components/motion';
 import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
 import { AccountLinkError } from '@/lib/account-link';
@@ -8,12 +10,24 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { authErrorInfo } from '@/lib/auth-errors';
 import { useResolvedColorScheme } from '@/lib/theme-context';
+import { radius, tapTarget } from '@/lib/spacing';
 import { text } from '@/lib/ui';
-import { Redirect, router } from 'expo-router';
+import { Link, Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const IS_WEB = Platform.OS === 'web';
 
 const cardEntering = FadeInDown.duration(360).reduceMotion(ReduceMotion.System);
 
@@ -42,6 +56,11 @@ export default function WelcomeScreen() {
   if (user && !isAnonymous) {
     return <Redirect href="/" />;
   }
+
+  const logoSource =
+    scheme === 'dark'
+      ? require('@/assets/images/logo-large.png')
+      : require('@/assets/images/logo-light-large.png');
 
   async function handleGoogle() {
     if (isGoogleBusy) return;
@@ -82,15 +101,20 @@ export default function WelcomeScreen() {
           { paddingTop: Math.max(insets.top, 20) + 8, paddingBottom: Math.max(insets.bottom, 20) + 16 },
         ]}>
         <Animated.View entering={cardEntering} style={styles.stack}>
-          <Animated.Image
-            source={
-              scheme === 'dark'
-                ? require('@/assets/images/logo-large.png')
-                : require('@/assets/images/logo-light-large.png')
-            }
-            style={styles.logo}
-            accessibilityLabel="Nonsense"
-          />
+          {IS_WEB ? (
+            // Signed-out visitors land on the marketing page at "/", so the logo leads home.
+            <Link href="/" asChild>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel="Nonsense home"
+                {...({ dataSet: { plainLink: 'true' } } as object)}
+                style={styles.logoLink}>
+                <Animated.Image source={logoSource} style={styles.logo} accessible={false} />
+              </Pressable>
+            </Link>
+          ) : (
+            <Animated.Image source={logoSource} style={styles.logo} accessibilityLabel="Nonsense" />
+          )}
           <View style={styles.header}>
             <Text style={[text.modalTitle, styles.center, { color: c.text }]} accessibilityRole="header">
               Welcome to Nonsense
@@ -121,8 +145,30 @@ export default function WelcomeScreen() {
 
             <EmailAuthForm mode={mode} onSubmit={handleEmailSubmit} busy={isGoogleBusy} showForgot />
           </View>
+
+          {mode === 'signin' ? (
+            // Create mode asks for explicit agreement in the form; new Google users confirm on the name step.
+            <Text style={[styles.legal, { color: c.textMuted }]}>
+              By continuing, you agree to the <LegalLink label="Terms of Service" path="/terms" color={c.accentText} />{' '}
+              and <LegalLink label="Privacy Policy" path="/privacy" color={c.accentText} />.
+            </Text>
+          ) : null}
         </Animated.View>
       </ScrollView>
+      {IS_WEB ? (
+        <Link href="/" asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Back to home"
+            // Link asChild drops style functions on web, so pass one flat object (press feedback comes from CSS).
+            style={StyleSheet.flatten([
+              styles.backButton,
+              { top: Math.max(insets.top, 12), backgroundColor: c.card, borderColor: c.border },
+            ])}>
+            <Icon name="arrow-left" size={20} color={c.text} />
+          </Pressable>
+        </Link>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -140,11 +186,23 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   stack: { gap: 20 },
   logo: { width: 120, height: 120, resizeMode: 'contain', alignSelf: 'center' },
+  logoLink: { alignSelf: 'center', borderRadius: radius.lg },
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    width: tapTarget,
+    height: tapTarget,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: { gap: 6, alignItems: 'center' },
   center: { textAlign: 'center' },
   subtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', maxWidth: 340 },
   card: { borderRadius: 14, padding: 20, gap: 16, borderWidth: 1 },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  dividerText: { fontSize: 12 },
+  dividerText: { fontSize: 13 },
+  legal: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
 });

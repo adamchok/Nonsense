@@ -1,4 +1,5 @@
-import { EmailAuthForm, type EmailAuthMode } from '@/components/email-auth-form';
+import { ConsentCheckbox } from '@/components/consent-checkbox';
+import { CONSENT_REQUIRED, EmailAuthForm, type EmailAuthMode } from '@/components/email-auth-form';
 import { FieldError } from '@/components/field-error';
 import { GoogleButton } from '@/components/google-button';
 import { Animated, PressableScale, fadeIn } from '@/components/motion';
@@ -26,12 +27,23 @@ function googleErrorMessage(error: unknown): string | null {
 export default function SecureAccountScreen() {
   const c = useAppColors();
   const insets = useSafeAreaInsets();
-  const { isReady, user, isAnonymous, linkWithGoogle, signInWithGoogle, signInWithEmail, createAccountWithEmail } =
-    useAuth();
+  const {
+    isReady,
+    user,
+    isAnonymous,
+    linkWithGoogle,
+    signInWithGoogle,
+    signInWithEmail,
+    createAccountWithEmail,
+    termsAccepted,
+    setTermsAccepted,
+    saveTermsAcceptance,
+  } = useAuth();
   const [emailMode, setEmailMode] = useState<EmailAuthMode>('create');
   const [googleBusy, setGoogleBusy] = useState<'link' | 'signin' | null>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [isGoogleInUse, setIsGoogleInUse] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   if (!isReady) {
     return (
@@ -46,13 +58,28 @@ export default function SecureAccountScreen() {
 
   const isGoogleBusy = googleBusy !== null;
 
+  /** Adding a sign-in creates the account, so it needs the Terms/Privacy box ticked first. */
+  function hasConsent(): boolean {
+    if (termsAccepted) return true;
+    setConsentError(CONSENT_REQUIRED);
+    return false;
+  }
+
+  // Best effort: the account already exists at this point, so a failed write must not block the user.
+  function recordConsent() {
+    saveTermsAcceptance().catch((err) => console.error('Failed to record terms acceptance:', err));
+  }
+
   async function runGoogle(kind: 'link' | 'signin') {
     if (isGoogleBusy) return;
+    if (kind === 'link' && !hasConsent()) return;
     setGoogleError(null);
     setGoogleBusy(kind);
     try {
-      if (kind === 'link') await linkWithGoogle();
-      else await signInWithGoogle();
+      if (kind === 'link') {
+        await linkWithGoogle();
+        recordConsent();
+      } else await signInWithGoogle();
       router.replace('/');
     } catch (error) {
       if (kind === 'link' && error instanceof AccountLinkError && error.code === 'credential-in-use') {
@@ -69,7 +96,9 @@ export default function SecureAccountScreen() {
     if (emailMode === 'signin') {
       await signInWithEmail(email, password);
     } else {
+      if (!hasConsent()) return;
       await createAccountWithEmail(email, password);
+      recordConsent();
     }
     router.replace('/');
   }
@@ -97,6 +126,16 @@ export default function SecureAccountScreen() {
               Nonsense on other devices.
             </Text>
           </View>
+
+          <ConsentCheckbox
+            checked={termsAccepted}
+            onChange={(next) => {
+              setTermsAccepted(next);
+              if (next) setConsentError(null);
+            }}
+            error={consentError}
+            disabled={isGoogleBusy}
+          />
 
           <View>
             <GoogleButton
@@ -155,11 +194,13 @@ export default function SecureAccountScreen() {
             onSubmit={handleEmailSubmit}
             busy={isGoogleBusy}
             showForgot={isSignInMode}
+            requireConsent={false}
           />
 
           <PressableScale
             onPress={() => setEmailMode(isSignInMode ? 'create' : 'signin')}
-            accessibilityRole="link"
+            accessibilityRole="button"
+            {...({ dataSet: { textButton: 'true' } } as object)}
             style={styles.linkButton}>
             <Text style={[styles.linkLabel, { color: c.accentText }]}>
               {isSignInMode ? 'Create a new sign-in instead' : 'Sign in with email instead'}
