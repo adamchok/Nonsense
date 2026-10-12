@@ -101,7 +101,12 @@ export async function getPlayerProfile(uid: string): Promise<PlayerProfile | nul
   };
 }
 
-export async function upsertPlayerProfile(uid: string, name: string): Promise<PlayerProfile> {
+/** Clickwrap record: which Terms/Privacy version the player agreed to, and when (server time). */
+function termsFields(termsVersion?: string) {
+  return termsVersion ? { termsVersion, termsAcceptedAt: serverTimestamp() } : {};
+}
+
+export async function upsertPlayerProfile(uid: string, name: string, termsVersion?: string): Promise<PlayerProfile> {
   const db = getFirestoreDb();
   const ref = doc(db, 'players', uid);
   const snapshot = await getDoc(ref);
@@ -110,7 +115,7 @@ export async function upsertPlayerProfile(uid: string, name: string): Promise<Pl
   if (snapshot.exists()) {
     const prevName = String(snapshot.data().name ?? '');
     refCode = snapshot.data().refCode ? String(snapshot.data().refCode) : undefined;
-    await setDoc(ref, { name, anonymousUid: uid }, { merge: true });
+    await setDoc(ref, { name, anonymousUid: uid, ...termsFields(termsVersion) }, { merge: true });
     if (prevName !== name) {
       const propagateName = () =>
         Promise.all([
@@ -126,6 +131,7 @@ export async function upsertPlayerProfile(uid: string, name: string): Promise<Pl
       anonymousUid: uid,
       refCode,
       createdAt: serverTimestamp(),
+      ...termsFields(termsVersion),
     });
   }
 
@@ -136,6 +142,14 @@ export async function upsertPlayerProfile(uid: string, name: string): Promise<Pl
     refCode,
     avatarEmoji: snapshot.exists() ? normalizeAvatarEmoji(snapshot.data().avatarEmoji) : undefined,
   };
+}
+
+/** For players whose profile already exists (guest accounts adding a sign-in). */
+export async function recordTermsAcceptance(uid: string, termsVersion: string): Promise<void> {
+  const ref = doc(getFirestoreDb(), 'players', uid);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists()) return;
+  await setDoc(ref, termsFields(termsVersion), { merge: true });
 }
 
 function generateRefCode(): string {

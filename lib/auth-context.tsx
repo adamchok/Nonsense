@@ -33,7 +33,14 @@ import {
   toAccountLinkError,
 } from '@/lib/account-link';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
-import { ensureRefCode, getPlayerProfile, updatePlayerAvatar, upsertPlayerProfile } from '@/lib/firestore';
+import {
+  ensureRefCode,
+  getPlayerProfile,
+  recordTermsAcceptance,
+  updatePlayerAvatar,
+  upsertPlayerProfile,
+} from '@/lib/firestore';
+import { TERMS_VERSION } from '@/lib/legal-content';
 import type { PlayerProfile } from '@/types';
 
 interface AuthContextValue {
@@ -46,6 +53,11 @@ interface AuthContextValue {
   hasPassword: boolean;
   email: string | null;
   saveDisplayName: (name: string) => Promise<void>;
+  /** Ticked the Terms/Privacy box this session (email sign-up, name step or secure screen). */
+  termsAccepted: boolean;
+  setTermsAccepted: (accepted: boolean) => void;
+  /** Saves the acceptance on an existing profile; no-op if the box was not ticked. */
+  saveTermsAcceptance: () => Promise<void>;
   saveAvatarEmoji: (emoji: string) => Promise<void>;
   signOutUser: () => Promise<void>;
   linkWithGoogle: () => Promise<void>;
@@ -65,6 +77,9 @@ const AuthContext = createContext<AuthContextValue>({
   hasPassword: false,
   email: null,
   saveDisplayName: async () => {},
+  termsAccepted: false,
+  setTermsAccepted: () => {},
+  saveTermsAcceptance: async () => {},
   saveAvatarEmoji: async () => {},
   signOutUser: async () => {},
   linkWithGoogle: async () => {},
@@ -141,6 +156,32 @@ function mapGoogleError(err: unknown, { isErrorWithCode, statusCodes }: GoogleSi
 
 const IS_WEB = Platform.OS === 'web';
 
+/** localStorage flag (web only) hinting a non-anonymous user was signed in; read by app/+html.tsx. */
+export const SIGNED_IN_HINT_KEY = '@nonsense_signed_in';
+
+/** Whether this browser last saw a signed-in (non-anonymous) user. Always false off-web or during static render. */
+export function readSignedInHint(): boolean {
+  if (!IS_WEB || typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SIGNED_IN_HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeSignedInHint(isSignedIn: boolean): void {
+  if (!IS_WEB || typeof window === 'undefined') return;
+  try {
+    if (isSignedIn) {
+      window.localStorage.setItem(SIGNED_IN_HINT_KEY, '1');
+    } else {
+      window.localStorage.removeItem(SIGNED_IN_HINT_KEY);
+    }
+  } catch (err) {
+    console.warn('Could not update the signed-in hint:', err);
+  }
+}
+
 function newGoogleProvider(): GoogleAuthProvider {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
@@ -189,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [playerProfile, setPlayerProfile] = useState<PlayerProfile | null>(null);
   const [linkInfo, setLinkInfo] = useState<LinkInfo>(UNLINKED);
   const [isReady, setIsReady] = useState(() => !isFirebaseConfigured());
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return;
@@ -220,16 +262,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (isReady) writeSignedInHint(!!user && !linkInfo.isAnonymous);
+  }, [isReady, user, linkInfo.isAnonymous]);
+
   const saveDisplayName = useCallback(
     async (name: string) => {
       if (!user) {
         throw new Error('You need to be signed in before saving your display name.');
       }
-      const nextProfile = await upsertPlayerProfile(user.uid, name);
+      const nextProfile = await upsertPlayerProfile(user.uid, name, termsAccepted ? TERMS_VERSION : undefined);
       setPlayerProfile(nextProfile);
     },
-    [user]
+    [user, termsAccepted]
   );
+
+  const saveTermsAcceptance = useCallback(async () => {
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (!uid || !termsAccepted) return;
+    await recordTermsAcceptance(uid, TERMS_VERSION);
+  }, [termsAccepted]);
 
   const saveAvatarEmoji = useCallback(
     async (emoji: string) => {
@@ -316,6 +368,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasPassword: linkInfo.hasPassword,
       email: linkInfo.email,
       saveDisplayName,
+      termsAccepted,
+      setTermsAccepted,
+      saveTermsAcceptance,
       saveAvatarEmoji,
       signOutUser,
       linkWithGoogle,
@@ -330,6 +385,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isReady,
       linkInfo,
       saveDisplayName,
+      termsAccepted,
+      saveTermsAcceptance,
       saveAvatarEmoji,
       signOutUser,
       linkWithGoogle,
