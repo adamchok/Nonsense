@@ -25,6 +25,23 @@
       "port": 8081
     },
     {
+      "name": "emulators",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["firebase", "emulators:start", "--only", "auth,firestore,functions", "--project", "demo-nonsense"],
+      "port": 4000
+    },
+    {
+      "name": "web-emu",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8083"],
+      "env": {
+        "EXPO_PUBLIC_USE_EMULATOR": "1",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "demo-nonsense",
+        "BROWSER": "none"
+      },
+      "port": 8083
+    },
+    {
       "name": "pages",
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "cd cloudflare && npx wrangler pages dev ../dist --port 8788"],
