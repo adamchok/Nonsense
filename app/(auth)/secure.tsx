@@ -58,14 +58,12 @@ export default function SecureAccountScreen() {
 
   const isGoogleBusy = googleBusy !== null;
 
-  /** Adding a sign-in creates the account, so it needs the Terms/Privacy box ticked first. */
   function hasConsent(): boolean {
     if (termsAccepted) return true;
     setConsentError(CONSENT_REQUIRED);
     return false;
   }
 
-  // Best effort: the account already exists at this point, so a failed write must not block the user.
   function recordConsent() {
     saveTermsAcceptance().catch((err) => console.error('Failed to record terms acceptance:', err));
   }

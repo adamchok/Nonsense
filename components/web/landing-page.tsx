@@ -68,7 +68,6 @@ const NODE_STEP_MS = 320;
 const NODE_LEAD_MS = 120;
 const REVEAL_MS = 560;
 
-/** Token hex to rgba so glows can sit under text at low strength. */
 function tint(hex: string, alpha: number): string {
   const raw = hex.replace('#', '');
   const full = raw.length === 3 ? raw.split('').map((ch) => ch + ch).join('') : raw.slice(0, 6);
@@ -76,7 +75,6 @@ function tint(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
-/** Web-only CSS (gradients, box-shadow) that RN's style types do not model. */
 function web(style: Record<string, string>): ViewStyle {
   return style as unknown as ViewStyle;
 }
@@ -85,16 +83,13 @@ type Signal = {
   gold: string;
   blue: string;
   dark: boolean;
-  /** Light mode: hairlines and shadows tinted from the text ink, never pure black. */
   rule: string;
   lift: string;
-  /** Background glow sources. Light mode uses the bright tokens at higher alpha so glows survive a pale page. */
   glowGold: string;
   glowBlue: string;
   glow: number;
 };
 
-/** Same light sources the hero canvas uses; in light mode they turn into warm, low tints and soft ink shadows. */
 function signalFor(c: AppColors, dark: boolean): Signal {
   return {
     gold: dark ? c.accentText : c.accent,
@@ -108,10 +103,6 @@ function signalFor(c: AppColors, dark: boolean): Signal {
   };
 }
 
-/**
- * True once the element has scrolled into view. Always true before hydration (static HTML stays readable),
- * under reduced motion, and when IntersectionObserver is unavailable, so content is never stuck hidden.
- */
 function useInView(): [RefObject<View | null>, boolean] {
   const ref = useRef<View>(null);
   const reduceMotion = useReducedMotion();
@@ -287,7 +278,6 @@ function TimelineSection({ c, isWide, signal, container }: SectionProps) {
 
 type SectionProps = { c: AppColors; isWide: boolean; signal: Signal; container: StyleProp<ViewStyle> };
 
-/** Dark: a corner glow plus a luminous top edge. Light: a soft tinted wash and an ink-tinted lift shadow. */
 function panel(signal: Signal, hue: string, at: string): ViewStyle {
   if (signal.dark) {
     return web({
@@ -309,7 +299,6 @@ const GROUP: { name: DemoPlayer; net: number }[] = [
   { name: 'Chris', net: -620 },
 ];
 
-/** A static slice of a group leaderboard, so the card shows what "your regulars" looks like in the app. */
 function GroupBoard({ c, signal }: { c: AppColors; signal: Signal }) {
   return (
     <View
@@ -334,7 +323,6 @@ function GroupBoard({ c, signal }: { c: AppColors; signal: Signal }) {
   );
 }
 
-// Same night as the hero table: four payments settle it.
 const PAYMENTS: { from: DemoPlayer; to: DemoPlayer; amount: number }[] = [
   { from: 'Chris', to: 'Alex', amount: 120 },
   { from: 'Sam', to: 'Alex', amount: 65 },
@@ -345,7 +333,6 @@ const SETTLED_TOTAL = PAYMENTS.reduce((sum, p) => sum + p.amount, 0);
 const PROMISES = ['No deposits, no wallet', 'No bets, no odds', 'Pay each other however you like'];
 
 
-/** A settle-up receipt: who pays whom, and proof that none of it passes through the app. */
 function SettleReceipt({ c, signal, isWide }: { c: AppColors; signal: Signal; isWide: boolean }) {
   return (
     <View
@@ -540,7 +527,6 @@ const RIGHT_HAND: FanCard[] = [
   { rank: '10', suit: 'spade' },
 ];
 
-/** A fanned hand peeking up from a bottom corner of the closer card (together: a royal flush). */
 function Fan({ cards, side, width }: { cards: FanCard[]; side: 'left' | 'right'; width: number }) {
   const step = width * 0.42;
   const tilt = 14;
@@ -553,7 +539,6 @@ function Fan({ cards, side, width }: { cards: FanCard[]; side: 'left' | 'right';
         { width: width + step * spread, height: width * 1.4, bottom: -width * 0.18, [side]: width * 0.45 },
       ]}>
       {cards.map((card, i) => {
-        // Left hand leans left, right hand leans right; the outermost card leans most.
         const lean = side === 'left' ? -(spread - i) * tilt - 8 : i * tilt + 8;
         return (
           <PlayingCard
@@ -581,7 +566,6 @@ function Closer({ c, isWide, signal, container }: SectionProps) {
         boxShadow: `inset 0 1px 0 ${tint(signal.gold, 0.25)}`,
       })
     : web({
-        // Warm gold card: a white sheen under the heading, a deeper gold pool behind the CTA, a faint blue corner.
         backgroundImage: [
           `radial-gradient(closest-side at 50% 0%, ${tint(c.card, 0.75)} 0%, ${tint(c.card, 0)} 100%)`,
           `radial-gradient(40% 70% at 50% 100%, ${tint(c.accent, 0.28)} 0%, ${tint(c.accent, 0)} 72%)`,
@@ -639,7 +623,6 @@ export function LandingPage() {
       </Head>
       <SkipLink c={c} />
       <CardRain dark={dark} />
-      {/* Everything else stacks above the card rain. */}
       <View style={styles.aboveRain}>
         <LandingHero
           c={c}
@@ -717,7 +700,6 @@ const styles = StyleSheet.create({
   cellChart: { flex: 1.7 },
   cellFlex: { flex: 1 },
   cellQr: { gap: space.md },
-  // Sits right under the text; the fifth player fills the height the chart card sets beside it.
   board: { marginTop: space.xs, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: space.lg, paddingBottom: space.xs },
   boardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingVertical: space.md },
   boardTitle: { fontSize: 15, fontWeight: '700' },

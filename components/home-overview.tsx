@@ -28,10 +28,8 @@ function statsFor(s: PlayerAppStatistics, c: AppColors): Stat[] {
   ];
 }
 
-/** Lifetime numbers at a glance; hidden until the player has a finished session. */
 export function HomeStats({ stats, wide }: { stats: PlayerAppStatistics | null | undefined; wide: boolean }) {
   const c = useAppColors();
-  // undefined = still loading; null or no sessions = nothing to show yet.
   if (stats === null || (stats && stats.finishedSessions === 0)) return null;
   const tiles = stats ? statsFor(stats, c) : null;
   return (
@@ -69,7 +67,6 @@ export function HomeStats({ stats, wide }: { stats: PlayerAppStatistics | null |
 const RECENT_ROWS = 5;
 const BOARD_ROWS = 5;
 
-/** Section label with an optional "See all" link on the right. */
 function SectionHeader({ title, icon, seeAllHref }: { title: string; icon?: IconName; seeAllHref?: string }) {
   const c = useAppColors();
   const router = useRouter();
@@ -96,7 +93,6 @@ function SectionHeader({ title, icon, seeAllHref }: { title: string; icon?: Icon
   );
 }
 
-/** Last few finished sessions with the player's own result; links through to History. */
 export function RecentResults({
   entries,
   style,
@@ -152,7 +148,6 @@ export function RecentResults({
   );
 }
 
-/** Running profit chart (same chart as History); tapping a point opens that session. */
 export function HomeTrend({ entries }: { entries: SessionHistoryEntry[] | undefined }) {
   const c = useAppColors();
   const router = useRouter();
@@ -166,7 +161,6 @@ export function HomeTrend({ entries }: { entries: SessionHistoryEntry[] | undefi
 
 type BoardRow = { playerId: string; name: string; avatarEmoji?: string; totalProfit: number };
 
-/** Top of the friends leaderboard, with the player's own row highlighted. Hidden until they have friends. */
 export function FriendsBoard({
   rows,
   myId,
@@ -177,7 +171,6 @@ export function FriendsBoard({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useAppColors();
-  // Only the player themself: nothing to compare yet.
   if (rows && rows.length < 2) return null;
   return (
     <View style={[styles.section, style]}>
@@ -259,7 +252,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  // Two per row on phones: half the width minus half the gap.
   statTileHalf: {
     flexBasis: '48%',
     flexGrow: 1,

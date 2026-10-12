@@ -131,7 +131,6 @@ export default function SavedLocationsScreen() {
             <EmptyState compact icon="place" title="No saved locations" message="Locations you add appear here." />
           </Animated.View>
         ) : (
-          // Own wrapper so the card's gap doesn't stack on row padding: dividers sit evenly between rows.
           <View>
             {locations.map((item, i) => (
               <Animated.View

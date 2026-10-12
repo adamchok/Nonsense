@@ -29,7 +29,6 @@ type Seat = {
   angle: number;
 };
 
-// App gold (#e0b24a) hue, darkened just enough to clear 3:1 on the light page for large display text.
 const HEADLINE_GOLD_LIGHT = '#ae801e';
 const SEATS: Seat[] = [
   { name: 'Alex', buyIn: 200, rebuy: 0, net: 185, angle: -90 },
@@ -127,10 +126,8 @@ function Flight({
   c: AppColors;
   dark: boolean;
   fadeOut: boolean;
-  /** Payments travel as a cash pill (note icon + amount) instead of a chip, so they read as money changing hands. */
   payment?: boolean;
 }) {
-  // Solid cash pill: white ink on light mode's deep green, page-dark ink on dark mode's bright green.
   const cashInk = dark ? c.bg : '#ffffff';
   const progress = useSharedValue(0);
   useEffect(() => {
@@ -205,7 +202,6 @@ function SeatView({
   const inFor = seat.buyIn + (phase >= PHASE.rebuy ? seat.rebuy : 0);
   const resultColor = seat.net >= 0 ? c.profit : c.loss;
   const size = compact ? 40 : 52;
-  // The top seat sits on the rim, so its labels go beside the avatar instead of onto the table.
   const beside = Math.sin((seat.angle * Math.PI) / 180) < -0.9;
   const position = beside ? { left: at.x - size / 2, top: at.y - size / 2 } : { left: at.x - 60, top: at.y - size / 2 };
   const labels = (
@@ -260,7 +256,6 @@ function PotLabel({ phase, c, compact }: { phase: number; c: AppColors; compact:
         key="settled"
         entering={ZoomIn.springify().damping(14).reduceMotion(ReduceMotion.System)}
         style={styles.potInner}>
-        {/* Same rhythm as the pot: small label on top, the headline number below. */}
         <View style={styles.settledLabel}>
           <Icon name="check-circle" size={18} color={c.profit} weight="duotone" duotoneOpacity={0.3} importantForAccessibility="no" />
           <Text style={[styles.potLabelText, { color: c.textSecondary }]}>Settled in</Text>
@@ -329,7 +324,6 @@ function PokerTable({
             borderColor: c.accentBorder,
           },
           webStyle({
-            // Light: white top easing into a soft gold glow, one gold rim, a white halo and an ink shadow.
             backgroundImage: dark
               ? `radial-gradient(ellipse at 50% 40%, ${c.accentBg} 0%, ${c.card} 70%)`
               : `radial-gradient(ellipse at 50% 20%, ${c.card} 0%, ${withAlpha(c.accent, 0.16)} 100%)`,
@@ -422,7 +416,6 @@ export function LandingHero({
   const { width } = useBreakpoint();
   const { height } = useWindowDimensions();
   const stageWidth = isWide ? Math.min(760, width * 0.54) : Math.min(width - 32, 440);
-  // The hero fills the first screen at every width; the next section only appears on scroll.
   const fill = { minHeight: isWide ? Math.max(height, HERO_MIN_HEIGHT) : height };
   const glow = webStyle({
     backgroundImage: dark

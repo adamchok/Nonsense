@@ -60,7 +60,6 @@ function celebrationRowDelay(index: number): number {
   return index === 0 ? WINNER_DELAY_MS : STANDINGS_START_MS + (index - 1) * STANDINGS_STEP_MS;
 }
 
-/** "nonsense-2026-10-02-the-garage.png": sorts by date and says which game it was. */
 function shareImageName(date?: Date, location?: string): string {
   if (!date) return 'nonsense-results.png';
   const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -123,7 +122,6 @@ function ResultRow({ item, index, isMe, isEarly, avatar, medal, barColor, celebr
       <View style={styles.resultBody}>
         <View style={styles.resultTop}>
           <View style={styles.resultLeft}>
-            {/* Only the winner gets a badge: a gold medal with a crown. Everyone else starts with their avatar. */}
             {index === 0 && medal ? (
               <View style={[styles.medal, { backgroundColor: `${medal}26`, borderColor: medal }]}>
                 <Icon name="crown-outline" size={16} color={medal} weight="fill" />
@@ -185,11 +183,9 @@ export default function SessionSummaryScreen() {
   const c = useAppColors();
   const layout = usePageLayout(40);
   const { isMd } = useBreakpoint();
-  // Desktop has room for a bigger section title; phones keep the compact heading.
   const sectionTitleStyle = isMd ? text.title : text.heading;
   const sectionIconSize = isMd ? 24 : 20;
   const { user, playerProfile } = useAuth();
-  // Above the early returns: hook order must not change between loading and loaded renders.
   const isDark = useResolvedColorScheme() === 'dark';
   const [friendAvatarMap, setFriendAvatarMap] = useState<ReadonlyMap<string, string | undefined>>(new Map());
   useEffect(() => {
@@ -294,7 +290,6 @@ export default function SessionSummaryScreen() {
           <Text style={[text.rowTitle, styles.locationValue, { color: c.text }]} numberOfLines={1}>
             {locationText}
           </Text>
-          {/* Only the pencil is the button, right beside the value it edits (not the whole tile). */}
           {isHost ? (
             <PressableScale
               pressedScale={0.9}
@@ -388,7 +383,6 @@ export default function SessionSummaryScreen() {
     ? `Nonsense · ${formatSessionTitle(sessionDate, sessionLocation)}`
     : 'Nonsense results';
 
-  // Text via the system share sheet (WhatsApp, Telegram, iMessage, ...). Plain text: *bold* markers only render in WhatsApp.
   const handleShareText = useCallback(async () => {
     const message = buildSettlementMessage(false);
     try {
@@ -400,7 +394,6 @@ export default function SessionSummaryScreen() {
         await navigator.share({ title: shareTitle, text: message });
         return;
       }
-      // Desktop browsers without Web Share: copy instead, with the same "copied" tick as the copy button.
       await Clipboard.setStringAsync(message);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
@@ -411,7 +404,6 @@ export default function SessionSummaryScreen() {
     }
   }, [buildSettlementMessage, shareTitle]);
 
-  // Image: capture the off-screen ShareCard as a PNG, then hand it to the share sheet (or download it on web).
   const handleShareImage = useCallback(async () => {
     try {
       await shareViewAsImage(shareCardRef, { fileName: shareImageName(sessionDate, sessionLocation), title: shareTitle });
@@ -457,7 +449,6 @@ export default function SessionSummaryScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      // Short header ("Session summary") so the copy/share buttons never squeeze it; the session name is the page heading.
       title: sessionDate ? `Session summary · ${formatSessionTitle(sessionDate, sessionLocation)}` : 'Session summary',
       headerTitle: 'Session summary',
       headerLeft: () => (
@@ -536,7 +527,6 @@ export default function SessionSummaryScreen() {
     );
   }
 
-  // Left bar matches the medal colour so bar and badge always agree.
   const rankBarColor = (rank: number) => medalColor(rank, c, isDark) ?? 'transparent';
 
   const settlementEntering = celebrate
@@ -549,7 +539,6 @@ export default function SessionSummaryScreen() {
         style={styles.screen}
         contentContainerStyle={[layout.content, styles.scrollContent]}
         keyboardShouldPersistTaps="handled">
-        {/* Heading: the date; the venue lives in the Location tile right below. */}
         {sessionDate ? (
           <View style={isMd ? styles.pageHeading : styles.pageHeadingStack}>
             <View style={styles.pageHeadingPart}>
@@ -558,7 +547,6 @@ export default function SessionSummaryScreen() {
                 {formatSessionDay(sessionDate, undefined, true)}
               </Text>
             </View>
-            {/* Start – end time, muted, beside the date ("6:41 PM – 11:18 PM"). */}
             <View style={styles.pageHeadingPart}>
               <Icon name="clock-outline" size={isMd ? 18 : 16} color={c.textMuted} />
               <Text style={[text.label, isMd && styles.pageTimeWide, { color: c.textMuted }]} numberOfLines={1}>
@@ -650,7 +638,6 @@ export default function SessionSummaryScreen() {
                     style={styles.settlementRow}
                     accessible
                     accessibilityLabel={`${s.from} pays ${s.to} ${formatCurrency(s.amount)}`}>
-                    {/* One line: "Jordan [hand with coins] Alex" = Jordan pays Alex. */}
                     <View style={styles.settlementNames}>
                       <Text style={[text.rowTitle, styles.settlementName, { color: c.text }]} numberOfLines={1}>
                         {s.from}
@@ -688,7 +675,6 @@ export default function SessionSummaryScreen() {
             disabled={isDeleting}
             style={(state) => [
               styles.deleteBtn,
-              // Same filled card as Settings' Sign out, so destructive buttons look alike across the app.
               { borderColor: c.border, backgroundColor: c.card },
               (state as { hovered?: boolean }).hovered || state.pressed ? { backgroundColor: c.cardAlt } : null,
             ]}
@@ -705,7 +691,6 @@ export default function SessionSummaryScreen() {
           </PressableScale>
         ) : null}
       </ScrollView>
-      {/* Off-screen source for "Share as image"; never visible or focusable. */}
       <View style={styles.shareCardHost} importantForAccessibility="no-hide-descendants" aria-hidden>
         <ShareCard
           ref={shareCardRef}
@@ -751,7 +736,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
   },
-  // Phones: time sits under the date instead of squeezing beside it.
   pageHeadingStack: {
     gap: 6,
   },
@@ -994,7 +978,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   badgeText: {
-    // Badge fills stay dark in both themes, so the label stays white.
     color: '#fff',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
@@ -1039,7 +1022,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // 36px visible circle (hover ring); hitSlop keeps the tap target past 44px.
   headerBackBtn: {
     width: 36,
     height: 36,

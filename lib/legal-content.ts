@@ -8,14 +8,11 @@ export type LegalDoc = {
   effective: string;
   intro: Inline[];
   sections: LegalSection[];
-  /** BCP 47 language of the text, for screen readers. Defaults to English. */
   lang?: string;
-  /** Heading of the in-page contents list. Defaults to "On this page". */
   tocLabel?: string;
 };
 
 export const SITE_URL = 'https://nonsense.adamchok.com';
-/** Bump with the effective date whenever the Terms or Privacy Policy change; stored with each acceptance. */
 export const TERMS_VERSION = '2026-10-13';
 
 export const SUPPORT_EMAIL = 'support@adamchok.com';

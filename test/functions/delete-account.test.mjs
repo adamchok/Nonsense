@@ -52,7 +52,6 @@ async function seedWorld() {
   await db.doc(`players/${USER}/friend_requests_sent/${FRIEND}`).set({});
   await db.doc(`players/${FRIEND}/friend_requests/${USER}`).set({ name: 'Alex' });
 
-  // A group Alex owns (deleted) and one Alex only belongs to (membership removed).
   await db.doc('groups/owned').set({ ownerId: USER, name: 'Alex night', memberCount: 2 });
   await db.doc(`groups/owned/members/${USER}`).set({ name: 'Alex', isRegistered: true });
   await db.doc(`groups/owned/members/${FRIEND}`).set({ name: 'Sam', isRegistered: true });

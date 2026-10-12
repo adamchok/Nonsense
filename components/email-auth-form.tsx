@@ -20,7 +20,6 @@ type Props = {
   onSubmit: (email: string, password: string) => Promise<void>;
   busy?: boolean;
   showForgot?: boolean;
-  /** Create mode asks for Terms/Privacy agreement unless the screen collects it elsewhere. */
   requireConsent?: boolean;
 };
 
@@ -63,7 +62,6 @@ export function EmailAuthForm({
   const isBusy = busy || isSubmitting || isSendingReset;
   const needsConsent = isCreate && requireConsent;
 
-  // Web: send keyboard and screen-reader users straight to the field that needs fixing.
   function focusInvalid(field: 'email' | 'password') {
     if (Platform.OS !== 'web') return;
     (field === 'email' ? emailRef : passwordRef).current?.focus();

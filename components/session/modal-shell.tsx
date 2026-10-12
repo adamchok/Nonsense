@@ -27,9 +27,7 @@ export type ModalPrimaryAction = {
   disabled?: boolean;
   busy?: boolean;
   busyLabel?: string;
-  /** Red fill for irreversible actions (delete, remove, sign out). */
   destructive?: boolean;
-  /** Leading icon in the button. */
   icon?: IconName;
 };
 
@@ -45,22 +43,16 @@ type Props = {
   primary?: ModalPrimaryAction;
   avoidKeyboard?: boolean;
   cardStyle?: StyleProp<ViewStyle>;
-  /** Overrides the Cancel / Close label (e.g. "Keep editing", "OK"). */
   cancelLabel?: string;
-  /** Extra web-only props for the dialog element (role ref, aria-describedby). */
   dialogProps?: object;
-  /** Icon before the title (alerts: info / warning). */
   titleIcon?: { name: IconName; color: string };
-  /** Replaces the Cancel button (e.g. Reset in the history filters); closing stays on x / backdrop / swipe. */
   secondary?: { label: string; onPress: () => void; disabled?: boolean; icon?: IconName };
-  /** Extra control before the close (x), e.g. a Shuffle button. */
   headerAction?: ReactNode;
 };
 
 const PHONE_RISE_PX = 48;
 const WIDE_START_SCALE = 0.96;
 
-// Swipe-down-to-close on phone sheets: past this drag distance or flick speed, the sheet closes.
 const DISMISS_DRAG_PX = 80;
 const DISMISS_VELOCITY = 0.8;
 
@@ -81,7 +73,6 @@ function useCardEntrance(visible: boolean, isWide: boolean) {
   return { style, dragY };
 }
 
-/** Drag handlers for the sheet's top strip (grabber + header), so inner scroll views keep their gestures. */
 function useSwipeToClose(dragY: SharedValue<number>, onClose: () => void, enabled: boolean) {
   return useMemo(
     () =>
@@ -128,8 +119,6 @@ export function ModalShell({
   const idBase = useId();
   const titleId = `${idBase}-modal-title`;
   const hasTitle = title != null;
-  // react-native-web's Modal renders the role="dialog" element itself and forwards extra props
-  // to it, so the accessible name goes on the Modal rather than on the card.
   const webDialogProps: object =
     Platform.OS === 'web' ? { ...(hasTitle ? { 'aria-labelledby': titleId } : {}), ...dialogProps } : {};
   const cancelText = cancelLabel ?? (primary ? 'Cancel' : 'Close');
@@ -145,10 +134,8 @@ export function ModalShell({
       ]}
       accessibilityViewIsModal
       onAccessibilityEscape={onClose}>
-      {/* Phone sheets: drag the grabber / header down to close. */}
       <View {...(isSheet ? swipe.panHandlers : {})} style={styles.dragZone}>
         {isSheet ? <View style={[styles.grabber, { backgroundColor: c.border }]} /> : null}
-        {/* Every modal gets the same top-right close (x), alongside Cancel, the backdrop and Escape. */}
         <View style={styles.header}>
           {titleIcon ? <Icon name={titleIcon.name} size={isWide ? 26 : 22} color={titleIcon.color} /> : null}
           {hasTitle ? (
@@ -179,7 +166,6 @@ export function ModalShell({
           style={(state) => [
             styles.cancelBtn,
             isSheet && styles.flexBtn,
-            // Secondary buttons: chip fill (light grey; a step lighter than the card in dark mode).
             { borderColor: c.border },
             pressBg(c, state, c.chipBg),
             secondary?.disabled && styles.disabled,
@@ -249,8 +235,6 @@ export function ModalShell({
               {card}
             </KeyboardAvoidingView>
           ) : (
-            // Full height like the keyboard path: the sheet's maxHeight '92%' must resolve against the screen,
-            // not this wrapper (a content-height wrapper clipped the card and left a gap under it).
             <View style={[styles.keyboard, frame, styles.kav, isSheet && styles.kavSheet, pointer.boxNone]}>
               {card}
             </View>
@@ -280,7 +264,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    // Leaves a visible strip of the page above, so the sheet reads as dismissible (tap it or swipe down).
     maxHeight: '85%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -308,7 +291,6 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    // Long content scrolls inside (children use a ScrollView with flexShrink) instead of overflowing.
     maxHeight: '90%',
     borderRadius: 14,
     borderWidth: 1,
@@ -324,7 +306,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  // Desktop has room for a bigger title; phone sheets keep the standard 20px.
   titleWide: {
     fontSize: 24,
     lineHeight: 30,
@@ -334,7 +315,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  // Pulled into the card padding so the x sits in the corner without pushing the title down.
   closeBtn: {
     width: 36,
     height: 36,

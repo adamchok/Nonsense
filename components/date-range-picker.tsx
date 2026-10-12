@@ -21,7 +21,6 @@ const MONTHS_LONG = [
   'December',
 ];
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-// Calendar popover height (month row + weekdays + 6 rows + hint); used to flip it above the field.
 const CALENDAR_HEIGHT = 420;
 const GAP = 6;
 
@@ -53,7 +52,6 @@ export function DateRangePicker({ start, end, onChange }: Props) {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const open = anchor != null;
   const close = () => setAnchor(null);
-  // Floats over the sheet in its own Modal, so the sheet's scroll area cannot clip it.
   const toggle = () => {
     if (open) return close();
     fieldRef.current?.measureInWindow((x, y, width, height) => setAnchor({ x, y, width, height }));
@@ -273,7 +271,6 @@ const styles = StyleSheet.create({
   },
   fieldText: { flex: 1, fontSize: 15, fontVariant: ['tabular-nums'] },
   clearBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  // Visible hover target (the 44px button stays the tap area).
   clearDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   calendar: {
     position: 'absolute',
@@ -292,7 +289,6 @@ const styles = StyleSheet.create({
   band: { position: 'absolute', top: 2, bottom: 2 },
   bandLeft: { left: 0, right: '50%' },
   bandRight: { left: '50%', right: 0 },
-  // 40px fits the 7-column grid at 375px wide; the 44px-tall cell is the press target.
   day: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   dayText: { fontSize: 14, fontVariant: ['tabular-nums'] },
   dayTextEdge: { fontWeight: '700' },

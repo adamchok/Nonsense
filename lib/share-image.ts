@@ -3,20 +3,12 @@ import type { RefObject } from 'react';
 import { Platform, type View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 
-/** Exported PNGs are 3x the on-screen size so they stay crisp in chats. */
 const SHARE_IMAGE_SCALE = 3;
 
-/** The user closing the share sheet is not an error. */
 export function isShareCancel(e: unknown): boolean {
   return e instanceof Error && (e.name === 'AbortError' || /cancel/i.test(e.message));
 }
 
-/**
- * Captures a rendered view as a PNG and hands it to the share sheet.
- * Web: html2canvas at 3x (view-shot's web capture has no scale option), then Web Share with the file,
- * or a download when the browser cannot share files. Native: view-shot tmpfile + expo-sharing.
- * Throws on failure, including a cancelled share sheet (check with isShareCancel).
- */
 export async function shareViewAsImage(
   ref: RefObject<View | null>,
   { fileName, title }: { fileName: string; title: string },

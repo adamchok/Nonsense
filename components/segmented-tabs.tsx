@@ -8,10 +8,7 @@ import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reani
 
 export type SegmentedTab<K extends string> = { key: K; label: string; icon: IconName };
 
-// onLayout measures tabs from the track's outer edge, but the absolute indicator is placed inside
-// the track's border, so its offset must drop the border width (else it sits 1px low and right).
 const TRACK_BORDER = 1;
-/** Below this window width the tab icons drop so three labels still fit on one line. */
 const NARROW_WIDTH = 380;
 
 const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
@@ -54,7 +51,6 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
     tabs.findIndex((tab) => tab.key === value),
   );
 
-  // Web radio groups use a roving tabindex: one tab stop, arrows move and select.
   const radioKeyDown = (e: WebKeyEvent, index: number) => {
     const step = NEXT_KEYS.has(e.key) ? 1 : PREV_KEYS.has(e.key) ? -1 : 0;
     if (step === 0 || tabs.length === 0) return;
@@ -145,8 +141,6 @@ const styles = StyleSheet.create({
   tab: {
     flexGrow: 1,
     flexShrink: 1,
-    // Size from content, then share the spare width: a long label ("Leaderboard") gets the room it needs
-    // instead of truncating inside an equal third.
     flexBasis: 'auto',
     minWidth: 0,
     minHeight: 44,

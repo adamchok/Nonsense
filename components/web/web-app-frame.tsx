@@ -4,7 +4,6 @@ import { contentMaxWidth } from '@/lib/spacing';
 import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-/** Column width for data-heavy screens (feeds, leaderboards, stats) on desktop web. */
 export const WIDE_CONTENT_MAX_WIDTH = 960;
 
 export function WebAppFrame({ children }: { children: ReactNode }) {
@@ -16,7 +15,6 @@ export function WebAppFrame({ children }: { children: ReactNode }) {
 
 type WebContentColumnProps = {
   children: ReactNode;
-  /** Use the wider column for data-heavy screens; form-like routes keep the narrow reading width. */
   wide?: boolean;
 };
 

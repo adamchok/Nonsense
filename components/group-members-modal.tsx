@@ -25,7 +25,6 @@ const INITIAL_STAGGER_WINDOW_MS = 600;
 
 type Props = { groupId: string; onClose: () => void };
 
-/** Add / remove / link group members, as a modal over the Friends screen (was its own route). */
 export function GroupMembersModal({ groupId: id, onClose }: Props) {
   const c = useAppColors();
   const { user, playerProfile } = useAuth();
@@ -403,7 +402,6 @@ export function GroupMembersModal({ groupId: id, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // Bounded by the modal's max height; scrolls when the member list is long.
   scroll: {
     flexShrink: 1,
   },

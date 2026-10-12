@@ -17,7 +17,6 @@ type Props = {
   title: string;
   message?: string;
   action?: { label: string; icon?: IconName; onPress: () => void };
-  /** Lower-emphasis alternative shown under the main action (text button). */
   secondaryAction?: { label: string; onPress: () => void };
   compact?: boolean;
 };

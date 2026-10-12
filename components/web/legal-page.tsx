@@ -13,7 +13,6 @@ import { Fragment, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const WIDE_BREAKPOINT = 1024;
-/** Below this the contents list collapses; between it and WIDE_BREAKPOINT it shows in two columns. */
 const TWO_COLUMN_BREAKPOINT = 600;
 const IS_WEB = Platform.OS === 'web';
 
@@ -75,14 +74,11 @@ function BlockView({ block, c }: { block: Block; c: AppColors }) {
 }
 
 function Contents({ doc, c, width, isWide }: { doc: LegalDoc; c: AppColors; width: number; isWide: boolean }) {
-  // Wide: sticky sidebar. Medium: two columns above the text. Phones: a collapsed row, so the list
-  // does not push the policy itself off screen.
   const [isOpen, setIsOpen] = useState(false);
   const label = doc.tocLabel ?? 'On this page';
   const isTwoColumn = !isWide && width >= TWO_COLUMN_BREAKPOINT;
   const isCollapsible = !isWide && !isTwoColumn;
   const showLinks = !isCollapsible || isOpen;
-  // Two columns read down: 01-07 on the left, 08-14 on the right.
   const numbered = doc.sections.map((s, i) => ({ s, i }));
   const half = Math.ceil(numbered.length / 2);
   const columns = isTwoColumn ? [numbered.slice(0, half), numbered.slice(half)] : [numbered];
@@ -205,7 +201,6 @@ const styles = StyleSheet.create({
   layoutWide: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xxl * 2 },
   toc: { borderWidth: 1, borderRadius: radius.md, padding: space.lg },
   tocWide: { width: 280, flexShrink: 0 },
-  // Collapsible row: padding moves inside the toggle so its hover fill reaches the card edges.
   tocCompact: { padding: 0, overflow: 'hidden' },
   tocToggle: {
     minHeight: 48,
@@ -223,7 +218,6 @@ const styles = StyleSheet.create({
   tocLink: { fontSize: 15, lineHeight: 22, paddingVertical: 11 },
   tocNumber: { fontVariant: ['tabular-nums'], fontWeight: '700' },
   article: { flex: 1, gap: space.xl },
-  // Readable line length beside the sidebar; narrower layouts use the full column.
   articleWide: { maxWidth: 720 },
   lede: { fontSize: 19, lineHeight: 30 },
   section: { gap: space.md },

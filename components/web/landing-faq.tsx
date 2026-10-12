@@ -102,12 +102,10 @@ function FaqItem({
 }
 
 export function LandingFaq({ c, dark, rule }: { c: AppColors; isWide: boolean; dark: boolean; rule: string }) {
-  // All collapsed until the reader picks a question.
   const [open, setOpen] = useState<number | null>(null);
   const toggle = (i: number) => setOpen((current) => (current === i ? null : i));
 
   return (
-    // One solid card, like the other content cards, so the falling cards never run behind the questions.
     <View style={[styles.list, { backgroundColor: c.card, borderColor: rule }, !dark && liftLight(c)]}>
       {FAQS.map((item, i) => (
         <FaqItem

@@ -823,7 +823,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  // Sits right after the field title ("Location (optional)") so the hint reads with what it qualifies.
   optionalTag: {
     fontSize: 13,
     fontWeight: '400',

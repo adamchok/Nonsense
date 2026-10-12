@@ -22,9 +22,6 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-// Native screen readers reach the row's actions through accessibilityActions, so the visual
-// "more" button stays hidden there to avoid a duplicate focus stop. Web has no accessibility
-// actions, so the button must stay reachable and labeled.
 const IS_WEB = Platform.OS === 'web';
 const ACTIONS_A11Y_HIDDEN =
   IS_WEB
@@ -94,7 +91,6 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   onRemove,
 }: Props) {
   const c = useAppColors();
-  // Desktop: badges sit beside the name (roomier row); phones stack them under it.
   const isCashedOut = !!cashOut;
   const values = ledgerRowValues(player.total, cashOut?.amount, dollarsPerChip);
   const resultColor = values.result >= 0 ? c.profit : c.lossLight;
@@ -293,9 +289,6 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
       }
     };
     if (IS_WEB) {
-      // Web: the row is a labelled group, not a button, so the rebuy action and the
-      // "more" menu trigger (Cash out / Correct total / Remove) are siblings instead of nested.
-      // The rebuy button stretches under the summary so the whole row stays clickable.
       return (
         <LedgerSwipeRow
           isRemoving={isRemoving}
@@ -394,8 +387,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 4,
   },
-  // Badges sit beside the name; they wrap to the next line only when name + badges don't fit
-  // (flex-wrap breaks lines on full content width, so the name isn't truncated first).
   infoWide: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -427,7 +418,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   badgeText: {
-    // Badge fills are dark in both themes, so the label stays white.
     color: '#fff',
     letterSpacing: 0.5,
   },
@@ -460,7 +450,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  // 32px visible circle in proportion with the row; hitSlop (below) keeps the 44px tap target.
   moreBtn: {
     width: 32,
     height: 32,

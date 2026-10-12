@@ -5,15 +5,9 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 
 type FieldErrorProps = {
   message?: string | null;
-  /** Element id (web) so an input can point at this message with aria-describedby. */
   nativeID?: string;
 };
 
-/**
- * The polite live region stays mounted so screen readers announce a message the
- * moment it appears; only the text inside it comes and goes. While empty it is
- * taken out of flow so it never adds spacing to the parent layout.
- */
 export function FieldError({ message, nativeID }: FieldErrorProps) {
   const c = useAppColors();
   return (
@@ -32,7 +26,6 @@ export function errorBorder(c: AppColors, message?: string | null): { borderColo
   return message ? { borderColor: c.lossLight } : null;
 }
 
-/** Web-only ARIA for an input: marks it invalid and links it to its FieldError when an id is given. */
 export function invalidProps(message?: string | null, describedBy?: string): object {
   if (Platform.OS !== 'web' || !message) return {};
   return describedBy ? { 'aria-invalid': true, 'aria-describedby': describedBy } : { 'aria-invalid': true };

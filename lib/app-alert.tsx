@@ -61,7 +61,6 @@ export function useAppAlert(): { alert: typeof appAlert } {
   return { alert: appAlert };
 }
 
-// Confirm-button icons by action verb; unknown labels stay text-only.
 const ACTION_ICONS: [RegExp, IconName][] = [
   [/^(delete|discard)/i, 'delete-outline'],
   [/^remove/i, 'person-remove'],
@@ -76,7 +75,6 @@ function actionIcon(label: string): IconName | undefined {
 
 const FAILURE_TITLE = /fail|error|could not|couldn't|unavailable|not available/i;
 
-/** Destructive confirmations get a red warning, failures a red alert circle, everything else a muted info. */
 function alertIcon(
   payload: AlertPayload | null,
   primary: AppAlertButton | undefined,
@@ -88,11 +86,6 @@ function alertIcon(
   return { name: 'info', color: c.textMuted };
 }
 
-/**
- * react-native-web's Modal hard-codes role="dialog" on its outer element (the one with
- * aria-modal) and rewrites it whenever the modal becomes active, so a role prop cannot
- * win. On web this ref keeps that element's role at "alertdialog" while it is mounted.
- */
 function useAlertDialogRoleRef(isAlertDialog: boolean) {
   return useCallback(
     (node: unknown) => {
@@ -116,7 +109,6 @@ function useAlertDialogRoleRef(isAlertDialog: boolean) {
 export function AppAlertProvider({ children }: { children: ReactNode }) {
   const c = useAppColors();
   const [payload, setPayload] = useState<AlertPayload | null>(null);
-  // Kept after closing so the fade-out still shows the same title and buttons (clearing it flashed "Close").
   const [open, setOpen] = useState(false);
 
   const show = useCallback((next: AlertPayload) => {
@@ -152,14 +144,11 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
   );
 
   const buttons = payload?.buttons ?? [];
-  // Two buttons: the non-cancel one is the primary action, the other becomes ModalShell's Cancel.
-  // One button: it is the only (Close-style) action. Every caller uses at most two.
   const primaryBtn = buttons.length > 1 ? (buttons.find((b) => b.style !== 'cancel') ?? buttons[1]) : undefined;
   const cancelBtn = buttons.find((b) => b !== primaryBtn) ?? buttons[0];
   const idBase = useId();
   const messageId = `${idBase}-alert-message`;
   const hasMessage = Boolean(payload?.message);
-  // A prompt that asks the user to choose is a confirmation, announced as an alert dialog.
   const dialogRoleRef = useAlertDialogRoleRef(primaryBtn != null);
   const titleIcon = alertIcon(payload, primaryBtn, c);
 

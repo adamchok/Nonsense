@@ -38,7 +38,6 @@ export default function NameScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [syncedProfileName, setSyncedProfileName] = useState(profileName);
   const [consentError, setConsentError] = useState<string | null>(null);
-  // Snapshot at mount: email sign-ups already ticked the box, so only first-time Google users see it here.
   const [askConsent] = useState(() => !profileName && !termsAccepted);
 
   const isEditing = !!profileName;

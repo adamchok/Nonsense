@@ -190,7 +190,6 @@ const ICONS = {
 } satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;
-/** 'duotone' adds a soft filled layer behind the outline (landing page feature icons). */
 export type IconWeight = 'regular' | 'bold' | 'fill' | 'duotone';
 
 const DEFAULT_WEIGHT: Partial<Record<IconName, IconWeight>> = {
@@ -205,9 +204,7 @@ export type IconProps = {
   size?: number;
   color?: string;
   weight?: IconWeight;
-  /** Fill colour of the duotone layer; defaults to `color`. */
   duotoneColor?: string;
-  /** Strength of the duotone layer (Phosphor default 0.2). */
   duotoneOpacity?: number;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;

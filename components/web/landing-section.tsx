@@ -4,7 +4,6 @@ import { space } from '@/lib/spacing';
 import { type ReactNode } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-/** Hex token to rgba, so a tile can carry a soft wash of its hue. */
 function alpha(hex: string, a: number): string {
   const raw = hex.replace('#', '');
   const full = raw.length === 3 ? raw.split('').map((ch) => ch + ch).join('') : raw.slice(0, 6);
@@ -12,7 +11,6 @@ function alpha(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-/** A rounded tile with a two-tone icon in one brand hue (gold, blue or green). */
 export function IconTile({
   name,
   hue,
@@ -49,10 +47,6 @@ export function IconTile({
   );
 }
 
-/**
- * The one heading pattern every landing section uses: a small icon and label, the title, then a short intro.
- * `title` may contain inline styled Text (e.g. a gold phrase).
- */
 export function SectionHeading({
   c,
   icon,

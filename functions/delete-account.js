@@ -1,11 +1,9 @@
 import { FieldValue } from 'firebase-admin/firestore';
 
-/** Shown in other players' history in place of the deleted player's name. */
 export const DELETED_PLAYER_NAME = 'Deleted player';
 
 const BATCH_LIMIT = 400;
 
-/** Deletion is refused while the user hosts a live session: nobody else could finish or settle it. */
 export class HostingLiveSessionError extends Error {
   constructor() {
     super('You are hosting a live session. Finish or delete it before deleting your account.');
@@ -23,7 +21,6 @@ async function commitInBatches(db, ops) {
 
 const deleteOp = (ref) => (batch) => batch.delete(ref);
 
-/** Registered players other than `uid` among the session's participants (guest ids have no players doc). */
 async function otherRegisteredPlayers(db, session, uid) {
   const ids = (session.get('participantIds') ?? []).filter((id) => typeof id === 'string' && id && id !== uid);
   if (!ids.length) return [];
@@ -31,7 +28,6 @@ async function otherRegisteredPlayers(db, session, uid) {
   return snaps.filter((s) => s.exists).map((s) => s.id);
 }
 
-/** Replaces the player's name everywhere in one session; amounts stay so other players' history stays accurate. */
 async function anonymiseInSession(db, sessionRef, uid) {
   const named = ['results', 'early_cashouts', 'session_participants'].map((sub) => sessionRef.collection(sub).doc(uid));
   const [buyIns, ...snaps] = await Promise.all([
@@ -54,7 +50,6 @@ async function removeFromSessions(db, uid) {
   if (hosted.docs.some((d) => d.get('status') === 'active')) throw new HostingLiveSessionError();
 
   for (const session of hosted.docs) {
-    // Only the host and their guests: nobody else relies on it, so it goes entirely.
     if ((await otherRegisteredPlayers(db, session, uid)).length === 0) {
       await db.recursiveDelete(session.ref);
     } else {
@@ -93,7 +88,6 @@ async function removeFromGroups(db, uid) {
   }
 }
 
-/** Mirror docs other players hold about this user: friendships and pending requests in both directions. */
 async function removeFromFriends(db, uid) {
   const me = db.collection('players').doc(uid);
   const player = (id) => db.collection('players').doc(id);
@@ -126,17 +120,11 @@ async function removeGuestLinksAndRefCode(db, uid, profile) {
   await commitInBatches(db, refs.map(deleteOp));
 }
 
-/**
- * Removes a player's personal data. Sessions other registered players took part in keep their amounts
- * with the name replaced by DELETED_PLAYER_NAME; everything else about the player is deleted.
- * Safe to run again after a partial failure. The Auth user is deleted separately by the caller.
- */
 export async function deleteAccountData(db, uid) {
   if (typeof uid !== 'string' || !uid) throw new Error('A user id is required.');
   const playerRef = db.collection('players').doc(uid);
   const profile = await playerRef.get();
 
-  // Sessions first: it is the only step that can refuse, so nothing is half-deleted when it does.
   await removeFromSessions(db, uid);
   await removeFromFriends(db, uid);
   await removeFromGroups(db, uid);

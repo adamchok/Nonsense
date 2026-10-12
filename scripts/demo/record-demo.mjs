@@ -1,9 +1,3 @@
-// Records the landing-page demo clips (public/media/*.webm + *.jpg) from a web build running against the emulators.
-// 1. npx firebase emulators:start --only auth,firestore --project demo-nonsense
-// 2. EXPO_PUBLIC_USE_EMULATOR=1 EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-nonsense npx expo export -p web --output-dir <dir> --clear
-//    node scripts/fix-web-assets.js <dir> && npx wrangler pages dev <dir> --port 8790   (run from outside the repo root)
-// 3. [THEME=light] PLAYWRIGHT_CORE=<path to playwright-core@1.63> node scripts/demo/record-demo.mjs [live-session|settle-up|history|friends ...]
-// Each clip re-seeds the emulators first (scripts/demo/seed-demo.mjs).
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -122,7 +116,6 @@ const CLIPS = {
       await pause(900);
       const box = await page.getByText('Profit over time').first().boundingBox();
       const y = box.y + 150;
-      // A picked point swaps the chart toggle for "View" and a clear button, so clear before switching.
       const clear = () => tap(page, page.getByRole('button', { name: 'Clear selection' }).first(), 700);
       await drag(page, 70, 360, y);
       await pause(900);

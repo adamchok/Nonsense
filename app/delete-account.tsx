@@ -30,7 +30,6 @@ function errorCode(err: unknown): string {
   return typeof code === 'string' ? code : '';
 }
 
-/** Server-side refusals carry a reason in `details` (see functions/index.js deleteAccount). */
 function refusalReason(err: unknown): string | null {
   const details = (err as { details?: { reason?: unknown } } | null)?.details;
   return typeof details?.reason === 'string' ? details.reason : null;
@@ -83,7 +82,6 @@ export default function DeleteAccountScreen() {
 
   const card = [styles.card, { backgroundColor: c.card, borderColor: c.border }];
 
-  // Signed out (e.g. the public link from the store listing): explain how to request deletion.
   if (!user) {
     return (
       <ScrollView style={[styles.screen, { backgroundColor: c.bg }]} contentContainerStyle={styles.content}>
@@ -211,7 +209,6 @@ const styles = StyleSheet.create({
   introIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   introText: { flex: 1, minWidth: 0 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
-  // More room between the password field and the destructive button.
   confirmCard: { gap: 20 },
   cardTitle: { ...text.section },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },

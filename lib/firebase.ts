@@ -39,7 +39,6 @@ const EMULATOR_HOST = process.env.EXPO_PUBLIC_EMULATOR_HOST || '127.0.0.1';
 const FIRESTORE_EMULATOR_PORT = 8080;
 const AUTH_EMULATOR_PORT = 9099;
 const FUNCTIONS_EMULATOR_PORT = 5001;
-/** Must match the region the callable functions are deployed to (functions/index.js). */
 const FUNCTIONS_REGION = 'asia-southeast1';
 
 let app: FirebaseApp | undefined;

@@ -11,14 +11,12 @@ import type { SessionResult } from '@/types';
 import { forwardRef } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-/** Fixed width so the exported image looks the same from every screen size. */
 export const SHARE_CARD_WIDTH = 420;
 
 type Props = {
   date?: Date;
   finishedAt?: Date;
   location?: string;
-  /** The host gets a HOST badge in the standings. */
   hostId?: string;
   blinds?: string | null;
   duration?: string | null;
@@ -27,11 +25,6 @@ type Props = {
   avatarFor: (playerId: string) => string;
 };
 
-/**
- * Branded results image, mirroring the Session summary screen: date heading, details, podium
- * standings with avatars, and who pays whom. Rendered off-screen and captured as a PNG.
- * Square outer corners on purpose: rounded corners would export as white wedges.
- */
 export const ShareCard = forwardRef<View, Props>(function ShareCard(
   { date, finishedAt, location, hostId, blinds, duration, results, settlements, avatarFor },
   ref,
@@ -43,7 +36,6 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
     ? `${formatSessionTime(date)}${finishedAt ? ` – ${formatSessionTime(finishedAt)}` : ''}`
     : null;
 
-  // Every subtitle item gets the same treatment: 14px muted icon, 4px gap, label text.
   const metaPart = (icon: IconName, label: string) => (
     <View key={icon} style={styles.inlineTight}>
       <Icon name={icon} size={14} color={c.textMuted} />
@@ -68,8 +60,6 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
             <Icon name="calendar" size={20} color={c.textMuted} />
             <Text style={[text.display, { color: c.text }]}>{formatSessionDay(date, undefined, true)}</Text>
           </View>
-          {/* One subtitle line: where, when, how long, stakes. Host is a badge in the standings. */}
-          {/* Two aligned columns: when + where on the left, how long + stakes on the right. */}
           <View style={styles.metaGrid}>
             <View style={styles.metaCol}>
               {timeRange ? metaPart('clock-outline', timeRange) : null}
@@ -177,7 +167,6 @@ const styles = StyleSheet.create({
   },
   heading: {
     gap: 10,
-    // Card gap (18) + 2 = 20px between the subtitle and Standings.
     marginBottom: 2,
   },
   inline: {
@@ -231,7 +220,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  // Fixed heights + line-height = font size: html2canvas (web export) otherwise drops short text low in its box.
   hostBadge: {
     height: 18,
     borderRadius: 4,

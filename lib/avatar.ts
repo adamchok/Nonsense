@@ -1,6 +1,5 @@
 import { faceValue } from '@/lib/avatar-face';
 
-/** Players without a chosen avatar get a stable illustrated face derived from their id. */
 export function pickGuestAvatar(seed: string): string {
   return faceValue(seed);
 }

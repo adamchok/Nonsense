@@ -12,13 +12,11 @@ import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from
 
 const WIDE_BREAKPOINT = 1024;
 const COPIED_MS = 2000;
-/** Below this the email card drops its icon and shrinks the address so it fits on one line. */
 const COMPACT_EMAIL_BREAKPOINT = 420;
 const IS_WEB = Platform.OS === 'web';
 
 const MAILTO = `mailto:${CONTACT_EMAIL}`;
 
-/** Web gets a real <a href>; native opens the mail app. */
 function linkProps(href: string): object {
   return IS_WEB ? { href } : { onPress: () => Linking.openURL(href).catch(() => {}) };
 }
@@ -41,7 +39,6 @@ const TOPICS: { icon: IconName; title: string; body: string }[] = [
   },
 ];
 
-/** Small copy icon beside the address: for browsers with no mail app set up. */
 function CopyButton({ c }: { c: AppColors }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -95,7 +92,6 @@ function EmailCard({ c, isWide, isCompact }: { c: AppColors; isWide: boolean; is
   );
 }
 
-/** What to email us about; the address itself is in the card above. */
 function TopicRow({ topic, c, isFirst }: { topic: (typeof TOPICS)[number]; c: AppColors; isFirst: boolean }) {
   return (
     <View style={[styles.topicRow, !isFirst && styles.topicDivider, { borderTopColor: c.border }]}>

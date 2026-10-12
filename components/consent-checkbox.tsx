@@ -13,7 +13,6 @@ type Props = {
   disabled?: boolean;
 };
 
-/** Inline legal link: a real new-tab <a> on web, the system browser on native. Never toggles the checkbox. */
 export function LegalLink({ label, path, color }: { label: string; path: string; color: string }) {
   const url = `${SITE_URL}${path}`;
   const props = IS_WEB
@@ -33,7 +32,6 @@ export function LegalLink({ label, path, color }: { label: string; path: string;
   );
 }
 
-/** Required, unticked-by-default agreement to the Terms and Privacy Policy (clickwrap). */
 export function ConsentCheckbox({ checked, onChange, error, disabled = false }: Props) {
   const c = useAppColors();
   const toggle = () => {

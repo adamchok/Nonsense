@@ -17,7 +17,6 @@ function settle(value: number, target: number): number {
   return Number.isInteger(target) ? Math.round(value) : Math.round(value * 100) / 100;
 }
 
-/** Re-renders once a minute so "1h 12m" keeps counting while the game runs. */
 function useNow(enabled: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -31,13 +30,10 @@ function useNow(enabled: boolean): number {
 type Props = {
   total: number;
   unit: SessionAmountUnit;
-  /** Session start; shows "Started 8:27 PM" and the elapsed time under the pot. */
   startedAt?: Date | null;
-  /** Host only: the primary in-session action sits in the card. */
   onBuyIn?: (() => void) | null;
 };
 
-/** Live session summary: pot, how long the game has run, and the host's Buy-In button. */
 export function PotBadge({ total, unit, startedAt, onBuyIn }: Props) {
   const c = useAppColors();
   const shown = settle(useCountUp(total), total);
@@ -61,7 +57,6 @@ export function PotBadge({ total, unit, startedAt, onBuyIn }: Props) {
           rowStyle={styles.valueRow}
         />
         {startedAt ? (
-          // Start time and elapsed each carry an icon (no dot); elapsed wraps below on narrow cards.
           <View style={[styles.started, styles.startedRow]}>
             <View style={styles.startedPart}>
               <Icon name="clock-outline" size={14} color={c.textMuted} importantForAccessibility="no" />

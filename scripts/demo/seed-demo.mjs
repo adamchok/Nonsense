@@ -1,7 +1,3 @@
-// Seeds the local Firebase emulators (project demo-nonsense) with demo data for the landing-page recordings.
-// Usage: start `npx firebase emulators:start --only auth,firestore --project demo-nonsense`, then `node scripts/demo/seed-demo.mjs`.
-// `--extra=150` also writes 150 older "archive" sessions (2+ years back, more venues and stakes) to test
-// history paging and search; the default 12 recent sessions used by the recordings are unchanged.
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -17,7 +13,6 @@ export const LIVE_SESSION_ID = 'demo-live';
 process.env.FIRESTORE_EMULATOR_HOST = FIRESTORE_HOST;
 process.env.FIREBASE_AUTH_EMULATOR_HOST = AUTH_HOST;
 
-// Illustrated faces (`nf:<seed>`), seeded by name so they match the landing page's demo avatars.
 const PLAYERS = [
   { key: 'alex', name: 'Alex', avatar: 'nf:Alex', refCode: 'ALEX42' },
   { key: 'jordan', name: 'Jordan', avatar: 'nf:Jordan', refCode: 'JRDN77' },
@@ -126,7 +121,6 @@ const ARCHIVE_STAKES = [
   [0.5, 1],
   [2, 5],
 ];
-// Writes per finished session: 1 session doc + 3 docs for each of the 4 players.
 const WRITES_PER_SESSION = 13;
 const BATCH_LIMIT = 500;
 
@@ -149,7 +143,6 @@ function sessionTable(index, alexProfit = ALEX_PROFITS[index]) {
 
 function writeFinishedSession(batch, db, ids, index, now, archive = null) {
   const table = sessionTable(index, archive?.alexProfit);
-  // Evening start times (8:00 to 8:45 PM local) whatever time the seed runs, so recordings read like game nights.
   const day = new Date(now - (ALEX_PROFITS.length - index) * 7 * DAY - 4 * DAY).setHours(20, (index % 4) * 15, 0, 0);
   const start = archive?.start ?? day;
   const finish = start + (4 * 60 + ((index * 17) % 50)) * MINUTE;
@@ -205,7 +198,6 @@ function writeLiveSession(batch, db, ids, now) {
   });
 }
 
-/** Older sessions, every 5 days before the recent 12, with deterministic but varied results. */
 function archiveSession(k, now) {
   const oldestRecent = now - ALEX_PROFITS.length * 7 * DAY - 4 * DAY + 20 * HOUR;
   return {

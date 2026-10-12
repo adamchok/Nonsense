@@ -7,8 +7,6 @@ export default function IndexScreen() {
   const { isReady, user, isAnonymous, playerProfile } = useAuth();
 
   if (!isReady) {
-    // Web: the root layout only renders "/" before auth is ready when the visitor isn't a
-    // returning signed-in user, so the public landing is the right first paint (and static HTML).
     return Platform.OS === 'web' ? <LandingPage /> : null;
   }
 

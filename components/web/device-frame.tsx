@@ -5,9 +5,7 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 
 export type DeviceKind = 'ios' | 'android';
 
-/** Android visitors see an Android phone; everyone else (iPhone, Mac, Windows) an iPhone. */
 export function useDeviceKind(): DeviceKind {
-  // Server snapshot 'ios' keeps the static render and hydration in step; the client then reads the user agent.
   return useSyncExternalStore(
     noSubscribe,
     () => (/Android/i.test(navigator.userAgent) ? 'android' : 'ios'),
@@ -17,7 +15,6 @@ export function useDeviceKind(): DeviceKind {
 
 const noSubscribe = () => () => {};
 
-/** Recordings are 390x844 (an iPhone 14 screen); the frame keeps that ratio below its status bar. */
 const SCREEN_RATIO = 390 / 844;
 
 type Spec = {
@@ -77,10 +74,6 @@ function Battery({ color }: { color: string }) {
   );
 }
 
-/**
- * A phone around the demo recording: metal band, black bezel, a status bar with the camera cutout
- * (Dynamic Island on iPhone, punch-hole on Android) and a home indicator over the bottom of the screen.
- */
 export function DeviceFrame({
   kind,
   c,
@@ -96,7 +89,6 @@ export function DeviceFrame({
 }) {
   const spec = SPECS[kind];
   const isIos = kind === 'ios';
-  // Graphite titanium on the dark page, a silver band on the light page; the bezel is black either way.
   const metal = dark ? '#3b3d43' : '#c4c8cf';
   const screenRadius = spec.outerRadius - spec.band - spec.bezel;
 

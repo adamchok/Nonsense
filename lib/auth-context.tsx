@@ -58,10 +58,8 @@ interface AuthContextValue {
   hasPassword: boolean;
   email: string | null;
   saveDisplayName: (name: string) => Promise<void>;
-  /** Ticked the Terms/Privacy box this session (email sign-up, name step or secure screen). */
   termsAccepted: boolean;
   setTermsAccepted: (accepted: boolean) => void;
-  /** Saves the acceptance on an existing profile; no-op if the box was not ticked. */
   saveTermsAcceptance: () => Promise<void>;
   saveAvatarEmoji: (emoji: string) => Promise<void>;
   signOutUser: () => Promise<void>;
@@ -70,12 +68,7 @@ interface AuthContextValue {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   createAccountWithEmail: (email: string, password: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
-  /** Email/password accounts only: confirms the current password, then sets the new one. */
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-  /**
-   * Re-confirms identity (password when given, otherwise Google; none for guests), then deletes the
-   * account and its data on the server and signs out.
-   */
   deleteAccount: (password?: string) => Promise<void>;
 }
 
@@ -170,10 +163,8 @@ function mapGoogleError(err: unknown, { isErrorWithCode, statusCodes }: GoogleSi
 
 const IS_WEB = Platform.OS === 'web';
 
-/** localStorage flag (web only) hinting a non-anonymous user was signed in; read by app/+html.tsx. */
 export const SIGNED_IN_HINT_KEY = '@nonsense_signed_in';
 
-/** Whether this browser last saw a signed-in (non-anonymous) user. Always false off-web or during static render. */
 export function readSignedInHint(): boolean {
   if (!IS_WEB || typeof window === 'undefined') return false;
   try {
@@ -374,7 +365,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     const current = getFirebaseAuth().currentUser;
     if (!current?.email) throw new AccountLinkError('no-user');
-    // Firebase requires a recent sign-in to change the password; re-checking the old one covers that.
     await reauthenticateWithCredential(current, EmailAuthProvider.credential(current.email, currentPassword));
     await updatePassword(current, newPassword);
   }, []);
@@ -383,7 +373,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const auth = getFirebaseAuth();
     const current = auth.currentUser;
     if (!current) throw new AccountLinkError('no-user');
-    // The server only accepts a sign-in from the last few minutes, so confirm it is really them first.
     if (password !== undefined) {
       if (!current.email) throw new AccountLinkError('no-user');
       await reauthenticateWithCredential(current, EmailAuthProvider.credential(current.email, password));

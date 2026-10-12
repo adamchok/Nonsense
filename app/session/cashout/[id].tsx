@@ -48,7 +48,6 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
-/** Most frequent buy-in amount: the session's "usual" buy-in. */
 function mostCommonAmount(amounts: number[]): number | null {
   const counts = new Map<number, number>();
   let best: number | null = null;
@@ -141,7 +140,6 @@ function PlayerBuyInCaption({
   }
   return (
     <View style={styles.playerBuyInRow}>
-      {/* Same ↘ "money in" arrow as History's Buy-in column. */}
       <Icon name="money-in" size={12} color={mutedColor} style={styles.buyInIcon} />
       <Text style={[styles.playerBuyIn, { color: mutedColor }]}>
         Buy-in: {formatSessionAmountValue(totalBuyIn, 'cash', 'fixed2')}
@@ -154,7 +152,6 @@ export default function CashOutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
   const { gutter } = usePageLayout();
-  // Desktop has room: bigger page title and summary figures; phones keep the compact sizes.
   const { isMd: isWide } = useBreakpoint();
   const { playerProfile } = useAuth();
   const [friendAvatarMap, setFriendAvatarMap] = useState<ReadonlyMap<string, string | undefined>>(new Map());
@@ -181,7 +178,6 @@ export default function CashOutScreen() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const listRef = useRef<FlatList<PlayerEntry>>(null);
   const [sessionInfo, setSessionInfo] = useState<{ date?: Date; location?: string } | null>(null);
-  // Fade above the footer only while rows are actually hidden below (not when everything fits or at the end).
   const listMetrics = useRef({ viewport: 0, content: 0, offset: 0 });
   const [hasMoreBelow, setHasMoreBelow] = useState(false);
   const updateHasMoreBelow = useCallback((next: Partial<typeof listMetrics.current>) => {
@@ -190,7 +186,6 @@ export default function CashOutScreen() {
   }, []);
   const isChipsMode = amountUnit === 'chips';
   const navigation = useNavigation();
-  // Header carries the action ("Cash out"); the page heading names the session. The browser tab gets both.
   useLayoutEffect(() => {
     const date = sessionInfo?.date;
     navigation.setOptions({
@@ -198,7 +193,6 @@ export default function CashOutScreen() {
       headerTitle: 'Cash out',
     });
   }, [navigation, sessionInfo]);
-  // True once the host edits an amount; cleared only by a successful settle.
   const [isDirty, setIsDirty] = useState(false);
   const allowLeaveRef = useRef(false);
 
@@ -250,7 +244,6 @@ export default function CashOutScreen() {
         setLoadError(null);
         setCanEdit(Boolean(playerProfile?.id && sessionMeta.hostId === playerProfile.id));
         setAmountUnit(sessionMeta.amountUnit);
-        // Three steps each way (one big blind, five big blinds, a quarter buy-in) keep the chips on one line.
         setChipSteps(cashOutSteps(sessionMeta.bigBlind, mostCommonAmount(buyIns.map((b) => b.amount))));
         setDollarsPerChip(sessionMeta.dollarsPerChip);
         setSessionInfo({ date: sessionMeta.date, location: sessionMeta.location });
@@ -545,7 +538,6 @@ export default function CashOutScreen() {
             </View>
           </View>
 
-          {/* Desktop: amount and +/- steps share a row; phones stack them. */}
           <View style={isWide && !item.locked ? styles.entryRowWide : styles.entryStack}>
             <View style={isWide && !item.locked ? styles.entryInputWide : undefined}>
               <View
@@ -576,7 +568,6 @@ export default function CashOutScreen() {
             </View>
 
             {!item.locked && (
-              // One outlined segmented strip: red/green tinted segments split by hairline dividers.
               <View
                 style={[
                   styles.chipRow,
@@ -755,7 +746,6 @@ export default function CashOutScreen() {
             </Animated.View>
           </Animated.View>
         </View>
-        {/* One persistent polite region: the hint text changes inside it instead of remounting a new region. */}
         <View accessibilityLiveRegion="polite" style={hint ? null : styles.hintEmpty}>
           {hint ? (
             <Animated.View key={`hint-${status}`} entering={fadeIn} exiting={fadeOut} style={styles.hintRow}>
@@ -816,7 +806,6 @@ export default function CashOutScreen() {
       />
 
       <Animated.View style={[styles.confirmWrap, isWide && styles.confirmWrapWide, confirmPulseStyle]}>
-        {/* Rows scrolling under the footer fade out instead of being cut off by a hard edge. */}
         {hasMoreBelow ? (
           <LinearGradient
             colors={[`${c.bg}00`, c.bg]}
@@ -907,7 +896,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  // Phones: a third of the card can't fit icon + "DISTRIBUTED" side by side, so the icon sits above.
   trackerLabelStack: {
     alignItems: 'center',
     gap: 4,
@@ -1104,7 +1092,6 @@ const styles = StyleSheet.create({
   confirmWrap: {
     marginBottom: 16,
   },
-  // Desktop web only: lift the confirm button off the window edge.
   confirmWrapWide: {
     marginTop: 8,
     marginBottom: 32,

@@ -69,7 +69,6 @@ const menuEntering = webSafe(
 );
 
 const SWIPE_ACTION_WIDTH = 96;
-/** Below this, the lifetime card shows the exact amount so it matches the chart; above, it goes compact. */
 const EXACT_TOTAL_LIMIT = 10_000;
 
 function formatLifetimeTotal(amount: number): string {
@@ -96,7 +95,6 @@ function mergeHistoryPages(prev: HistoryEntry[], next: HistoryEntry[]): HistoryE
   return [...byId.values()].sort((a, b) => b.date.getTime() - a.date.getTime());
 }
 
-// Chart and the session rows read as one block, so tighter than the 24px between screen sections.
 const CHART_TO_LIST_GAP = 16;
 const NARROW_SUMMARY_WIDTH = 380;
 const SORT_TRIGGER_ID = 'history-sort-trigger';
@@ -106,7 +104,6 @@ export default function HistoryScreen() {
   const c = useAppColors();
   const layout = usePageLayout();
   const { width: screenWidth } = useBreakpoint();
-  // Web can't shrink text to fit (adjustsFontSizeToFit is native-only), so narrow phones get a smaller total.
   const narrowSummary = screenWidth < NARROW_SUMMARY_WIDTH;
   const router = useRouter();
   const { playerProfile } = useAuth();
@@ -145,8 +142,6 @@ export default function HistoryScreen() {
       setHistory(page.entries);
       historyPageCursorRef.current = page.lastDoc;
       setHasMoreHistory(page.hasMore);
-      // First page paints fast; then the full history (shared cache with Home's statistics) replaces it,
-      // so totals, chart, search and year chips cover every session. On failure, paging still works.
       if (page.hasMore) {
         getCachedSessionHistory(playerProfile.id, force)
           .then((all) => {
@@ -190,9 +185,6 @@ export default function HistoryScreen() {
     }
   }, [playerProfile, loadingMore, hasMoreHistory]);
 
-  // Search filters loaded sessions only, so the first search pulls in every remaining page.
-  // ponytail: loads the whole history client-side; fine for home-game volumes (hundreds of sessions).
-  // Past that, move to server-side year/date queries or a search service.
   const loadingAllRef = useRef(false);
   const loadRemainingHistory = useCallback(async () => {
     if (!playerProfile || loadingAllRef.current) return;
@@ -220,7 +212,6 @@ export default function HistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Skeleton only on the first load; refocus refreshes in place.
       if (!hasLoadedRef.current) setLoading(true);
       void loadHistory();
       return () => {
@@ -257,7 +248,6 @@ export default function HistoryScreen() {
     [filters, history, searchQuery],
   );
   const draftMatchCount = useMemo(
-    // Same pipeline as the list (filters AND search), so "Show N" matches what appears.
     () =>
       showFilterModal
         ? filterEntries(history, draftFilters).filter((e) => matchesSearch(e, searchQuery)).length
@@ -301,7 +291,6 @@ export default function HistoryScreen() {
     setShowLocationModal(false);
   }
 
-  // Pull-to-refresh (native only); loadHistory clears `refreshing` when it settles.
   const handleRefresh = useCallback(() => {
     if (refreshing) return;
     setShowSortDropdown(false);
@@ -314,8 +303,6 @@ export default function HistoryScreen() {
     [router],
   );
 
-  // Period chips (All / 2026 / 2025 / ...) drive the same date filter as the filter sheet, so the chart,
-  // totals and list always agree. A custom date range from the sheet leaves no chip selected.
   const years = useMemo(() => sessionYears(history), [history]);
   const selectedYear = useMemo(() => {
     const today = new Date();
@@ -335,7 +322,6 @@ export default function HistoryScreen() {
 
   const chartHeader = useMemo(
     () => (
-      // While searching the chart steps aside for a result count; the results are what matters then.
       isSearching ? null : (
         <>
           {filteredHistory.length >= 2 ? (
@@ -557,7 +543,6 @@ export default function HistoryScreen() {
               </Text>
               <Text style={[styles.summaryMeta, { color: c.textHint }]}>
                 {filteredHistory.length} session{filteredHistory.length !== 1 ? 's' : ''}
-                {/* The label already names a year / date range; "(filtered)" is for location, buy-in or P/L. */}
                 {hasNonDateFilters ? ' (filtered)' : ''}
                 {hasMoreHistory ? ` · ${history.length} loaded` : ''}
               </Text>
@@ -583,9 +568,7 @@ export default function HistoryScreen() {
 
       {error ? <Text style={[styles.historyMeta, { color: c.loss }]}>{error}</Text> : null}
 
-      {/* Outside the list so it stays put when a search matches nothing. Stacks with the filters. */}
       {history.length > 0 ? (
-        // Quick filters: search and the year chips sit together; the screen's 24px gap follows the block.
         <View style={styles.quickFilters}>
           <SearchInput
             placeholder="Search place, date or stakes"
@@ -598,7 +581,6 @@ export default function HistoryScreen() {
               if (t.trim() && hasMoreHistory) void loadRemainingHistory();
             }}
           />
-        {/* Chips on the left; while searching, the result count sits at the right end of the same row. */}
         {years.length >= 2 || isSearching ? (
           <View style={styles.periodBar}>
             {years.length >= 2 ? (
@@ -673,7 +655,6 @@ export default function HistoryScreen() {
                   : 'Search by venue, day, month, year or stakes.'
                 : 'Try changing or clearing your filters.'
             }
-            // Search stacks with the period: if one is picked, the likely fix is widening it, not retyping.
             action={
               isSearching && hasDateFilter
                 ? { label: selectedYear ? 'Search all years' : 'Search all dates', icon: 'search', onPress: () => selectPeriod(null) }
@@ -687,7 +668,6 @@ export default function HistoryScreen() {
           />
         )
       ) : (
-        // Edge fades: content scrolling under the top / bottom edge melts into the page instead of a hard cut.
         <View style={styles.list}>
           <Motion.FlatList
             data={sortedHistory}
@@ -853,7 +833,6 @@ export default function HistoryScreen() {
   );
 }
 
-/** Rounded checkbox row: filled accent box with a bold tick when checked, row highlight on hover/press. */
 function CheckRow({
   label,
   checked,
@@ -982,7 +961,6 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
             if (e.nativeEvent.actionName === 'remove') onRemove?.();
           }}>
           {isWide ? (
-            // Desktop: identity on the left, then aligned money columns, result last and largest.
             <View style={styles.historyWideRow}>
               <View style={styles.historyWideMain}>
                 {titleRow}
@@ -1012,7 +990,6 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
   );
 }
 
-/** Small label over a tabular amount, for the desktop history columns. */
 function MoneyColumn({ label, value, icon }: { label: string; value: string; icon: IconName }) {
   const c = useAppColors();
   return (

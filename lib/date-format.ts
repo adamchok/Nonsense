@@ -15,7 +15,6 @@ export function formatDateTimeDMY(d: Date): string {
   return `${date} ${h}:${min} ${suffix}`;
 }
 
-/** "4h 37m", or "37m" under an hour. */
 export function formatDuration(ms: number): string {
   const totalMinutes = Math.max(0, Math.floor(ms / 60000));
   const hours = Math.floor(totalMinutes / 60);

@@ -37,7 +37,6 @@ function isPublicOrAuthPath(pathname: string): boolean {
 }
 
 const subscribeNoop = () => () => {};
-// Server snapshot is false so static HTML and the hydration pass both render the landing.
 const getServerHint = () => false;
 
 function RootNavigator() {
@@ -47,21 +46,16 @@ function RootNavigator() {
   const pathname = usePathname();
   const hasSignedInHint = useSyncExternalStore(subscribeNoop, readSignedInHint, getServerHint);
   const { isMd } = useBreakpoint();
-  // Desktop web keeps the app sidebar on every signed-in screen (tabs and pushed screens alike).
   const showSidebar = IS_WEB && isMd && isSignedIn && !isPublicOrAuthPath(pathname);
 
   useEffect(() => {
     if (!isReady) return;
     SplashScreen.hideAsync();
-    // Reveal #root, hidden by the +html boot script while auth resolved for a returning user.
     if (IS_WEB && typeof document !== 'undefined') {
       delete document.documentElement.dataset.authPending;
     }
   }, [isReady]);
 
-  // On web, "/" is the public landing: render it before auth resolves (static export, LCP), unless
-  // this browser was last signed in, in which case wait so the landing never flashes. Protected
-  // routes stay guarded because isSignedIn is false until auth is ready.
   const canRenderBeforeReady = IS_WEB && ((pathname === '/' && !hasSignedInHint) || PUBLIC_WEB_PATHS.has(pathname));
 
   if (!isReady && !canRenderBeforeReady) {
@@ -83,7 +77,6 @@ function RootNavigator() {
             <Stack.Screen name="privacy-ms" options={{ headerShown: false, title: 'Dasar Privasi' }} />
             <Stack.Screen name="terms" options={{ headerShown: false, title: 'Terms of Service' }} />
             <Stack.Screen name="contact" options={{ headerShown: false, title: 'Contact' }} />
-            {/* Outside the guard: signed-out visitors (store listing link) see how to request deletion. */}
             <Stack.Screen name="delete-account" options={{ title: 'Delete account', headerBackTitle: 'Back' }} />
             <Stack.Protected guard={isSignedIn}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

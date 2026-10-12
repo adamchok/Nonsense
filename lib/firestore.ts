@@ -101,7 +101,6 @@ export async function getPlayerProfile(uid: string): Promise<PlayerProfile | nul
   };
 }
 
-/** Clickwrap record: which Terms/Privacy version the player agreed to, and when (server time). */
 function termsFields(termsVersion?: string) {
   return termsVersion ? { termsVersion, termsAcceptedAt: serverTimestamp() } : {};
 }
@@ -144,7 +143,6 @@ export async function upsertPlayerProfile(uid: string, name: string, termsVersio
   };
 }
 
-/** For players whose profile already exists (guest accounts adding a sign-in). */
 export async function recordTermsAcceptance(uid: string, termsVersion: string): Promise<void> {
   const ref = doc(getFirestoreDb(), 'players', uid);
   const snapshot = await getDoc(ref);
@@ -1564,10 +1562,6 @@ export type PlayerAppStatistics = {
   profitPerHour: number | null;
 };
 
-/**
- * Every finished session for the player, newest first. Shares the 5-minute scan cache with the statistics
- * (invalidated when a session is saved or deleted), so History and Home reuse one scan.
- */
 export function getCachedSessionHistory(uid: string, forceRefresh = false): Promise<SessionHistoryEntry[]> {
   return cachedScan(`history:${uid}`, forceRefresh, () => getFullSessionHistoryForPlayer(uid));
 }

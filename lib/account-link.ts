@@ -165,7 +165,6 @@ export async function signInWithAccountCredential(
   }
 }
 
-/** Web: confirms the signed-in user again (e.g. before deleting the account). */
 export async function reauthenticateWithPopupProvider(user: User, provider: AuthProvider): Promise<void> {
   try {
     await popupApi('reauthenticateWithPopup')(user, provider);

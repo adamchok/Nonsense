@@ -1,7 +1,5 @@
 import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-// Illustrated demo players: "Notionists" by Zoish, CC0 1.0 (via DiceBear). Black line art, so they always
-// sit on a light disc, which keeps them readable on the dark theme too.
 const FACES = {
   Alex: require('@/assets/images/avatars/alex.svg'),
   Jordan: require('@/assets/images/avatars/jordan.svg'),

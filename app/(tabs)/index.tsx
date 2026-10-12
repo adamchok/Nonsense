@@ -52,14 +52,9 @@ import {
   listItemEntering,
 } from '@/components/motion';
 
-/** Enough finished sessions for a meaningful trend line; the list shows only the newest few. */
 const RECENT_RESULTS_COUNT = 30;
 const YEAR_PAGE_SIZE = 50;
 
-/**
- * Newest-first pages back to 1 Jan, so the Home chart covers the whole year (not just the latest page).
- * Stops paging once a page reaches last year. Also returns everything loaded for the recent list.
- */
 async function loadYearToDate(playerId: string): Promise<{ loaded: SessionHistoryEntry[]; year: SessionHistoryEntry[] }> {
   const yearStart = new Date(new Date().getFullYear(), 0, 1);
   const loaded: SessionHistoryEntry[] = [];
@@ -73,7 +68,6 @@ async function loadYearToDate(playerId: string): Promise<{ loaded: SessionHistor
   return { loaded, year: loaded.filter((e) => e.date >= yearStart) };
 }
 const COMPACT_ROW_WIDTH = 480;
-// Below this the header CTA reads "New" so the greeting keeps one line beside avatar + button.
 const SHORT_CTA_WIDTH = 380;
 const PHONE_TOP_EXTRA = 16;
 const AVATAR_SMALL = 46;
@@ -84,10 +78,8 @@ export default function HomeScreen() {
   const layout = usePageLayout(40);
   const router = useRouter();
   const { isMd, width } = useBreakpoint();
-  // Phones: drop the decorative tile, move "Live" into the meta line and let text wrap instead of truncating.
   const compactRows = width < COMPACT_ROW_WIDTH;
   const shortCta = width < SHORT_CTA_WIDTH;
-  // The web sidebar already carries the profile and a New session button, so Home drops its copies.
   const hasSidebar = Platform.OS === 'web' && isMd;
   const { playerProfile } = useAuth();
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
@@ -97,7 +89,6 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // undefined while loading; null when the overview failed (the sections just stay hidden).
   const [stats, setStats] = useState<PlayerAppStatistics | null | undefined>(undefined);
   const [recent, setRecent] = useState<SessionHistoryEntry[] | undefined>(undefined);
   const [yearEntries, setYearEntries] = useState<SessionHistoryEntry[] | undefined>(undefined);
@@ -177,7 +168,6 @@ export default function HomeScreen() {
   }, [playerProfile, loadSessions]);
 
   const activeSessions = useMemo(() => sessions.filter((s) => s.status === 'active'), [sessions]);
-  // Pull-to-refresh (native only); the list also reloads on every screen focus.
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -212,8 +202,6 @@ export default function HomeScreen() {
         layout.content,
         styles.content,
         layout.tabTop,
-        // Phones (app + mobile web): the removed logo used to give the greeting breathing room at the top.
-        // Desktop web has its own larger top padding (contentWide).
         !isMd && { paddingTop: Number(layout.tabTop?.paddingTop ?? 0) + PHONE_TOP_EXTRA },
         isMd && styles.contentWide,
       ]}
@@ -229,7 +217,6 @@ export default function HomeScreen() {
         )
       }>
       <View style={styles.header}>
-        {/* Avatar leads the greeting like a profile header. */}
         {avatarButton}
         <View style={styles.headerText}>
           <Motion.View entering={fadeIn} style={styles.greetingRow}>
@@ -249,7 +236,6 @@ export default function HomeScreen() {
             <Text style={[styles.headerSub, { color: c.textMuted }]}>Set up your profile to begin.</Text>
           )}
         </View>
-        {/* Phones: the main action sits beside the greeting (desktop has it in the sidebar). */}
         {hasSidebar ? null : (
           <PressableScale
             style={[styles.ctaCompact, { backgroundColor: c.accent }]}
@@ -320,14 +306,11 @@ export default function HomeScreen() {
                       { borderColor: c.border },
                       pressBg(c, state, c.card),
                     ]}>
-                    {/* Pulsing dot = live, at every width (replaces the chip tile and the separate Live dot). */}
                     <View style={styles.pulseSlot}>
                       <LivePulse color={c.profit} />
                     </View>
                     <View style={ui.rowBody}>
                       {compactRows ? (
-                        // Narrow: place as the title, then date + time, then players + stakes. Each line is
-                        // short, so nothing wraps mid-line or leaves a dangling separator dot.
                         <>
                           <Text style={[type.rowTitle, { color: c.text }]} numberOfLines={1}>
                             {session.location?.trim() || formatSessionDay(session.date)}
@@ -388,7 +371,6 @@ export default function HomeScreen() {
       {playerProfile ? (
         <>
           <HomeTrend entries={yearEntries} />
-          {/* Desktop: results and leaderboard side by side; phones stack them. */}
           <View style={isMd ? styles.twoCol : styles.stack}>
             <RecentResults entries={recent} style={isMd && styles.col} />
             <FriendsBoard rows={board} myId={playerProfile.id} style={isMd && styles.col} />
@@ -405,7 +387,6 @@ function greetingForHour(hour: number): { label: string; icon: IconName } {
   return { label: 'Good evening', icon: 'moon-stars' };
 }
 
-/** Live indicator: solid dot with a ring that expands and fades, like a radar ping. Static under reduced motion. */
 function LivePulse({ color }: { color: string }) {
   const reduceMotion = useReducedMotion();
   const ping = useSharedValue(0);
@@ -467,7 +448,6 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 32,
   },
-  // Desktop web: more breathing room above the greeting.
   contentWide: {
     paddingTop: 56,
   },
@@ -519,7 +499,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
-  // Pulls the label 2px toward the icon so it matches the 6px icon gap of the other Home sections.
   sectionIcon: {
     marginRight: -2,
   },
@@ -536,10 +515,8 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  // Just the pulsing dot (no tile): narrow slot so the title sits close.
   pulseSlot: {
     width: 16,
-    // Row gap is tight for a bare dot; extra room before the title.
     marginRight: 6,
     alignItems: 'center',
     justifyContent: 'center',

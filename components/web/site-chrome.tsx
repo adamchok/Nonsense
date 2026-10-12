@@ -70,7 +70,6 @@ export function ThemeToggle({ c }: { c: AppColors }) {
   );
 }
 
-/** Below this width the top nav uses a smaller logo, wordmark and button padding. */
 const COMPACT_NAV_WIDTH = 400;
 
 export function SiteNav({
@@ -83,7 +82,6 @@ export function SiteNav({
   container: StyleProp<ViewStyle>;
 }) {
   const surface = useControlSurface(c);
-  // Small phones: shrink the brand and buttons so they fit on one row without crowding.
   const isCompact = useBreakpoint().width < COMPACT_NAV_WIDTH;
   return (
     <View role="navigation" aria-label="Primary" style={[container, styles.nav]}>
@@ -164,12 +162,10 @@ export function SiteFooter({
   logo: ImageSourcePropType;
   rule: string;
   container: StyleProp<ViewStyle>;
-  /** Off where the page already ends on a sign-up call to action (the landing closer). */
   cta?: boolean;
 }) {
   return (
     <View role="contentinfo" style={styles.footer}>
-      {/* Full-width band with its own surface and rule; the content stays in the page column. */}
       <View style={[styles.footerBand, { backgroundColor: c.card, borderTopColor: rule }]}>
         <View style={[container, styles.footerInner]}>
           <View style={[styles.footerTop, isWide ? styles.footerTopWide : styles.footerTopStacked]}>
@@ -237,13 +233,11 @@ const styles = StyleSheet.create({
   },
   navLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: radius.pill, borderWidth: 1 },
   navLinkCompact: { paddingHorizontal: 14 },
-  // marginTop auto pins the footer to the bottom of short pages (the ScrollView content uses flexGrow: 1).
   footer: { marginTop: 'auto', paddingTop: space.xl },
   footerBand: { borderTopWidth: StyleSheet.hairlineWidth },
   footerInner: { gap: space.xl, paddingTop: space.xxl },
   footerTop: { gap: space.xxl },
   footerTopWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  // Stacked: more room between the call to action and the link columns below it.
   footerTopStacked: { rowGap: space.xxl + space.lg },
   footerBrand: { gap: space.md, maxWidth: 340, alignItems: 'flex-start' },
   footerBrandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -271,10 +265,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    // Even space above and below the copyright line.
     paddingVertical: space.xl,
   },
-  // 34px rows: tighter than the 44px touch ideal, still above the WCAG 2.2 24px minimum target.
   footerLink: { fontSize: 14, lineHeight: 34 },
   skip: {
     position: 'absolute',

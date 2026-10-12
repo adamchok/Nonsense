@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const isWeb = Platform.OS === 'web';
 
-// Data-heavy tabs get the wider desktop column; Settings stays at the narrow form width.
 const WIDE_TAB_ROUTES = new Set(['index', 'history', 'friends']);
 
 export default function TabLayout() {
@@ -70,7 +69,6 @@ export default function TabLayout() {
           paddingBottom: 'max(10px, env(safe-area-inset-bottom))' as unknown as number,
         },
       }}
-      // Wide web: the root layout draws the sidebar next to every signed-in screen, so no tab bar here.
       tabBar={(props) => (isMd ? null : <BottomTabBar {...props} />)}
       screenLayout={({ route, children }) => (
         <WebContentColumn wide={WIDE_TAB_ROUTES.has(route.name)}>{children}</WebContentColumn>

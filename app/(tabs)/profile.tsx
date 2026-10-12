@@ -55,7 +55,6 @@ export default function SettingsScreen() {
   const accountEmail = (isLinked ? linkedEmail : null) ?? email;
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [faceSeeds, setFaceSeeds] = useState(() => randomFaceSeeds(FACE_BATCH));
-  // Keep the current face as the first tile so it stays visible (and selectable) across shuffles.
   const currentFace = isFaceAvatar(playerProfile?.avatarEmoji) ? playerProfile.avatarEmoji : null;
   const pickerFaces = [
     ...(currentFace ? [currentFace] : []),
@@ -174,7 +173,6 @@ export default function SettingsScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Edit display name"
                   {...({ dataSet: { hoverDot: 'true' } } as object)}>
-                  {/* Small visible hover circle; the button keeps the larger tap area. */}
                   <View style={styles.editNameDot}>
                     <Icon name="edit" size={16} color={t.muted} />
                   </View>
@@ -226,7 +224,6 @@ export default function SettingsScreen() {
           Account
         </Text>
         <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
-          {/* Google-only accounts have no password to change. */}
           {hasPassword ? (
             <NavRow icon="lock" label="Change password" onPress={() => router.push('/change-password')} t={t} />
           ) : null}
@@ -274,7 +271,6 @@ export default function SettingsScreen() {
         </LayoutAnimationConfig>
       </View>
 
-      {/* Sign out lives on its own at the end (iOS-style) so the account card never has to squeeze it in. */}
       <PressableScale
         style={[styles.signOutBtn, { borderColor: t.border, backgroundColor: t.card }]}
         onPress={onSignOut}
@@ -290,7 +286,6 @@ export default function SettingsScreen() {
         title="Your statistics"
         titleIcon={{ name: 'bar-chart', color: t.muted }}
         avoidKeyboard={false}
-        // 60% of the screen, capped at 560px so very tall windows still get a compact sheet; the body scrolls.
         cardStyle={{ maxHeight: Math.min(STATS_SHEET_MAX, windowHeight * 0.6) }}>
         {!user ? (
           <Text style={[styles.statsFootnote, { color: t.muted }]}>Sign in to see statistics.</Text>
@@ -365,7 +360,6 @@ export default function SettingsScreen() {
   );
 }
 
-/** Settings-style list row that opens another screen or sheet. */
 function NavRow({
   icon,
   label,
@@ -433,7 +427,6 @@ function ThemeOption({
         { borderColor: t.border },
         pressBg(c, state, selected ? t.selectedBg : t.card),
       ]}>
-      {/* Selected tile takes a soft gold tint, echoing the check on the right. */}
       <View style={[styles.themeIconWrap, { backgroundColor: selected ? `${t.accent}33` : t.chipBg }]}>
         <Icon name={icon} size={18} color={selected ? t.accentText : t.text} />
       </View>
@@ -537,7 +530,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Share code: primary action, kept as a gold icon at the end of the name row.
   qrBtn: {
     width: 44,
     height: 44,
@@ -550,7 +542,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  // Long emails shrink the text, never the icon.
   accountIcon: {
     flexShrink: 0,
   },
@@ -569,7 +560,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    // Keeps the 44px tap target without making the name row taller than the name.
     marginVertical: -8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -579,7 +569,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
-  // Shrink rather than fill, so the pencil sits right after the name it edits.
   displayNameText: {
     flexShrink: 1,
   },
@@ -654,7 +643,6 @@ const styles = StyleSheet.create({
   statsScrollContent: {
     gap: 2,
   },
-  // Lets the modal's max height bound the content, which then scrolls.
   modalScroll: {
     flexShrink: 1,
   },

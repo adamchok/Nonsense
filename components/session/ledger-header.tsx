@@ -29,7 +29,6 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
         ) : null}
         {showTapHint ? (
           Platform.OS === 'web' ? (
-            // Shows a mini version of the row's ⋮ button so the hint points at what's on screen.
             <View
               style={styles.hintRow}
               accessible
@@ -95,7 +94,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 4,
     minHeight: 32,
-    // Breathing room between the title/hint and the ledger card below.
     marginBottom: 4,
   },
   title: {

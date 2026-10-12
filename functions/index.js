@@ -8,7 +8,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { HostingLiveSessionError, deleteAccountData } from './delete-account.js';
 import { runGuestLinkMigration } from './migrate.js';
 
-/** The app re-confirms the user's identity right before calling deleteAccount; older sign-ins are refused. */
 const RECENT_SIGN_IN_SECONDS = 5 * 60;
 
 initializeApp();
@@ -23,7 +22,6 @@ export const migrateAcceptedGuestLink = onDocumentUpdated(
   }
 );
 
-/** Self-service account deletion: removes the player's data (see delete-account.js), then the login itself. */
 export const deleteAccount = onCall({ region: 'asia-southeast1' }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in to delete your account.');

@@ -32,7 +32,6 @@ export default function ChangePasswordScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Google-only accounts have no password to change.
   if (!hasPassword || !email) return <Redirect href="/profile" />;
 
   function focus(ref: typeof currentRef) {

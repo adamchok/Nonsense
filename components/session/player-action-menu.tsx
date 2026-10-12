@@ -10,11 +10,9 @@ import { Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View
 
 const IS_WEB = Platform.OS === 'web';
 const MENU_WIDTH = 220;
-/** Desktop menus use tighter rows than the 52px touch rows of the phone sheet. */
 const POPOVER_ITEM_HEIGHT = 40;
 const ANCHOR_GAP = 4;
 const EDGE_GAP = 8;
-/** Three items plus padding; used to flip the popover above the trigger near the bottom edge. */
 const MENU_HEIGHT_ESTIMATE = POPOVER_ITEM_HEIGHT * 3 + space.sm * 3;
 
 export type MenuAnchor = { x: number; y: number; width: number; height: number };
@@ -32,9 +30,7 @@ type Props = {
   visible: boolean;
   title: string;
   actions: PlayerMenuAction[];
-  /** Trigger rectangle in window coordinates; wide layouts open a popover next to it. */
   anchor: MenuAnchor | null;
-  /** Closes the menu; the owner returns focus to the trigger on web. */
   onClose: () => void;
 };
 
@@ -70,11 +66,6 @@ function popoverPosition(anchor: MenuAnchor, winW: number, winH: number): ViewSt
   return { position: 'absolute', right, top: below };
 }
 
-/**
- * Per-player action menu for the live ledger: a bottom sheet on phones, an anchored popover on
- * wider screens. Web gets menu semantics (role menu/menuitem, arrow keys, Escape closes and
- * returns focus to the trigger).
- */
 export function PlayerActionMenu({ visible, title, actions, anchor, onClose }: Props) {
   const c = useAppColors();
   const insets = useSafeAreaInsets();
@@ -116,7 +107,6 @@ export function PlayerActionMenu({ visible, title, actions, anchor, onClose }: P
         {isSheet ? (
           <ModalBackdrop onPress={() => onClose()} importantForAccessibility="no" accessibilityElementsHidden />
         ) : (
-          // A popover keeps the ledger visible (no scrim) so it's clear which player it belongs to.
           <Pressable
             accessible={false}
             {...(IS_WEB ? ({ tabIndex: -1 } as object) : {})}

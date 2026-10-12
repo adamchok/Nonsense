@@ -1,8 +1,5 @@
 import { EU_DPA_LINK, ICO_LINK, SITE_URL, list, p, supportLink, type LegalDoc } from '@/lib/legal-content';
 
-// Bahasa Melayu version of the Privacy Policy, required alongside English by Malaysia's PDPA (s.7(3)).
-// Keep it in step with PRIVACY_POLICY in lib/legal-content.ts: same sections, same ids, same effective date.
-
 const siteLink = { link: 'nonsense.adamchok.com', href: SITE_URL };
 const englishLink = { link: 'English', href: '/privacy' };
 const jpdpLink = { link: 'Jabatan Perlindungan Data Peribadi (JPDP)', href: 'https://www.pdp.gov.my' };

@@ -25,7 +25,6 @@ type Props = {
   playerProfile: PlayerProfile | null;
   lastAmountByPlayer: ReadonlyMap<string, number>;
   commonAmount: number | null;
-  /** Session big blind, used to size the quick picks before anyone has bought in. */
   bigBlind?: number | null;
   onClose: () => void;
   onSubmit: (draft: BuyInDraft) => Promise<boolean>;
@@ -102,7 +101,6 @@ export function BuyInModal({
       titleIcon={{ name: 'money-in', color: c.textMuted }}
       cardStyle={styles.card}
       primary={{ label: 'Add', onPress: () => void submit(), busy: isSubmitting, icon: 'add' }}>
-      {/* The fields and player list explain themselves; only a buy-back needs a warning. */}
       {draft.isBuyBack ? (
         <Text style={[formStyles.sub, { color: c.textMuted }]}>
           Enter the chips they are buying back in with. This clears their early cash-out.

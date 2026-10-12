@@ -15,7 +15,6 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
-/** Web gets a longer window (and pauses on hover/focus) so pointer and keyboard users can reach Undo. */
 export const UNDO_WINDOW_MS = Platform.OS === 'web' ? 8000 : 5000;
 
 const enter = FadeInDown.duration(220).reduceMotion(ReduceMotion.System);
@@ -54,7 +53,6 @@ export function UndoSnackbar({ message, onUndo, onDismiss }: Props) {
   const isPaused = isHovered || isFocused;
   const remainingMsRef = useRef(UNDO_WINDOW_MS);
 
-  // The dismiss timer only runs while the bar is neither hovered nor focused; pausing keeps the time left.
   useEffect(() => {
     if (isPaused) return;
     const startedAt = Date.now();

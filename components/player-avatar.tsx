@@ -4,14 +4,12 @@ import { SvgXml } from 'react-native-svg';
 
 const DEFAULT_AVATAR = '🙂';
 
-/** One avatar renderer for the whole app: illustrated face (`nf:<seed>`) or a legacy emoji. */
 export function PlayerAvatar({
   value,
   size,
   style,
 }: {
   value: string | null | undefined;
-  /** Face diameter in px; legacy emoji render at ~60% of it so rows keep their rhythm. */
   size: number;
   style?: StyleProp<TextStyle>;
 }) {

@@ -32,7 +32,6 @@ const COLLAPSED_WIDTH = 72;
 const COLLAPSE_STORAGE_KEY = 'nonsense.sidebarCollapsed';
 const COLLAPSE_TIMING = { duration: 220, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System };
 
-// Opacity only, so the same animated style fits both Text and View children.
 type LabelStyle = AnimatedStyle<{ opacity: number }>;
 
 function readCollapsed(): boolean {
@@ -47,7 +46,6 @@ function writeCollapsed(collapsed: boolean): void {
   try {
     globalThis.localStorage?.setItem(COLLAPSE_STORAGE_KEY, collapsed ? '1' : '0');
   } catch {
-    // Private mode / blocked storage: the toggle still works for this visit.
   }
 }
 
@@ -61,7 +59,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 const PROFILE_INDEX = 3;
 
-/** Which nav item a path belongs to, so sub-screens keep their parent highlighted (-1 = none). */
 function activeIndexFor(pathname: string): number {
   if (pathname === '/' || (pathname.startsWith('/session/') && !pathname.startsWith('/session/summary'))) return 0;
   if (pathname.startsWith('/history') || pathname.startsWith('/session/summary')) return 1;
@@ -79,10 +76,6 @@ function withAlpha(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
-/**
- * Desktop web navigation. Rendered by the root layout next to every signed-in screen (not just
- * the tabs), so it works from the URL instead of tab navigator state.
- */
 export function WebSidebar() {
   const c = useAppColors();
   const scheme = useResolvedColorScheme();
@@ -106,7 +99,6 @@ export function WebSidebar() {
   const pillStyle = useAnimatedStyle(() => ({ transform: [{ translateY: pillY.value }] }));
   const go = (href: string) => router.navigate(href as Href);
 
-  // Collapse to an icon rail: width and labels animate together (220ms ease-out, reduced-motion aware).
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const width = useSharedValue(collapsed ? COLLAPSED_WIDTH : sidebarWidth);
   const labelOpacity = useSharedValue(collapsed ? 0 : 1);
@@ -166,7 +158,6 @@ export function WebSidebar() {
             key={item.href}
             item={item}
             focused={activeIndex === index}
-            // Exact match only: a sub-screen keeps the parent highlighted but its link still navigates back.
             isCurrentPage={pathname === item.href}
             onPress={() => go(item.href)}
             labelStyle={labelStyle}
@@ -220,11 +211,8 @@ function NewSessionButton({ collapsed, labelStyle }: { collapsed: boolean; label
       <Pressable
         accessibilityRole="link"
         accessibilityLabel="New session"
-        // Link asChild only passes a flat style object through (function/array styles get dropped);
-        // pressed feedback comes from the global hover overlay CSS instead.
         style={StyleSheet.flatten([styles.newSession, { backgroundColor: c.accent }])}>
         <Icon name="add" size={ICON_SIZE} color={c.onAccent} weight="bold" style={styles.noShrink} />
-        {/* Dropped (not only faded) when collapsed so the plus stays centred in the narrow button. */}
         {collapsed ? null : (
           <Animated.Text style={[text.button, { color: c.onAccent }, labelStyle]} numberOfLines={1}>
             New session
@@ -287,7 +275,6 @@ function SidebarItem({ item, focused, isCurrentPage, onPress, labelStyle }: Side
       accessibilityState={{ selected: focused }}
       aria-current={isCurrentPage ? 'page' : undefined}
       pressOpacity={0.7}
-      // Hover background comes from the global link overlay in web-interactions.css.
       style={styles.item}>
       <Icon name={item.icon} size={ICON_SIZE} color={color} weight={focused ? 'fill' : 'regular'} style={styles.noShrink} />
       <Animated.Text style={[styles.itemLabel, { color }, labelStyle]} numberOfLines={1}>
@@ -307,7 +294,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     overflow: 'hidden',
   },
-  // Paddings below keep each logo/icon/avatar centred on the 72px rail (x = 36) when collapsed.
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -329,7 +315,6 @@ const styles = StyleSheet.create({
     marginBottom: space.lg,
     overflow: 'hidden',
   },
-  // While the rail narrows, labels give up width; icons, logo and avatar never shrink.
   noShrink: {
     flexShrink: 0,
   },

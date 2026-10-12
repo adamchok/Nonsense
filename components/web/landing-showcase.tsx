@@ -90,18 +90,15 @@ const VIDEO_STYLE = {
   display: "block",
 } as const;
 
-// Each clip mounts a fresh <video> (keyed by file), so a CSS entrance gives a soft handoff between steps.
 const VIDEO_STYLE_ANIMATED = {
   ...VIDEO_STYLE,
   animation: "clip-in 450ms cubic-bezier(0.23, 1, 0.32, 1) both",
 } as const;
 
-/** Web-only style keys (gradients, shadows, blur) that RN's types don't know about. */
 export function webStyle(style: Record<string, string | number>): object {
   return style;
 }
 
-/** Adds an alpha channel to a 6-digit hex token so glows can be built from theme colors. */
 export function withAlpha(hex: string, alpha: number): string {
   const full =
     hex.length === 4
@@ -115,10 +112,6 @@ export function withAlpha(hex: string, alpha: number): string {
 
 const REVEAL_THRESHOLD = 0.15;
 
-/**
- * Scroll reveal: holds content invisible until it enters the viewport, then mounts it with a
- * reanimated entering animation. Reduced motion (or no IntersectionObserver) shows it at once.
- */
 export function Reveal({
   children,
   delay = 0,
@@ -216,7 +209,6 @@ function PhoneVideo({
     };
   }, [clip.key, dark, paused, reduceMotion, onProgress, onEnded]);
 
-  // Recordings exist per theme: `<key>.webm` (dark) and `<key>-light.webm`.
   const file = dark ? clip.key : `${clip.key}-light`;
   const halo = webStyle({
     boxShadow: (dark
@@ -478,7 +470,6 @@ export function LandingShowcase({
 
   const field = webStyle({
     backgroundImage: [
-      // Light mode: the phone and card are opaque, so the glows move out to the open space beside them.
       `radial-gradient(closest-side at ${isWide ? (dark ? "55%" : "28%") : "50%"} ${dark ? "50%" : "45%"}, ${withAlpha(c.accent, dark ? 0.16 : 0.36)} 0%, ${withAlpha(c.accent, 0)} 100%)`,
       `radial-gradient(closest-side at ${isWide ? (dark ? "78%" : "82%") : "50%"} ${isWide ? (dark ? "60%" : "50%") : "75%"}, ${withAlpha(c.borderBlue, dark ? 0.12 : 0.2)} 0%, ${withAlpha(c.borderBlue, 0)} 100%)`,
     ].join(", "),
@@ -541,14 +532,12 @@ export function LandingShowcase({
           delay={120}
           style={[styles.phoneSlot, isWide && styles.phoneSlotWide]}
         >
-          {/* No visible play/pause button: tapping the phone pauses and resumes (WCAG 2.2.2 for moving content). */}
           <Pressable
             role="button"
             aria-label={paused ? "Play demo" : "Pause demo"}
             aria-pressed={paused}
             disabled={reduceMotion}
             onPress={() => setPaused((p) => !p)}
-            // The phone has its own rounded shape and glow; the generic grey button hover would box it in.
             {...({ dataSet: { hoverNone: "true" } } as object)}
             style={styles.phoneSlotInner}
           >
@@ -642,7 +631,6 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
   phoneSlotWide: { flexBasis: 340, flexShrink: 1, minWidth: 260 },
-  // Only the phone itself is clickable, not the empty space beside it.
   phoneSlotInner: { width: "100%", maxWidth: 340, alignSelf: "center" },
   detailSlot: { width: "100%" },
   detailSlotWide: {

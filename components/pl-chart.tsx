@@ -14,15 +14,11 @@ import { LinearGradient, Stop } from 'react-native-svg';
 import { useReducedMotion } from 'react-native-reanimated';
 
 const CHART_HEIGHT = 160;
-// Wide enough for labels like "-$1.2k" at the 12px axis font.
 const Y_LABEL_WIDTH = 46;
 const SECTIONS = 4;
-// Same height idle and selected, so the plot never jumps when a point is picked.
-// Fits the selected readout (amount + date line); the idle total sits centred in the same height.
 const HEADER_HEIGHT = 48;
 const MAX_BAR_WIDTH = 22;
 const MARKER_SIZE = 14;
-/** Below this chart width (phones) the open button shortens to "View". */
 const COMPACT_CHART_WIDTH = 420;
 const DOT_SIZE = 6;
 const LINE_INITIAL_SPACING = 6;
@@ -39,7 +35,6 @@ const MONTH_YEAR = new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'num
 const DAY_MONTH = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
 const YEAR_MS = 365 * 86_400_000;
 
-/** Start / middle / end point indexes for the date axis (fewer when there are only 1-2 points). */
 function axisIndexes(count: number): number[] {
   if (count <= 0) return [];
   if (count <= 2) return [...Array(count).keys()];
@@ -66,7 +61,6 @@ function focusRadioAt(target: unknown, index: number): void {
   radios?.[index]?.focus();
 }
 
-/** Where a plot key press moves the selection; `undefined` means the key is not handled. */
 function nextIndexForKey(key: string, active: number, count: number): number | undefined {
   if (count === 0) return undefined;
   switch (key) {
@@ -128,11 +122,8 @@ export const PLChart = memo(function PLChart({
   isCountSpelledOut = false,
 }: {
   entries: readonly Entry[];
-  /** Omit for a read-only chart (e.g. the landing demo): the selection readout is then plain text. */
   onOpen?: (id: string) => void;
-  /** Period the entries cover, appended to the title ("in 2025"). The title always ends with the session count. */
   titlePeriod?: string;
-  /** "(12 sessions)" instead of "(12)", for readers who have not seen the app before (landing page). */
   isCountSpelledOut?: boolean;
 }) {
   const c = useAppColors();
@@ -268,7 +259,6 @@ export const PLChart = memo(function PLChart({
     });
   const plotGesture = Gesture.Exclusive(scrub, tap);
 
-  // Web keyboard parity for the gesture-only plot: arrows/Home/End select, Enter opens, Escape clears.
   function plotKeyDown(e: WebKeyEvent) {
     if (e.key === 'Enter') {
       if (!selected || !onOpen) return;
@@ -288,7 +278,6 @@ export const PLChart = memo(function PLChart({
     setActive(next);
   }
 
-  // Web radio group uses a roving tabindex: one tab stop, arrows move and select.
   function modeKeyDown(e: WebKeyEvent, index: number) {
     const step = NEXT_KEYS.has(e.key) ? 1 : PREV_KEYS.has(e.key) ? -1 : 0;
     if (step === 0) return;
@@ -340,7 +329,6 @@ export const PLChart = memo(function PLChart({
             {...webRadioProps}
             style={[styles.toggleBtn, isCompact && styles.toggleBtnCompact, on && { backgroundColor: c.accentBg }]}>
             <Icon name={m.icon} size={14} color={on ? c.accentText : c.textMuted} />
-            {/* Narrow charts: icon-only toggle so the title keeps one line. */}
             {isCompact ? null : (
               <Text style={[styles.toggleText, { color: on ? c.accentText : c.textMuted }]}>{m.label}</Text>
             )}
@@ -355,17 +343,14 @@ export const PLChart = memo(function PLChart({
       <View style={styles.top}>
         <View style={[styles.titleRow, styles.titleRowPadded, !isCompact && styles.titleRowWithToggle]}>
           <View style={styles.titleWithIcon}>
-            {/* Title icon matches the P/L label icon; the toggle keeps the line/bar chart glyphs. */}
             <Icon name={mode === 'line' ? 'trend-up' : 'bar-chart'} size={18} color={c.textMuted} />
             <Text style={[styles.headerLabel, styles.headerLabelShrink, { color: c.text }]}>
               {titlePeriod ? `${current.title} ${titlePeriod}` : current.title}{' '}
-              {/* Session count, muted and regular weight. */}
               <Text style={[styles.headerCount, { color: c.textMuted }]} accessibilityLabel={countLabel}>
                 ({isCountSpelledOut ? countLabel : data.length})
               </Text>
             </Text>
           </View>
-          {/* Wide: toggle beside the title. Narrow: it moves down beside the total so the title keeps the row. */}
           {isCompact ? null : modeToggle}
         </View>
 
@@ -373,7 +358,6 @@ export const PLChart = memo(function PLChart({
           {selected ? (
             <View style={styles.valueRow}>
               <View style={[styles.header, styles.headerBtn, isCompact && styles.headerBtnCompact]}>{selectedText}</View>
-              {/* An explicit, labelled button: clearer than making the readout itself silently tappable. */}
               {onOpen ? (
                 <PressableScale
                   pressedScale={0.96}
@@ -439,8 +423,6 @@ export const PLChart = memo(function PLChart({
               initialSpacing={LINE_INITIAL_SPACING}
               endSpacing={6}
               animationDuration={900}
-              // Web: the library's data-change animation uses an Animated SVG path that leaks
-              // `collapsable` to the DOM (React console error), so it only animates on native.
               animateOnDataChange={!reduceMotion && !IS_WEB}
               onDataChangeAnimationDuration={400}
               thickness={2.5}
@@ -466,8 +448,6 @@ export const PLChart = memo(function PLChart({
               )}
               hideDataPoints={data.length > 12}
               dataPointsRadius={3}
-              // Web: the library's SVG <circle> dots carry press handlers that react-native-svg forwards to the DOM
-              // (React "unknown event handler" errors). Plain view dots avoid that; the plot's own gesture handles taps.
               {...(IS_WEB
                 ? {
                     customDataPoint: (item: { dataPointColor?: string }) => (
@@ -490,7 +470,6 @@ export const PLChart = memo(function PLChart({
               animationDuration={500}
             />
           )}
-          {/* Crosshair: thin vertical guide through the selected point, top of the plot to the baseline. */}
           {mode === 'line' && selected && plotWidth > 0 ? (
             <View
               style={[
@@ -516,7 +495,6 @@ export const PLChart = memo(function PLChart({
           ) : null}
         </View>
       </GestureDetector>
-      {/* Rough date axis: start, middle and end. Month + year for long spans, day + month within a year. */}
       {plotWidth > 0 && data.length > 0 ? (
         <View style={styles.dateAxis} importantForAccessibility="no-hide-descendants" aria-hidden>
           {axisIndexes(data.length).map((i, k, all) => {
@@ -526,7 +504,6 @@ export const PLChart = memo(function PLChart({
               mode === 'line' ? lineX(i) : Y_LABEL_WIDTH + barSpacing / 2 + i * (barWidth + barSpacing) + barWidth / 2;
             const isFirst = k === 0 && all.length > 1;
             const isLast = k === all.length - 1 && all.length > 1;
-            // Ends hug their point's edge so they never spill past the plot; the middle is centred.
             const left = isFirst ? x - 4 : isLast ? x - AXIS_LABEL_WIDTH + 4 : x - AXIS_LABEL_WIDTH / 2;
             return (
               <Text
@@ -554,15 +531,12 @@ export const PLChart = memo(function PLChart({
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
   top: { marginBottom: 4, gap: 6 },
-  // Idle total lines up with the title (the selected readout keeps its own inset).
-  // Total and toggle centred in a row the height of the selected readout, so the plot never jumps.
   valueRowIdle: { paddingHorizontal: 0 },
   valueRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  // Same height as the "View session" pill and inside the card edge; hitSlop keeps a ~46px touch target.
   clearBtn: {
     width: 34,
     height: 34,
@@ -586,16 +560,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  // The cards' top padding is only 4px (it assumed a taller row), so the title row pads itself.
   titleRowPadded: {
     paddingTop: 12,
   },
-  // Wide charts: the toggle shares the title row; a little less top pad since the row is taller.
   titleRowWithToggle: {
     minHeight: 40,
     paddingTop: 8,
   },
-  // Icon-only toggle on narrow charts: smaller pills in proportion with the total beside it.
   toggleBtnCompact: {
     minHeight: 26,
     paddingHorizontal: 8,
@@ -606,7 +577,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 2,
   },
-  // Compact segmented control; hitSlop keeps each option a ~42px touch target.
   toggleBtn: {
     flexDirection: 'row',
     gap: 5,
@@ -639,7 +609,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  // Longer titles ("Profit over time this year") wrap beside the toggle on narrow phones instead of overflowing.
   headerCount: {
     fontWeight: '400',
     fontVariant: ['tabular-nums'],
@@ -666,8 +635,6 @@ const styles = StyleSheet.create({
   openBtnPressed: {
     opacity: 0.8,
   },
-  // Narrow charts: smaller View pill / clear button and no readout inset, in proportion with the
-  // compact toggle; hitSlop keeps the tap areas.
   openBtnCompact: {
     minHeight: 28,
     paddingLeft: 10,

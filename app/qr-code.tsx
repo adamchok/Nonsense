@@ -138,7 +138,6 @@ export default function QrCodeScreen() {
     if (!refCode || sharingQr) return;
     setSharingQr(true);
     try {
-      // Native: let the copy button (hidden while sharing) leave the card before it is captured.
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       });
@@ -405,8 +404,6 @@ export default function QrCodeScreen() {
                     </View>
                   )}
 
-                  {/* Copy sits beside the code it copies. Kept out of the share image: web skips it via
-                      html2canvas's ignore attribute; native (view-shot) hides it for the capture frame. */}
                   <View style={styles.codeRow}>
                     <Text style={[styles.code, styles.codeExport, { color: c.text }]}>{refCode || '------'}</Text>
                     {refCode && !(sharingQr && Platform.OS !== 'web') ? (

@@ -12,7 +12,6 @@ type Props = {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
-  /** 'new' turns on the password manager's generator hints, the length cap and the rules checklist. */
   kind: 'current' | 'new';
   placeholder?: string;
   error?: string | null;
@@ -21,11 +20,9 @@ type Props = {
   editable?: boolean;
   returnKeyType?: ReturnKeyTypeOptions;
   onSubmitEditing?: () => void;
-  /** Rendered under the field, e.g. a "Forgot password?" link. */
   footer?: ReactNode;
 };
 
-/** Labelled password input with a show/hide toggle; new passwords also get the live rules checklist. */
 export function PasswordField({
   label,
   value,

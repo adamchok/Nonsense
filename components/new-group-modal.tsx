@@ -77,7 +77,6 @@ export function NewGroupModal({ onClose, ownedCount, onCreated }: Props) {
         />
         <FieldError message={nameError} nativeID={errorId} />
         {nameError ? null : (
-          // One line: muted label, bold count (red once the allowance is used up).
           <View style={styles.usage}>
             <Icon name={isAtLimit ? 'error-outline' : 'group'} size={14} color={isAtLimit ? c.loss : c.textMuted} />
             <Text style={[styles.usageLabel, { color: isAtLimit ? c.loss : c.textMuted }]}>

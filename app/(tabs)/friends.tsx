@@ -80,7 +80,6 @@ function sortMenuItems(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>(`#${SORT_MENU_ID} [role="menuitemradio"]`));
 }
 
-/** Moves focus between the web sort menu items; returns false when the key is not a menu navigation key. */
 function moveSortMenuFocus(key: string): boolean {
   const items = sortMenuItems();
   const count = items.length;
@@ -112,7 +111,6 @@ function focusSortTrigger(): void {
   document.getElementById(SORT_TRIGGER_ID)?.focus();
 }
 
-/** Web-only ARIA for a sort menu option; native keeps its radio role. */
 function sortItemWebProps(checked: boolean): object {
   return IS_WEB ? { role: 'menuitemradio', 'aria-checked': checked, tabIndex: -1 } : {};
 }
@@ -167,8 +165,6 @@ export default function FriendsScreen() {
   const [showLeaderboardSortDropdown, setShowLeaderboardSortDropdown] = useState(false);
   const [leaderboardSortBy, setLeaderboardSortBy] = useState<LeaderboardSortKey>('profit');
   const [leaderboardSortDirection, setLeaderboardSortDirection] = useState<SortDirection>('desc');
-  // Friends, requests and groups are live subscriptions. The leaderboard is a cached scan, so it
-  // re-scans on every return to this screen (and on "Try again") instead of a manual refresh button.
   const [lbReloadKey, setLbReloadKey] = useState(0);
   const hasFocusedRef = useRef(false);
 
@@ -180,7 +176,6 @@ export default function FriendsScreen() {
   const closeSortMenuOutside = useCallback(() => closeSortMenu(false), [closeSortMenu]);
   useOutsidePress(showLeaderboardSortDropdown, closeSortMenuOutside, [SORT_MENU_ID, SORT_TRIGGER_ID]);
 
-  // Web: move focus into the sort menu when it opens (checked item first).
   useEffect(() => {
     if (!IS_WEB || !showLeaderboardSortDropdown) return;
     const frame = requestAnimationFrame(() => {
@@ -366,8 +361,6 @@ export default function FriendsScreen() {
     );
   }, [user, expandedGroupId]);
 
-  // Fetched fresh (bypassing the 5-min scan cache) each time the modal opens, so new results show
-  // without a refresh button, matching the friends leaderboard's re-scan on focus.
   const groupLbId = showGroupLeaderboardModal ? groupLeaderboardModalGroup?.id : undefined;
   useEffect(() => {
     let cancelled = false;
@@ -611,7 +604,6 @@ export default function FriendsScreen() {
       {activeTab === 'friends' && (
         <>
           <View style={styles.sectionHeader}>
-            {/* The tab already names the section; this just counts what's in it. */}
             <Text style={[styles.sectionCount, { color: c.textSecondary }]} accessibilityRole="header">
               {friendsLoaded ? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}` : ''}
             </Text>
@@ -972,7 +964,6 @@ export default function FriendsScreen() {
                   exiting={fadeOut}
                   layout={layoutTransition}
                   style={[styles.groupCard, { backgroundColor: c.card, borderColor: isExpanded ? c.borderAccent : c.border }]}>
-                  {/* Toggle and actions are siblings: buttons can't nest (invalid HTML on web, broken for assistive tech). */}
                   <View style={styles.groupHeader} {...({ dataSet: { hoverField: 'true' } } as object)}>
                   <Pressable
                     style={styles.groupToggle}
@@ -984,7 +975,6 @@ export default function FriendsScreen() {
                     aria-expanded={isExpanded}>
                     <View style={styles.groupHeaderLeft}>
                       <Icon name="group" size={20} color={c.textMuted} />
-                      {/* Name over count: keeps the name on one line beside the action buttons on narrow phones. */}
                       <View style={styles.groupHeaderText}>
                         <Text style={[styles.groupName, { color: c.text }]} numberOfLines={1}>
                           {group.name}
@@ -1240,7 +1230,6 @@ export default function FriendsScreen() {
               action={lbFailed ? { label: 'Try again', icon: 'refresh', onPress: retryLeaderboard } : undefined}
             />
           ) : (
-            // Own wrapper: the screen's content gap (16) would otherwise split the joined rows apart.
             <View>
             {sortedLeaderboard.map((entry, idx) => {
               const isMe = entry.playerId === user?.uid;
@@ -1824,7 +1813,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  // Rename / delete / leave: same 40px circle so their hover rings match.
   groupIconBtn: {
     width: 40,
     height: 40,

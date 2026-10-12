@@ -33,7 +33,6 @@ export function SearchInput({ value, onChangeText, ...inputProps }: Props) {
             accessibilityLabel="Clear search"
             {...({ dataSet: { hoverDot: 'true' } } as object)}
             style={styles.clearButton}>
-            {/* Visible hover target; the 44px button stays the tap area (same as the date field's clear). */}
             <View style={styles.clearDot}>
               <Icon name="close" size={16} color={c.textMuted} />
             </View>
@@ -70,7 +69,6 @@ const styles = StyleSheet.create({
   },
   clear: {
     position: 'absolute',
-    // 2 + 22 keeps the icon centered 24px from the edge, as with the old 32px button.
     right: 2,
   },
   clearButton: {

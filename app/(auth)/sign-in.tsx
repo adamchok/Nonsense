@@ -102,7 +102,6 @@ export default function WelcomeScreen() {
         ]}>
         <Animated.View entering={cardEntering} style={styles.stack}>
           {IS_WEB ? (
-            // Signed-out visitors land on the marketing page at "/", so the logo leads home.
             <Link href="/" asChild>
               <Pressable
                 accessibilityRole="link"
@@ -147,7 +146,6 @@ export default function WelcomeScreen() {
           </View>
 
           {mode === 'signin' ? (
-            // Create mode asks for explicit agreement in the form; new Google users confirm on the name step.
             <Text style={[styles.legal, { color: c.textMuted }]}>
               By continuing, you agree to the <LegalLink label="Terms of Service" path="/terms" color={c.accentText} />{' '}
               and <LegalLink label="Privacy Policy" path="/privacy" color={c.accentText} />.
@@ -160,7 +158,6 @@ export default function WelcomeScreen() {
           <Pressable
             accessibilityRole="link"
             accessibilityLabel="Back to home"
-            // Link asChild drops style functions on web, so pass one flat object (press feedback comes from CSS).
             style={StyleSheet.flatten([
               styles.backButton,
               { top: Math.max(insets.top, 12), backgroundColor: c.card, borderColor: c.border },
