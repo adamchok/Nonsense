@@ -163,13 +163,13 @@ pnpm update:preview "v1.1.1: <what changed>"
 
 ## Web deploy
 
-The web build is hosted on Cloudflare Pages (project `nonsense`, production branch `master`) at https://nonsense.adamchok.xyz. Deploys are manual (no Git integration, production only):
+The web build is hosted on Cloudflare Pages (project `nonsense`, production branch `master`) at https://nonsense.adamchok.com. Deploys are manual (no Git integration, production only):
 
 ```bash
 pnpm deploy:web
 ```
 
-`scripts/fix-web-assets.js` runs after export because `wrangler pages deploy` skips `node_modules` directories, where Expo puts some bundled assets. `public/_redirects` maps dynamic routes (`/session/:id`, ...) to their pre-rendered pages. New hosting domains must be added to Firebase Auth → Authorized domains for Google sign-in.
+`scripts/fix-web-assets.js` runs after export because `wrangler pages deploy` skips `node_modules` directories, where Expo puts some bundled assets. `public/_redirects` maps dynamic routes (`/session/:id`, ...) to their pre-rendered pages. The deploy runs from `cloudflare/` so Wrangler picks up `cloudflare/functions/` (not the Firebase `functions/` folder); its `__/[[path]].js` proxies `/__/*` to `nonsense-4a9d9.firebaseapp.com`, letting `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` be the site's own domain. New hosting domains must be added to Firebase Auth → Authorized domains for Google sign-in.
 
 ## Firebase Console setup
 
@@ -183,7 +183,7 @@ Authentication → Settings:
 
 - **Email enumeration protection**: enabled (pairs with the app's neutral password-reset message).
 - **Password policy**: 8–50 characters; require uppercase, lowercase, numeric and special characters; **Require enforcement** on. Keep it in sync with `PASSWORD_RULES` in `lib/auth-errors.ts`.
-- **Authorized domains**: include `nonsense.adamchok.xyz` (and `localhost` for local web).
+- **Authorized domains**: include `nonsense.adamchok.com` (and `localhost` for local web).
 
 Authentication → Templates: review the **Password reset** and **Email address verification** emails, and set the project's public-facing name (Project settings) so they come from "Nonsense".
 

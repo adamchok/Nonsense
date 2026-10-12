@@ -7,6 +7,9 @@ node_modules/
 .expo/
 dist/
 web-build/
+
+# Cloudflare Wrangler local state
+.wrangler/
 expo-env.d.ts
 
 # Native
