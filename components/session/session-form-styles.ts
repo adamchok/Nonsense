@@ -6,8 +6,8 @@ export const formStyles = StyleSheet.create({
     lineHeight: 18,
   },
   hint: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 20,
     marginBottom: 4,
   },
   totalRow: {

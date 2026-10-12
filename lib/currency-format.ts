@@ -21,7 +21,15 @@ export function formatBlinds(small?: number, big?: number): string | null {
   if (!Number.isFinite(small) || !Number.isFinite(big) || small <= 0 || big < small) {
     return null;
   }
-  return `${formatCompactCurrency(small)}/${formatCompactCurrency(big)}`;
+  // Whole-dollar stakes read "$1/$2"; any cents show on both sides ("$0.50/$1.00") so the pair matches.
+  const cents = !Number.isInteger(small) || !Number.isInteger(big);
+  const fmt = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: cents ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+  return `${fmt.format(small)}/${fmt.format(big)}`;
 }
 
 export function formatBlindChipStakeNumber(n: number): string {

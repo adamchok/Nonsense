@@ -2,7 +2,7 @@ import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { PlayerAvatar } from '@/components/player-avatar';
 import { useAppColors } from '@/lib/app-theme';
 import { formatSessionAmountValue } from '@/lib/currency-format';
-import { text as type, pressBg, ui } from '@/lib/ui';
+import { text as type, pressBg, ui, pointer } from '@/lib/ui';
 import { ledgerRowValues, type LedgerPlayer } from '@/lib/session-view';
 import type { EarlyCashOut, SessionAmountUnit } from '@/types';
 import { Icon } from '@/components/icon';
@@ -10,7 +10,7 @@ import { Animated, PressableScale } from '@/components/motion';
 import { LedgerSwipeRow } from '@/components/session/ledger-swipe-row';
 import { useAmountFlash } from '@/components/session/use-amount-flash';
 import { PlayerActionMenu, type MenuAnchor, type PlayerMenuAction } from '@/components/session/player-action-menu';
-import { space, tapTarget } from '@/lib/spacing';
+import { space } from '@/lib/spacing';
 import { memo, useId, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -94,6 +94,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
   onRemove,
 }: Props) {
   const c = useAppColors();
+  // Desktop: badges sit beside the name (roomier row); phones stack them under it.
   const isCashedOut = !!cashOut;
   const values = ledgerRowValues(player.total, cashOut?.amount, dollarsPerChip);
   const resultColor = values.result >= 0 ? c.profit : c.lossLight;
@@ -147,7 +148,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
         <PlayerAvatar value={avatar} size={AVATAR_SIZE} />
       </View>
       <View style={styles.left}>
-        <View style={styles.info}>
+        <View style={[styles.info, styles.infoWide]}>
           <View style={styles.infoInline}>
             <Text
               style={[type.rowTitle, styles.name, { color: isCashedOut ? c.textMuted : c.text }]}
@@ -172,7 +173,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
         </View>
         <View style={styles.amounts}>
           <Animated.View
-            style={[styles.flash, { backgroundColor: c.accent }, flashStyle, { pointerEvents: 'none' }]}
+            style={[styles.flash, { backgroundColor: c.accent }, flashStyle, pointer.none]}
           />
           <SessionAmountDisplay
             value={values.buyIn}
@@ -226,7 +227,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             pressedScale={0.92}
             style={(state) => [styles.moreBtn, { borderColor: c.border }, pressBg(c, state)]}
             disabled={isRemoving}
-            hitSlop={4}
+            hitSlop={6}
             accessibilityRole="button"
             accessibilityLabel={`More actions for ${player.name}`}
             accessibilityState={{ disabled: isRemoving, busy: isRemoving, expanded: menuOpen }}
@@ -235,7 +236,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             {isRemoving ? (
               <ActivityIndicator size="small" color={c.textSecondary} />
             ) : (
-              <Icon name="more-vert" size={20} color={c.textSecondary} weight="bold" />
+              <Icon name="more-vert" size={16} color={c.textSecondary} weight="bold" />
             )}
           </PressableScale>
         </View>
@@ -311,7 +312,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
                 accessibilityRole="button"
                 accessibilityLabel={`Rebuy ${player.name}`}
               />
-              <View style={[styles.webSummary, { pointerEvents: 'none' }]}>
+              <View style={[styles.webSummary, pointer.none]}>
                 {summary}
               </View>
               {trailing}
@@ -393,10 +394,20 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 4,
   },
+  // Badges sit beside the name; they wrap to the next line only when name + badges don't fit
+  // (flex-wrap breaks lines on full content width, so the name isn't truncated first).
+  infoWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 10,
+    rowGap: 4,
+  },
   infoInline: {
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
+    flexShrink: 1,
   },
   avatar: {
     fontSize: 16,
@@ -408,6 +419,7 @@ const styles = StyleSheet.create({
   badges: {
     flexDirection: 'row',
     gap: 6,
+    flexShrink: 0,
   },
   badge: {
     borderRadius: 4,
@@ -448,9 +460,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  // 32px visible circle in proportion with the row; hitSlop (below) keeps the 44px tap target.
   moreBtn: {
-    width: tapTarget,
-    height: tapTarget,
+    width: 32,
+    height: 32,
     borderRadius: 999,
     borderWidth: 1,
     justifyContent: 'center',

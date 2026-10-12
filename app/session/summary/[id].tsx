@@ -1,11 +1,16 @@
 import { appAlert } from '@/lib/app-alert';
+import { medalColor } from '@/lib/medal-colors';
+import { useResolvedColorScheme } from '@/lib/theme-context';
+import { getAvatarEmoji } from '@/lib/avatar';
+import { PlayerAvatar } from '@/components/player-avatar';
 import { buildSessionShareText } from '@/lib/session-share';
 import * as Clipboard from 'expo-clipboard';
 import { usePageLayout } from '@/hooks/use-page-layout';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatSessionBlindsForDisplay, formatSignedCurrency } from '@/lib/currency-format';
-import { formatSessionTitle } from '@/components/session/session-title';
+import { formatSessionDay, formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
 import { radius, space } from '@/lib/spacing';
 import { text } from '@/lib/ui';
 import {
@@ -16,23 +21,26 @@ import {
   getSessionMeta,
   invalidateSessionScanCache,
   updateSessionLocation,
+  fetchFriendsList,
 } from '@/lib/firestore';
 import { computeSettlements } from '@/lib/settlement';
 import type { AppColors } from '@/lib/app-theme';
 import type { EarlyCashOut, SessionAmountUnit, SessionResult } from '@/types';
 import { Icon } from '@/components/icon';
+import { PlayerActionMenu, type MenuAnchor } from '@/components/session/player-action-menu';
+import { ShareCard } from '@/components/session/share-card';
+import { isShareCancel, shareViewAsImage } from '@/lib/share-image';
 import { LocationEditorModal } from '@/components/session/location-editor-modal';
 import { SessionSummarySkeleton } from '@/components/session/session-skeletons';
 import { ConfettiBurst, ScaleFadeIn } from '@/components/celebration';
 import { Animated, PressableScale, fadeIn, listItemEntering, useCountUp } from '@/components/motion';
 import { FadeIn, FadeInDown, ReduceMotion, useReducedMotion } from 'react-native-reanimated';
-import { useNavigation } from "expo-router/react-navigation";
+import { useNavigation } from 'expo-router/react-navigation';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -52,17 +60,32 @@ function celebrationRowDelay(index: number): number {
   return index === 0 ? WINNER_DELAY_MS : STANDINGS_START_MS + (index - 1) * STANDINGS_STEP_MS;
 }
 
+/** "nonsense-2026-10-02-the-garage.png": sorts by date and says which game it was. */
+function shareImageName(date?: Date, location?: string): string {
+  if (!date) return 'nonsense-results.png';
+  const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const place = (location ?? '')
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return `nonsense-${day}${place ? `-${place}` : ''}.png`;
+}
+
 type ResultRowProps = {
   item: SessionResult;
   index: number;
   isMe: boolean;
   isEarly: boolean;
+  avatar: string;
+  medal: string | null;
   barColor: string;
   celebrate: boolean;
   c: AppColors;
 };
 
-function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: ResultRowProps) {
+function ResultRow({ item, index, isMe, isEarly, avatar, medal, barColor, celebrate, c }: ResultRowProps) {
   const reduceMotion = useReducedMotion();
   const delay = celebrationRowDelay(index);
   const [counting, setCounting] = useState(!celebrate || reduceMotion);
@@ -100,9 +123,13 @@ function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: Resul
       <View style={styles.resultBody}>
         <View style={styles.resultTop}>
           <View style={styles.resultLeft}>
-            <View style={[styles.rankBadge, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-              <Text style={[text.label, styles.rankBadgeText, { color: c.textSecondary }]}>{index + 1}</Text>
-            </View>
+            {/* Only the winner gets a badge: a gold medal with a crown. Everyone else starts with their avatar. */}
+            {index === 0 && medal ? (
+              <View style={[styles.medal, { backgroundColor: `${medal}26`, borderColor: medal }]}>
+                <Icon name="crown-outline" size={16} color={medal} weight="fill" />
+              </View>
+            ) : null}
+            <PlayerAvatar value={avatar} size={32} />
             <Text style={[text.rowTitle, styles.resultName, { color: c.text }]} numberOfLines={1}>
               {item.playerName}
             </Text>
@@ -119,22 +146,21 @@ function ResultRow({ item, index, isMe, isEarly, barColor, celebrate, c }: Resul
               )}
             </View>
           </View>
-          <Text
-            style={[
-              text.heading,
-              styles.resultProfit,
-              { color: item.profit >= 0 ? c.profit : c.loss },
-            ]}>
+          <Text style={[text.heading, styles.resultProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
             {formatSignedCurrency(shownProfit)}
           </Text>
         </View>
         <View style={styles.amountChips}>
           <View style={[styles.amountChip, { backgroundColor: c.chipMinusBg, borderColor: c.border }]}>
+            <Icon name="money-in" size={12} color={c.textMuted} />
             <Text style={[text.micro, { color: c.textMuted }]}>In</Text>
-            <Text style={[text.label, styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.totalBuyIn)}</Text>
+            <Text style={[text.label, styles.amountChipValue, { color: c.text }]}>
+              {formatCurrency(item.totalBuyIn)}
+            </Text>
           </View>
           <Icon name="arrow-right" size={14} color={c.textHint} />
           <View style={[styles.amountChip, { backgroundColor: c.chipPlusBg, borderColor: c.border }]}>
+            <Icon name="money-out" size={12} color={c.textMuted} />
             <Text style={[text.micro, { color: c.textMuted }]}>Out</Text>
             <Text style={[text.label, styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.cashOut)}</Text>
           </View>
@@ -158,7 +184,26 @@ export default function SessionSummaryScreen() {
   const navigation = useNavigation();
   const c = useAppColors();
   const layout = usePageLayout(40);
-  const { user } = useAuth();
+  const { isMd } = useBreakpoint();
+  // Desktop has room for a bigger section title; phones keep the compact heading.
+  const sectionTitleStyle = isMd ? text.title : text.heading;
+  const sectionIconSize = isMd ? 24 : 20;
+  const { user, playerProfile } = useAuth();
+  // Above the early returns: hook order must not change between loading and loaded renders.
+  const isDark = useResolvedColorScheme() === 'dark';
+  const [friendAvatarMap, setFriendAvatarMap] = useState<ReadonlyMap<string, string | undefined>>(new Map());
+  useEffect(() => {
+    if (!playerProfile) return;
+    let cancelled = false;
+    fetchFriendsList(playerProfile.id)
+      .then((friends) => {
+        if (!cancelled) setFriendAvatarMap(new Map(friends.map((f) => [f.playerId, f.avatarEmoji])));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [playerProfile]);
   const [results, setResults] = useState<SessionResult[]>([]);
   const [earlyCashOuts, setEarlyCashOuts] = useState<EarlyCashOut[]>([]);
   const [sessionDate, setSessionDate] = useState<Date | undefined>();
@@ -188,11 +233,7 @@ export default function SessionSummaryScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const [data, early, meta] = await Promise.all([
-          getResults(id),
-          getEarlyCashOuts(id),
-          getSessionMeta(id),
-        ]);
+        const [data, early, meta] = await Promise.all([getResults(id), getEarlyCashOuts(id), getSessionMeta(id)]);
         if (cancelled) return;
         if (!meta) {
           setLoadError('Session not found. It may have been deleted.');
@@ -233,12 +274,13 @@ export default function SessionSummaryScreen() {
     };
   }, [id]);
 
-  const earlyPlayerIds = useMemo(
-    () => new Set(earlyCashOuts.map((ec) => ec.playerId)),
-    [earlyCashOuts]
-  );
+  const earlyPlayerIds = useMemo(() => new Set(earlyCashOuts.map((ec) => ec.playerId)), [earlyCashOuts]);
 
   const settlements = useMemo(() => computeSettlements(results), [results]);
+  const shareCardRef = useRef<View>(null);
+  const shareButtonRef = useRef<View>(null);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [shareAnchor, setShareAnchor] = useState<MenuAnchor | null>(null);
   const isHost = Boolean(user && sessionHostId && user.uid === sessionHostId);
   const locationText = sessionLocation?.trim() ? sessionLocation.trim() : '—';
   const locationCell = (
@@ -248,9 +290,23 @@ export default function SessionSummaryScreen() {
       </View>
       <View style={styles.metaItemText}>
         <Text style={[text.label, { color: c.textMuted }]}>Location</Text>
-        <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
-          {locationText}
-        </Text>
+        <View style={styles.locationValueRow}>
+          <Text style={[text.rowTitle, styles.locationValue, { color: c.text }]} numberOfLines={1}>
+            {locationText}
+          </Text>
+          {/* Only the pencil is the button, right beside the value it edits (not the whole tile). */}
+          {isHost ? (
+            <PressableScale
+              pressedScale={0.9}
+              onPress={() => setIsEditingLocation(true)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit location, currently ${locationText}`}
+              style={styles.locationEditBtn}>
+              <Icon name="edit" size={14} color={c.textMuted} />
+            </PressableScale>
+          ) : null}
+        </View>
       </View>
     </>
   );
@@ -290,14 +346,12 @@ export default function SessionSummaryScreen() {
             })();
           },
         },
-      ]
+      ],
     );
   }
 
   const durationMs =
-    sessionDate && sessionFinishedAt
-      ? Math.max(0, sessionFinishedAt.getTime() - sessionDate.getTime())
-      : 0;
+    sessionDate && sessionFinishedAt ? Math.max(0, sessionFinishedAt.getTime() - sessionDate.getTime()) : 0;
   const durationText = (() => {
     if (!durationMs) return 'N/A';
     const totalMinutes = Math.floor(durationMs / 60000);
@@ -310,7 +364,7 @@ export default function SessionSummaryScreen() {
     sessionSmallBlind,
     sessionBigBlind,
     sessionAmountUnit,
-    sessionDollarsPerChip
+    sessionDollarsPerChip,
   );
 
   const buildSettlementMessage = useCallback(
@@ -325,29 +379,60 @@ export default function SessionSummaryScreen() {
           results,
           settlements,
         },
-        { bold }
+        { bold },
       ),
-    [blindsShareText, durationText, results, sessionDate, sessionHostName, sessionLocation, settlements]
+    [blindsShareText, durationText, results, sessionDate, sessionHostName, sessionLocation, settlements],
   );
 
-  const handleShareWhatsApp = useCallback(async () => {
-    const message = buildSettlementMessage(true);
+  const shareTitle = sessionDate
+    ? `Nonsense · ${formatSessionTitle(sessionDate, sessionLocation)}`
+    : 'Nonsense results';
+
+  // Text via the system share sheet (WhatsApp, Telegram, iMessage, ...). Plain text: *bold* markers only render in WhatsApp.
+  const handleShareText = useCallback(async () => {
+    const message = buildSettlementMessage(false);
     try {
-      if (Platform.OS === 'web') {
-        await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`);
+      if (Platform.OS !== 'web') {
+        await Share.share({ message, title: shareTitle });
         return;
       }
-      const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({ title: shareTitle, text: message });
         return;
       }
-      await Share.share({ message });
+      // Desktop browsers without Web Share: copy instead, with the same "copied" tick as the copy button.
+      await Clipboard.setStringAsync(message);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+      appAlert('Results copied', 'Paste them into any chat to share.');
     } catch (e) {
+      if (isShareCancel(e)) return;
       appAlert('Share failed', userMessage(e, 'Could not open share options.'));
     }
-  }, [buildSettlementMessage]);
+  }, [buildSettlementMessage, shareTitle]);
+
+  // Image: capture the off-screen ShareCard as a PNG, then hand it to the share sheet (or download it on web).
+  const handleShareImage = useCallback(async () => {
+    try {
+      await shareViewAsImage(shareCardRef, { fileName: shareImageName(sessionDate, sessionLocation), title: shareTitle });
+    } catch (e) {
+      if (isShareCancel(e)) return;
+      appAlert('Share failed', userMessage(e, 'Could not create the results image.'));
+    }
+  }, [shareTitle, sessionDate, sessionLocation]);
+
+  const openShareMenu = useCallback(() => {
+    const node = shareButtonRef.current;
+    if (!node) {
+      setShareAnchor(null);
+      setShareMenuOpen(true);
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      setShareAnchor({ x, y, width, height });
+      setShareMenuOpen(true);
+    });
+  }, []);
 
   const handleCopyResults = useCallback(async () => {
     try {
@@ -367,16 +452,18 @@ export default function SessionSummaryScreen() {
         return true;
       });
       return () => sub.remove();
-    }, [goToHistory])
+    }, [goToHistory]),
   );
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: sessionDate ? formatSessionTitle(sessionDate, sessionLocation) : 'Session Summary',
+      // Short header ("Session summary") so the copy/share buttons never squeeze it; the session name is the page heading.
+      title: sessionDate ? `Session summary · ${formatSessionTitle(sessionDate, sessionLocation)}` : 'Session summary',
+      headerTitle: 'Session summary',
       headerLeft: () => (
         <Pressable
           onPress={goToHistory}
-          hitSlop={8}
+          hitSlop={12}
           style={[styles.headerBackBtn, Platform.OS === 'web' && { marginLeft: layout.gutter - 10 }]}
           accessibilityRole="button"
           accessibilityLabel="Back to history">
@@ -394,12 +481,14 @@ export default function SessionSummaryScreen() {
             <Icon name={isCopied ? 'check' : 'content-copy'} size={16} color={isCopied ? c.profit : c.text} />
           </Pressable>
           <Pressable
-            onPress={handleShareWhatsApp}
+            ref={shareButtonRef}
+            onPress={openShareMenu}
             hitSlop={8}
-            style={styles.headerShareBtn}
+            style={[styles.headerShareBtn, { backgroundColor: c.accent }]}
             accessibilityRole="button"
-            accessibilityLabel="Share on WhatsApp">
-            <Icon name="whatsapp" size={16} color="#000" />
+            accessibilityLabel="Share results"
+            aria-haspopup="menu">
+            <Icon name="share" size={18} color={c.onAccent} />
           </Pressable>
         </View>
       ),
@@ -408,7 +497,7 @@ export default function SessionSummaryScreen() {
     navigation,
     sessionDate,
     sessionLocation,
-    handleShareWhatsApp,
+    openShareMenu,
     handleCopyResults,
     isCopied,
     goToHistory,
@@ -416,6 +505,8 @@ export default function SessionSummaryScreen() {
     c.card,
     c.inputBorder,
     c.profit,
+    c.accent,
+    c.onAccent,
     layout.gutter,
   ]);
 
@@ -436,10 +527,7 @@ export default function SessionSummaryScreen() {
           {loadError ?? 'Finish cash-out for this session to see standings and settlement here.'}
         </Text>
         <Pressable
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: c.accent, opacity: pressed ? 0.9 : 1 },
-          ]}
+          style={({ pressed }) => [styles.primaryButton, { backgroundColor: c.accent, opacity: pressed ? 0.9 : 1 }]}
           accessibilityRole="button"
           onPress={() => router.back()}>
           <Text style={[text.button, { color: c.onAccent }]}>Go back</Text>
@@ -448,17 +536,11 @@ export default function SessionSummaryScreen() {
     );
   }
 
-  const rankBarColor = (rank: number) => {
-    if (rank === 0) return c.accent;
-    if (rank === 1) return c.textHint;
-    if (rank === 2) return c.accentBorder;
-    return 'transparent';
-  };
+  // Left bar matches the medal colour so bar and badge always agree.
+  const rankBarColor = (rank: number) => medalColor(rank, c, isDark) ?? 'transparent';
 
   const settlementEntering = celebrate
-    ? FadeIn.duration(260)
-        .delay(celebrationRowDelay(results.length))
-        .reduceMotion(ReduceMotion.System)
+    ? FadeIn.duration(260).delay(celebrationRowDelay(results.length)).reduceMotion(ReduceMotion.System)
     : fadeIn;
 
   return (
@@ -467,22 +549,29 @@ export default function SessionSummaryScreen() {
         style={styles.screen}
         contentContainerStyle={[layout.content, styles.scrollContent]}
         keyboardShouldPersistTaps="handled">
+        {/* Heading: the date; the venue lives in the Location tile right below. */}
+        {sessionDate ? (
+          <View style={isMd ? styles.pageHeading : styles.pageHeadingStack}>
+            <View style={styles.pageHeadingPart}>
+              <Icon name="calendar" size={isMd ? 24 : 18} color={c.textMuted} />
+              <Text style={[styles.pageTitle, isMd && styles.pageTitleWide, { color: c.text }]} numberOfLines={1}>
+                {formatSessionDay(sessionDate, undefined, true)}
+              </Text>
+            </View>
+            {/* Start – end time, muted, beside the date ("6:41 PM – 11:18 PM"). */}
+            <View style={styles.pageHeadingPart}>
+              <Icon name="clock-outline" size={isMd ? 18 : 16} color={c.textMuted} />
+              <Text style={[text.label, isMd && styles.pageTimeWide, { color: c.textMuted }]} numberOfLines={1}>
+                {formatSessionTime(sessionDate)}
+                {sessionFinishedAt ? ` – ${formatSessionTime(sessionFinishedAt)}` : ''}
+              </Text>
+            </View>
+          </View>
+        ) : null}
         <Animated.View entering={fadeIn} style={[styles.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <View style={styles.metaGrid}>
             <View style={styles.metaGridRow}>
-              {isHost ? (
-                <PressableScale
-                  pressedScale={0.98}
-                  onPress={() => setIsEditingLocation(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Location, ${locationText}. Edit location`}
-                  style={styles.metaGridCell}>
-                  {locationCell}
-                  <Icon name="edit" size={14} color={c.textMuted} />
-                </PressableScale>
-              ) : (
-                <View style={styles.metaGridCell}>{locationCell}</View>
-              )}
+              <View style={styles.metaGridCell}>{locationCell}</View>
               <View style={styles.metaGridCell}>
                 <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
                   <Icon name="crown-outline" size={16} color={c.yellow} />
@@ -528,8 +617,8 @@ export default function SessionSummaryScreen() {
 
         <View style={styles.resultsBlock}>
           <View style={styles.sectionHeader}>
-            <Icon name="trophy-outline" size={20} color={c.accentText} />
-            <Text style={[text.heading, { color: c.text }]}>Standings</Text>
+            <Icon name="trophy-outline" size={sectionIconSize} color={c.accentText} />
+            <Text style={[sectionTitleStyle, { color: c.text }]}>Standings</Text>
           </View>
           {results.map((item, index) => (
             <ResultRow
@@ -538,6 +627,8 @@ export default function SessionSummaryScreen() {
               index={index}
               isMe={Boolean(user?.uid && item.playerId === user.uid)}
               isEarly={earlyPlayerIds.has(item.playerId)}
+              avatar={getAvatarEmoji(item.playerId, playerProfile, friendAvatarMap)}
+              medal={medalColor(index, c, isDark)}
               barColor={rankBarColor(index)}
               celebrate={celebrate}
               c={c}
@@ -547,8 +638,8 @@ export default function SessionSummaryScreen() {
 
         <Animated.View entering={settlementEntering} style={styles.settlementBlock}>
           <View style={styles.sectionHeader}>
-            <Icon name="bank-transfer" size={26} color={c.green} />
-            <Text style={[text.heading, { color: c.text }]}>Settlement</Text>
+            <Icon name="bank" size={sectionIconSize} color={c.green} />
+            <Text style={[sectionTitleStyle, { color: c.text }]}>Settlement</Text>
           </View>
           {settlements.length > 0 ? (
             <View style={[styles.settlementCard, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -559,18 +650,21 @@ export default function SessionSummaryScreen() {
                     style={styles.settlementRow}
                     accessible
                     accessibilityLabel={`${s.from} pays ${s.to} ${formatCurrency(s.amount)}`}>
+                    {/* One line: "Jordan [hand with coins] Alex" = Jordan pays Alex. */}
                     <View style={styles.settlementNames}>
-                      <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
+                      <Text style={[text.rowTitle, styles.settlementName, { color: c.text }]} numberOfLines={1}>
                         {s.from}
                       </Text>
-                      <View style={styles.settlementFlow}>
-                        <Icon name="arrow-right-bold" size={14} color={c.textMuted} />
-                        <Text style={[text.label, styles.settlementTo, { color: c.textSecondary }]} numberOfLines={1}>
-                          {s.to}
-                        </Text>
-                      </View>
+                      <Icon name="pays" size={18} color={c.green} accessibilityLabel="pays" />
+                      <Text style={[text.rowTitle, styles.settlementName, { color: c.text }]} numberOfLines={1}>
+                        {s.to}
+                      </Text>
                     </View>
-                    <View style={[styles.settlementAmountPill, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
+                    <View
+                      style={[
+                        styles.settlementAmountPill,
+                        { backgroundColor: c.accentBg, borderColor: c.accentBorder },
+                      ]}>
                       <Text style={[text.amount, { color: c.accentText }]}>{formatCurrency(s.amount)}</Text>
                     </View>
                   </View>
@@ -594,7 +688,8 @@ export default function SessionSummaryScreen() {
             disabled={isDeleting}
             style={(state) => [
               styles.deleteBtn,
-              { borderColor: c.border },
+              // Same filled card as Settings' Sign out, so destructive buttons look alike across the app.
+              { borderColor: c.border, backgroundColor: c.card },
               (state as { hovered?: boolean }).hovered || state.pressed ? { backgroundColor: c.cardAlt } : null,
             ]}
             accessibilityRole="button"
@@ -610,6 +705,31 @@ export default function SessionSummaryScreen() {
           </PressableScale>
         ) : null}
       </ScrollView>
+      {/* Off-screen source for "Share as image"; never visible or focusable. */}
+      <View style={styles.shareCardHost} importantForAccessibility="no-hide-descendants" aria-hidden>
+        <ShareCard
+          ref={shareCardRef}
+          date={sessionDate}
+          location={sessionLocation}
+          hostId={sessionHostId}
+          blinds={blindsShareText}
+          duration={durationText}
+          finishedAt={sessionFinishedAt}
+          results={results}
+          settlements={settlements}
+          avatarFor={(playerId) => getAvatarEmoji(playerId, playerProfile, friendAvatarMap)}
+        />
+      </View>
+      <PlayerActionMenu
+        visible={shareMenuOpen}
+        title="Share results"
+        anchor={shareAnchor}
+        onClose={() => setShareMenuOpen(false)}
+        actions={[
+          { key: 'text', label: 'Share as text', icon: 'share', onSelect: () => void handleShareText() },
+          { key: 'image', label: 'Share as image', icon: 'image', onSelect: () => void handleShareImage() },
+        ]}
+      />
       {celebrate ? <ConfettiBurst colors={[c.accent, c.green, c.yellow]} /> : null}
       {isEditingLocation ? (
         <LocationEditorModal
@@ -624,6 +744,37 @@ export default function SessionSummaryScreen() {
 }
 
 const styles = StyleSheet.create({
+  pageHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  // Phones: time sits under the date instead of squeezing beside it.
+  pageHeadingStack: {
+    gap: 6,
+  },
+  pageTimeWide: {
+    fontSize: 15,
+  },
+  pageHeadingPart: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  pageTitle: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  pageTitleWide: {
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.3,
+  },
   screen: {
     flex: 1,
   },
@@ -685,6 +836,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  locationValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  locationValue: {
+    flexShrink: 1,
+  },
+  locationEditBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginVertical: -6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   metaItemText: {
     flex: 1,
     minWidth: 0,
@@ -699,8 +866,9 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     paddingHorizontal: 4,
+    marginBottom: 4,
   },
   resultRow: {
     flexDirection: 'row',
@@ -734,18 +902,13 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  rankBadge: {
-    minWidth: 32,
+  medal: {
+    width: 32,
     height: 32,
-    borderRadius: 9,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  rankBadgeText: {
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
   },
   resultName: {
     flexShrink: 1,
@@ -809,15 +972,12 @@ const styles = StyleSheet.create({
   settlementNames: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
-  },
-  settlementFlow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 12,
   },
-  settlementTo: {
-    flex: 1,
+  settlementName: {
+    flexShrink: 1,
   },
   settlementAmountPill: {
     borderRadius: 9,
@@ -859,28 +1019,33 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerCopyBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  shareCardHost: {
+    position: 'absolute',
+    left: -10000,
+    top: 0,
+    pointerEvents: 'none',
+  },
   headerShareBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#25D366',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 36px visible circle (hover ring); hitSlop keeps the tap target past 44px.
   headerBackBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    // Offsets the larger target so the arrow stays where the 32px button drew it.
-    marginLeft: -6,
-    marginRight: 2,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginLeft: -2,
+    marginRight: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,5 +1,23 @@
+import { pointer } from '@/lib/ui';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
-import { Animated, PressableScale, SPRING, fadeIn, fadeOut, layoutTransition, listItemEntering, usePop } from '@/components/motion';
+import { formatSessionTitle } from '@/components/session/session-title';
+import { SessionTitle } from '@/components/meta-line';
+import { Icon } from '@/components/icon';
+import { getAvatarEmoji } from '@/lib/avatar';
+import { PlayerAvatar } from '@/components/player-avatar';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { cashOutSteps } from '@/lib/amount-steps';
+import {
+  Animated,
+  PressableScale,
+  SPRING,
+  fadeIn,
+  fadeOut,
+  layoutTransition,
+  listItemEntering,
+  usePop,
+} from '@/components/motion';
 import { SessionAmountPrefix } from '@/components/session-amount-prefix';
 import { SessionAmountDisplay } from '@/components/session-amount-ui';
 import { CashOutSkeleton } from '@/components/session/session-skeletons';
@@ -7,23 +25,19 @@ import { appAlert } from '@/lib/app-alert';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatChipsLedger, formatSessionAmountValue, formatSignedCurrency } from '@/lib/currency-format';
-import { getBuyIns, getEarlyCashOuts, getSessionMeta, settleSession } from '@/lib/firestore';
+import {
+  formatChipsLedger,
+  formatSessionAmountValue,
+  formatSignedCurrency,
+  formatTightCompactNumber,
+} from '@/lib/currency-format';
+import { fetchFriendsList, getBuyIns, getEarlyCashOuts, getSessionMeta, settleSession } from '@/lib/firestore';
 import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import type { SessionAmountUnit, SessionResult } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import {
   ReduceMotion,
@@ -34,10 +48,17 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
-// Three steps each way keep the quick-adjust chips on one line, even on 360px Android phones.
-const CHIP_AMOUNTS = [5, 10, 25];
-const NEGATIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => b - a);
-const POSITIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => a - b);
+/** Most frequent buy-in amount: the session's "usual" buy-in. */
+function mostCommonAmount(amounts: number[]): number | null {
+  const counts = new Map<number, number>();
+  let best: number | null = null;
+  for (const a of amounts) {
+    const n = (counts.get(a) ?? 0) + 1;
+    counts.set(a, n);
+    if (best == null || n > (counts.get(best) ?? 0)) best = a;
+  }
+  return best;
+}
 
 type PlayerEntry = {
   playerId: string;
@@ -76,7 +97,7 @@ function useReadyPulse(isReady: boolean) {
     if (isReady && !wasReadyRef.current) {
       scale.value = withSequence(
         withTiming(1.035, { duration: 140, reduceMotion: ReduceMotion.System }),
-        withSpring(1, SPRING)
+        withSpring(1, SPRING),
       );
       ring.value = 0;
       ring.value = withTiming(1, { duration: 650, reduceMotion: ReduceMotion.System });
@@ -105,6 +126,7 @@ function PlayerBuyInCaption({
   if (isChipsMode) {
     return (
       <View style={styles.playerBuyInRow}>
+        <Icon name="money-in" size={12} color={mutedColor} style={styles.buyInIcon} />
         <Text style={[styles.playerBuyIn, { color: mutedColor }]}>Buy-in: </Text>
         <SessionAmountDisplay
           value={totalBuyIn}
@@ -118,9 +140,13 @@ function PlayerBuyInCaption({
     );
   }
   return (
-    <Text style={[styles.playerBuyIn, { color: mutedColor }]}>
-      Buy-in: {formatSessionAmountValue(totalBuyIn, 'cash', 'fixed2')}
-    </Text>
+    <View style={styles.playerBuyInRow}>
+      {/* Same ↘ "money in" arrow as History's Buy-in column. */}
+      <Icon name="money-in" size={12} color={mutedColor} style={styles.buyInIcon} />
+      <Text style={[styles.playerBuyIn, { color: mutedColor }]}>
+        Buy-in: {formatSessionAmountValue(totalBuyIn, 'cash', 'fixed2')}
+      </Text>
+    </View>
   );
 }
 
@@ -128,18 +154,50 @@ export default function CashOutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
   const { gutter } = usePageLayout();
+  // Desktop has room: bigger page title and summary figures; phones keep the compact sizes.
+  const { isMd: isWide } = useBreakpoint();
   const { playerProfile } = useAuth();
+  const [friendAvatarMap, setFriendAvatarMap] = useState<ReadonlyMap<string, string | undefined>>(new Map());
+  useEffect(() => {
+    if (!playerProfile) return;
+    let cancelled = false;
+    fetchFriendsList(playerProfile.id)
+      .then((friends) => {
+        if (!cancelled) setFriendAvatarMap(new Map(friends.map((f) => [f.playerId, f.avatarEmoji])));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [playerProfile]);
   const [players, setPlayers] = useState<PlayerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [amountUnit, setAmountUnit] = useState<SessionAmountUnit>('cash');
+  const [chipSteps, setChipSteps] = useState<number[]>(() => cashOutSteps(null, null));
   const [dollarsPerChip, setDollarsPerChip] = useState<number | undefined>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const listRef = useRef<FlatList<PlayerEntry>>(null);
+  const [sessionInfo, setSessionInfo] = useState<{ date?: Date; location?: string } | null>(null);
+  // Fade above the footer only while rows are actually hidden below (not when everything fits or at the end).
+  const listMetrics = useRef({ viewport: 0, content: 0, offset: 0 });
+  const [hasMoreBelow, setHasMoreBelow] = useState(false);
+  const updateHasMoreBelow = useCallback((next: Partial<typeof listMetrics.current>) => {
+    const m = Object.assign(listMetrics.current, next);
+    setHasMoreBelow(m.content - (m.offset + m.viewport) > 1);
+  }, []);
   const isChipsMode = amountUnit === 'chips';
   const navigation = useNavigation();
+  // Header carries the action ("Cash out"); the page heading names the session. The browser tab gets both.
+  useLayoutEffect(() => {
+    const date = sessionInfo?.date;
+    navigation.setOptions({
+      title: date ? `Cash out · ${formatSessionTitle(date, sessionInfo?.location)}` : 'Cash out',
+      headerTitle: 'Cash out',
+    });
+  }, [navigation, sessionInfo]);
   // True once the host edits an amount; cleared only by a successful settle.
   const [isDirty, setIsDirty] = useState(false);
   const allowLeaveRef = useRef(false);
@@ -192,7 +250,10 @@ export default function CashOutScreen() {
         setLoadError(null);
         setCanEdit(Boolean(playerProfile?.id && sessionMeta.hostId === playerProfile.id));
         setAmountUnit(sessionMeta.amountUnit);
+        // Three steps each way (one big blind, five big blinds, a quarter buy-in) keep the chips on one line.
+        setChipSteps(cashOutSteps(sessionMeta.bigBlind, mostCommonAmount(buyIns.map((b) => b.amount))));
         setDollarsPerChip(sessionMeta.dollarsPerChip);
+        setSessionInfo({ date: sessionMeta.date, location: sessionMeta.location });
         const earlyMap = new Map(earlyCashOuts.map((c) => [c.playerId, c]));
         const totals: Record<string, { name: string; total: number }> = {};
         for (const b of buyIns) {
@@ -209,7 +270,7 @@ export default function CashOutScreen() {
               cashOutInput: early ? early.amount.toString() : v.total.toString(),
               locked: !!early,
             };
-          })
+          }),
         );
       } catch (e) {
         if (cancelled) return;
@@ -232,27 +293,31 @@ export default function CashOutScreen() {
     });
   }, []);
 
-  const updateCashOut = useCallback((playerId: string, value: string) => {
-    clearFieldError(playerId);
-    setIsDirty(true);
-    setPlayers((prev) =>
-      prev.map((p) => (p.playerId === playerId ? { ...p, cashOutInput: value } : p))
-    );
-  }, [clearFieldError]);
+  const updateCashOut = useCallback(
+    (playerId: string, value: string) => {
+      clearFieldError(playerId);
+      setIsDirty(true);
+      setPlayers((prev) => prev.map((p) => (p.playerId === playerId ? { ...p, cashOutInput: value } : p)));
+    },
+    [clearFieldError],
+  );
 
-  const adjustCashOut = useCallback((playerId: string, delta: number) => {
-    clearFieldError(playerId);
-    setIsDirty(true);
-    setPlayers((prev) =>
-      prev.map((p) => {
-        if (p.playerId !== playerId) return p;
-        const current = parseAmount(p.cashOutInput) ?? 0;
-        const next = Math.max(0, current + delta);
-        return { ...p, cashOutInput: next.toString() };
-      })
-    );
-    void Haptics.selectionAsync().catch(() => {});
-  }, [clearFieldError]);
+  const adjustCashOut = useCallback(
+    (playerId: string, delta: number) => {
+      clearFieldError(playerId);
+      setIsDirty(true);
+      setPlayers((prev) =>
+        prev.map((p) => {
+          if (p.playerId !== playerId) return p;
+          const current = parseAmount(p.cashOutInput) ?? 0;
+          const next = Math.max(0, current + delta);
+          return { ...p, cashOutInput: next.toString() };
+        }),
+      );
+      void Haptics.selectionAsync().catch(() => {});
+    },
+    [clearFieldError],
+  );
 
   const focusPlayerRow = useCallback((index: number) => {
     setTimeout(() => {
@@ -267,10 +332,7 @@ export default function CashOutScreen() {
   function distributeRemainingEqually() {
     const unlocked = players.filter((p) => !p.locked);
     if (unlocked.length === 0) {
-      appAlert(
-        'No players',
-        'No unlocked players to split among. Players who cashed out early are excluded.'
-      );
+      appAlert('No players', 'No unlocked players to split among. Players who cashed out early are excluded.');
       return;
     }
     setIsDirty(true);
@@ -297,10 +359,7 @@ export default function CashOutScreen() {
   function trimOverageEqually() {
     const unlocked = players.filter((p) => !p.locked);
     if (unlocked.length === 0) {
-      appAlert(
-        'No players',
-        'No unlocked players to trim among. Players who cashed out early are excluded.'
-      );
+      appAlert('No players', 'No unlocked players to trim among. Players who cashed out early are excluded.');
       return;
     }
     setIsDirty(true);
@@ -326,10 +385,7 @@ export default function CashOutScreen() {
   }
 
   const totalBuyIn = useMemo(() => players.reduce((s, p) => s + p.totalBuyIn, 0), [players]);
-  const totalCashOut = useMemo(
-    () => players.reduce((s, p) => s + (parseAmount(p.cashOutInput) ?? 0), 0),
-    [players]
-  );
+  const totalCashOut = useMemo(() => players.reduce((s, p) => s + (parseAmount(p.cashOutInput) ?? 0), 0), [players]);
   const remaining = totalBuyIn - totalCashOut;
   const balanced = Math.abs(remaining) < 0.01;
   const allFilled = players.every((p) => p.cashOutInput.trim().length > 0);
@@ -461,95 +517,120 @@ export default function CashOutScreen() {
             item.locked && [styles.playerCardLocked, { borderColor: c.borderDanger }],
           ]}>
           <View style={styles.playerHeader}>
-            <View style={styles.playerNameRow}>
-              <Text style={[styles.playerName, { color: c.text }]}>{item.playerName}</Text>
-              {item.locked && (
-                <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
-                  <Text style={[styles.earlyBadgeText, { color: '#fff' }]}>EARLY CASH OUT</Text>
-                </View>
-              )}
-            </View>
-            <PlayerBuyInCaption
-              totalBuyIn={item.totalBuyIn}
-              isChipsMode={isChipsMode}
-              amountUnit={amountUnit}
-              mutedColor={c.textMuted}
-            />
-          </View>
-
-          <View>
-            <View
-              style={[
-                styles.cashOutRow,
-                item.locked
-                  ? { backgroundColor: c.card, borderColor: c.borderDanger }
-                  : { backgroundColor: c.inputBg, borderColor: c.inputBorder },
-                errorBorder(c, fieldError),
-              ]}>
-              <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
-              <TextInput
-                value={item.cashOutInput}
-                onChangeText={(v) => updateCashOut(item.playerId, sanitizeAmountInput(v))}
-                onFocus={() => focusPlayerRow(index)}
-                placeholder={isChipsMode ? 'Chips' : '0.00'}
-                placeholderTextColor={c.placeholder}
-                keyboardType="decimal-pad"
-                accessibilityLabel={`Cash-out amount for ${item.playerName}`}
-                accessibilityHint={`Bought in ${isChipsMode ? `${formatChipsLedger(item.totalBuyIn)} chips` : `$${item.totalBuyIn.toFixed(2)}`}, currently ${profit >= 0 ? 'up' : 'down'} ${isChipsMode ? `${formatChipsLedger(Math.abs(profit))} chips` : `$${Math.abs(profit).toFixed(2)}`}`}
-                style={[
-                  styles.cashOutInput,
-                  { color: c.text },
-                  item.locked && { color: c.textMuted },
-                ]}
-                selectTextOnFocus
-                editable={!item.locked}
-                {...invalidProps(fieldError)}
+            <PlayerAvatar value={getAvatarEmoji(item.playerId, playerProfile, friendAvatarMap)} size={40} />
+            <View style={styles.playerIdentity}>
+              <View style={styles.playerNameRow}>
+                <Text style={[styles.playerName, { color: c.text }]} numberOfLines={1}>
+                  {item.playerName}
+                </Text>
+                {item.locked && (
+                  <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
+                    <Text style={[styles.earlyBadgeText, { color: '#fff' }]}>EARLY CASH OUT</Text>
+                  </View>
+                )}
+              </View>
+              <PlayerBuyInCaption
+                totalBuyIn={item.totalBuyIn}
+                isChipsMode={isChipsMode}
+                amountUnit={amountUnit}
+                mutedColor={c.textMuted}
               />
             </View>
-            <FieldError message={fieldError} />
+            <View style={styles.profitBlock}>
+              <View style={styles.trackerLabelRow}>
+                <Icon name="trend-up" size={12} color={c.textHint} />
+                <Text style={[styles.profitLabel, { color: c.textHint }]}>P/L</Text>
+              </View>
+              <ProfitValue text={profitText} color={profitColor} />
+            </View>
           </View>
 
-          {!item.locked && (
-            <View style={styles.chipRow}>
-              {NEGATIVE_CHIP_AMOUNTS.map((chip) => (
-                <PressableScale
-                  key={`minus-${chip}`}
-                  pressedScale={0.92}
-                  style={[styles.chipMinus, { backgroundColor: c.chipMinusBg }]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Subtract ${chip} from ${item.playerName}`}
-                  onPress={() => adjustCashOut(item.playerId, -chip)}>
-                  <Text style={[styles.chipLabel, { color: c.chipValueText }]}>-{chip}</Text>
-                </PressableScale>
-              ))}
-              {POSITIVE_CHIP_AMOUNTS.map((chip) => (
-                <PressableScale
-                  key={`plus-${chip}`}
-                  pressedScale={0.92}
-                  style={[styles.chipPlus, { backgroundColor: c.chipPlusBg }]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add ${chip} to ${item.playerName}`}
-                  onPress={() => adjustCashOut(item.playerId, chip)}>
-                  <Text style={[styles.chipLabel, { color: c.chipValueText }]}>+{chip}</Text>
-                </PressableScale>
-              ))}
+          {/* Desktop: amount and +/- steps share a row; phones stack them. */}
+          <View style={isWide && !item.locked ? styles.entryRowWide : styles.entryStack}>
+            <View style={isWide && !item.locked ? styles.entryInputWide : undefined}>
+              <View
+                style={[
+                  styles.cashOutRow,
+                  item.locked
+                    ? { backgroundColor: c.card, borderColor: c.borderDanger }
+                    : { backgroundColor: c.inputBg, borderColor: c.inputBorder },
+                  errorBorder(c, fieldError),
+                ]}>
+                <SessionAmountPrefix unit={amountUnit} color={c.textMuted} size={18} />
+                <TextInput
+                  value={item.cashOutInput}
+                  onChangeText={(v) => updateCashOut(item.playerId, sanitizeAmountInput(v))}
+                  onFocus={() => focusPlayerRow(index)}
+                  placeholder={isChipsMode ? 'Chips' : '0.00'}
+                  placeholderTextColor={c.placeholder}
+                  keyboardType="decimal-pad"
+                  accessibilityLabel={`Cash-out amount for ${item.playerName}`}
+                  accessibilityHint={`Bought in ${isChipsMode ? `${formatChipsLedger(item.totalBuyIn)} chips` : `$${item.totalBuyIn.toFixed(2)}`}, currently ${profit >= 0 ? 'up' : 'down'} ${isChipsMode ? `${formatChipsLedger(Math.abs(profit))} chips` : `$${Math.abs(profit).toFixed(2)}`}`}
+                  style={[styles.cashOutInput, { color: c.text }, item.locked && { color: c.textMuted }]}
+                  selectTextOnFocus
+                  editable={!item.locked}
+                  {...invalidProps(fieldError)}
+                />
+              </View>
+              <FieldError message={fieldError} />
             </View>
-          )}
 
-          <View style={[styles.profitRow, { borderTopColor: c.border }]}>
-            <Text style={[styles.profitLabel, { color: c.textHint }]}>P/L</Text>
-            <ProfitValue text={profitText} color={profitColor} />
+            {!item.locked && (
+              // One outlined segmented strip: red/green tinted segments split by hairline dividers.
+              <View
+                style={[
+                  styles.chipRow,
+                  isWide && styles.chipRowWide,
+                  { borderColor: c.inputBorder, backgroundColor: c.inputBg },
+                ]}>
+                {[...[...chipSteps].reverse().map((chip) => -chip), ...chipSteps].map((delta, i) => {
+                  const isMinus = delta < 0;
+                  const amount = Math.abs(delta);
+                  return (
+                    <PressableScale
+                      key={delta}
+                      pressedScale={0.97}
+                      style={[
+                        styles.chipSegment,
+                        { backgroundColor: isMinus ? c.chipMinusBg : c.chipPlusBg },
+                        i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.inputBorder },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        isMinus ? `Subtract ${amount} from ${item.playerName}` : `Add ${amount} to ${item.playerName}`
+                      }
+                      onPress={() => adjustCashOut(item.playerId, delta)}>
+                      <Text style={[styles.chipLabel, { color: isMinus ? c.lossLight : c.profit }]}>
+                        {isMinus ? '−' : '+'}
+                        {formatTightCompactNumber(amount)}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+            )}
           </View>
         </Animated.View>
       );
     },
-    [c, amountUnit, isChipsMode, fieldErrors, updateCashOut, adjustCashOut, focusPlayerRow]
+    [
+      c,
+      amountUnit,
+      isChipsMode,
+      fieldErrors,
+      updateCashOut,
+      adjustCashOut,
+      focusPlayerRow,
+      chipSteps,
+      isWide,
+      playerProfile,
+      friendAvatarMap,
+    ],
   );
 
   if (loading) {
     return (
       <View style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}>
-        <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
         <CashOutSkeleton />
       </View>
     );
@@ -558,7 +639,6 @@ export default function CashOutScreen() {
   if (players.length === 0) {
     return (
       <View style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}>
-        <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
         <Text style={[styles.meta, { color: c.textMuted }]}>
           {loadError
             ? `Couldn't load this session: ${loadError}`
@@ -577,7 +657,6 @@ export default function CashOutScreen() {
   if (!canEdit) {
     return (
       <View style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}>
-        <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
         <Text style={[styles.meta, { color: c.textMuted }]}>
           View-only mode. Only the session host can complete cash-out.
         </Text>
@@ -596,47 +675,73 @@ export default function CashOutScreen() {
       style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 20}>
-      <Text style={[styles.title, { color: c.text }]}>Cash-Out</Text>
-      <Text style={[styles.meta, { color: c.textMuted }]}>
-        {isChipsMode
-          ? "Enter each player's chip count below."
-          : "Enter each player's cash-out amount below."}
+      {sessionInfo?.date ? (
+        <SessionTitle
+          date={sessionInfo.date}
+          location={sessionInfo.location}
+          dotSize={isWide ? 6 : 5}
+          textStyle={[styles.title, isWide && styles.titleWide, { color: c.text }]}
+        />
+      ) : null}
+      <Text style={[styles.meta, isWide && styles.metaWide, { color: c.textMuted }]}>
+        {isChipsMode ? "Enter each player's chip count below." : "Enter each player's cash-out amount below."}
         {players.some((p) => p.locked) ? ' Players who cashed out early are locked.' : ''}
       </Text>
 
-      <Animated.View layout={layoutTransition} style={[styles.trackerCard, { backgroundColor: c.card, borderColor: c.border }]}>
+      <Animated.View
+        layout={layoutTransition}
+        style={[
+          styles.trackerCard,
+          isWide && styles.trackerCardWide,
+          { backgroundColor: c.card, borderColor: c.border },
+        ]}>
         <View style={styles.trackerRow}>
           <View style={styles.trackerItem}>
-            <Text style={[styles.trackerLabel, { color: c.textHint }]}>Total Pot</Text>
+            <View style={isWide ? styles.trackerLabelRow : styles.trackerLabelStack}>
+              <Icon name="poker-chip" size={14} color={c.textHint} />
+              <Text style={[styles.trackerLabel, isWide && styles.trackerLabelWide, { color: c.textHint }]}>
+                Total Pot
+              </Text>
+            </View>
             <SessionAmountDisplay
               value={totalBuyIn}
               unit={amountUnit}
               color={c.text}
               iconSize={18}
               valueStyle="fixed2"
-              textStyle={[styles.trackerValue, { color: c.text }]}
+              textStyle={[styles.trackerValue, isWide && styles.trackerValueWide, { color: c.text }]}
               rowStyle={styles.trackerValueRow}
             />
           </View>
           <View style={styles.trackerItem}>
-            <Text style={[styles.trackerLabel, { color: c.textHint }]}>Distributed</Text>
+            <View style={isWide ? styles.trackerLabelRow : styles.trackerLabelStack}>
+              <Icon name="money-out" size={14} color={c.textHint} />
+              <Text style={[styles.trackerLabel, isWide && styles.trackerLabelWide, { color: c.textHint }]}>
+                Distributed
+              </Text>
+            </View>
             <SessionAmountDisplay
               value={totalCashOut}
               unit={amountUnit}
               color={c.text}
               iconSize={18}
               valueStyle="fixed2"
-              textStyle={[styles.trackerValue, { color: c.text }]}
+              textStyle={[styles.trackerValue, isWide && styles.trackerValueWide, { color: c.text }]}
               rowStyle={styles.trackerValueRow}
             />
           </View>
           <Animated.View style={[styles.trackerItem, statusPop]}>
-            <Animated.Text
-              key={`label-${status}`}
-              entering={fadeIn}
-              style={[styles.trackerLabel, { color: status === 'ready' ? c.profit : c.textHint }]}>
-              {status === 'ready' ? 'Balanced' : 'Remaining'}
-            </Animated.Text>
+            <Animated.View key={`label-${status}`} entering={fadeIn} style={isWide ? styles.trackerLabelRow : styles.trackerLabelStack}>
+              <Icon name="scales" size={14} color={status === 'ready' ? c.profit : c.textHint} />
+              <Text
+                style={[
+                  styles.trackerLabel,
+                  isWide && styles.trackerLabelWide,
+                  { color: status === 'ready' ? c.profit : c.textHint },
+                ]}>
+                {status === 'ready' ? 'Balanced' : 'Remaining'}
+              </Text>
+            </Animated.View>
             <Animated.View key={`value-${status}`} entering={fadeIn}>
               <SessionAmountDisplay
                 value={Math.abs(remaining)}
@@ -644,7 +749,7 @@ export default function CashOutScreen() {
                 color={statusColor}
                 iconSize={18}
                 valueStyle="fixed2"
-                textStyle={[styles.trackerValue, { color: statusColor }]}
+                textStyle={[styles.trackerValue, isWide && styles.trackerValueWide, { color: statusColor }]}
                 rowStyle={styles.trackerValueRow}
               />
             </Animated.View>
@@ -653,19 +758,16 @@ export default function CashOutScreen() {
         {/* One persistent polite region: the hint text changes inside it instead of remounting a new region. */}
         <View accessibilityLiveRegion="polite" style={hint ? null : styles.hintEmpty}>
           {hint ? (
-            <Animated.Text
-              key={`hint-${status}`}
-              entering={fadeIn}
-              exiting={fadeOut}
-              style={[styles.statusHint, { color: hint.color }]}>
-              {hint.text}
-            </Animated.Text>
+            <Animated.View key={`hint-${status}`} entering={fadeIn} exiting={fadeOut} style={styles.hintRow}>
+              {balanced ? <Icon name="check-circle" size={16} weight="regular" color={hint.color} /> : null}
+              <Text style={[styles.statusHint, isWide && styles.statusHintWide, { color: hint.color }]}>
+                {hint.text}
+              </Text>
+            </Animated.View>
           ) : null}
         </View>
         {!allFilled && (
-          <Text style={[styles.splitHint, { color: c.textHint }]}>
-            Blank cash-outs count as 0 until entered.
-          </Text>
+          <Text style={[styles.splitHint, { color: c.textHint }]}>Blank cash-outs count as 0 until entered.</Text>
         )}
         {players.some((p) => p.locked) && (
           <Text style={[styles.splitHint, { color: c.textHint }]}>
@@ -685,7 +787,11 @@ export default function CashOutScreen() {
         {!balanced && remaining < -0.01 && (
           <Animated.View entering={fadeIn} exiting={fadeOut}>
             <PressableScale
-              style={[styles.trackerActionBtn, styles.secondaryBtn, { backgroundColor: c.card, borderColor: c.inputBorder }]}
+              style={[
+                styles.trackerActionBtn,
+                styles.secondaryBtn,
+                { backgroundColor: c.card, borderColor: c.inputBorder },
+              ]}
               accessibilityRole="button"
               onPress={trimOverageEqually}>
               <Text style={[styles.trackerActionLabel, { color: c.text }]}>Trim overage equally</Text>
@@ -701,24 +807,31 @@ export default function CashOutScreen() {
         style={styles.list}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
+        onLayout={(e) => updateHasMoreBelow({ viewport: e.nativeEvent.layout.height })}
+        onContentSizeChange={(_, h) => updateHasMoreBelow({ content: h })}
+        onScroll={(e) => updateHasMoreBelow({ offset: e.nativeEvent.contentOffset.y })}
+        scrollEventThrottle={32}
         onScrollToIndexFailed={() => listRef.current?.scrollToEnd({ animated: true })}
         renderItem={renderItem}
       />
 
-      <Animated.View style={[styles.confirmWrap, confirmPulseStyle]}>
-        <Animated.View
-          style={[styles.confirmRing, { borderColor: c.accent }, confirmRingStyle]}
-        />
+      <Animated.View style={[styles.confirmWrap, isWide && styles.confirmWrapWide, confirmPulseStyle]}>
+        {/* Rows scrolling under the footer fade out instead of being cut off by a hard edge. */}
+        {hasMoreBelow ? (
+          <LinearGradient
+            colors={[`${c.bg}00`, c.bg]}
+            style={[styles.listFade, pointer.none]}
+            importantForAccessibility="no-hide-descendants"
+          />
+        ) : null}
+        <Animated.View style={[styles.confirmRing, { borderColor: c.accent }, confirmRingStyle]} />
         <PressableScale
-          style={[
-            styles.confirmButton,
-            { backgroundColor: c.accent },
-            (!balanced || saving) && styles.disabled,
-          ]}
+          style={[styles.confirmButton, { backgroundColor: c.accent }, (!balanced || saving) && styles.disabled]}
           onPress={handleConfirm}
           accessibilityRole="button"
           accessibilityState={{ disabled: !balanced || saving, busy: saving }}
           disabled={!balanced || saving}>
+          {saving ? null : <Icon name="check" size={18} color={c.onAccent} weight="bold" />}
           <Text style={[styles.buttonLabel, { color: c.onAccent }]}>
             {saving ? 'Saving…' : 'Confirm & View Summary'}
           </Text>
@@ -727,6 +840,8 @@ export default function CashOutScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+const FADE_HEIGHT = 56;
 
 const styles = StyleSheet.create({
   screen: {
@@ -745,6 +860,32 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: -6,
   },
+  titleWide: {
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.3,
+  },
+  metaWide: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: -4,
+    marginBottom: 4,
+  },
+  trackerCardWide: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  trackerLabelWide: {
+    fontSize: 13,
+  },
+  trackerValueWide: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  statusHintWide: {
+    fontSize: 14,
+  },
   trackerCard: {
     borderRadius: 14,
     borderWidth: 1,
@@ -760,6 +901,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     gap: 2,
+  },
+  trackerLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  // Phones: a third of the card can't fit icon + "DISTRIBUTED" side by side, so the icon sits above.
+  trackerLabelStack: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   trackerLabel: {
     fontSize: 12,
@@ -815,6 +972,13 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 8,
   },
+  listFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: -FADE_HEIGHT,
+    height: FADE_HEIGHT,
+  },
   playerCard: {
     borderRadius: 14,
     borderWidth: 1,
@@ -828,9 +992,33 @@ const styles = StyleSheet.create({
   },
   playerHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+    marginBottom: 4,
+  },
+  playerIdentity: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  profitBlock: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  entryRowWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  entryInputWide: {
+    width: 220,
+  },
+  chipRowWide: {
+    flex: 1,
+    minHeight: 48,
+  },
+  entryStack: {
+    gap: 8,
   },
   playerNameRow: {
     flexDirection: 'row',
@@ -858,6 +1046,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
+  buyInIcon: {
+    marginRight: 2,
+  },
   playerBuyInRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -884,21 +1075,14 @@ const styles = StyleSheet.create({
   },
   chipRow: {
     flexDirection: 'row',
-    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
-  chipMinus: {
+  chipSegment: {
     flex: 1,
     minWidth: 0,
-    borderRadius: 8,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipPlus: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: 8,
-    minHeight: 44,
+    minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -906,13 +1090,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
-  },
-  profitRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    paddingTop: 8,
   },
   profitLabel: {
     fontSize: 12,
@@ -927,12 +1104,19 @@ const styles = StyleSheet.create({
   confirmWrap: {
     marginBottom: 16,
   },
+  // Desktop web only: lift the confirm button off the window edge.
+  confirmWrapWide: {
+    marginTop: 8,
+    marginBottom: 32,
+  },
   confirmRing: {
     position: 'absolute',
     pointerEvents: 'none',
     borderWidth: 2,
   },
   confirmButton: {
+    flexDirection: 'row',
+    gap: 8,
     borderRadius: 14,
     alignItems: 'center',
     minHeight: 48,

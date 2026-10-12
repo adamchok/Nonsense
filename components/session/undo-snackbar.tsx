@@ -1,3 +1,4 @@
+import { pointer } from '@/lib/ui';
 import { Animated, PressableScale, EXIT_AND_LAYOUT_ANIMATIONS } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { useEffect, useRef, useState } from 'react';
@@ -39,7 +40,7 @@ function UndoCountdown({ color, isPaused }: { color: string; isPaused: boolean }
   }, [remaining, isPaused]);
   const style = useAnimatedStyle(() => ({ transform: [{ scaleX: remaining.value }] }));
   return (
-    <View style={[styles.track, { pointerEvents: 'none' }]} importantForAccessibility="no-hide-descendants">
+    <View style={[styles.track, pointer.none]} importantForAccessibility="no-hide-descendants">
       <Animated.View style={[styles.progress, { backgroundColor: color }, style]} />
     </View>
   );

@@ -8,11 +8,14 @@ function part(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTyp
   return parts.find((p) => p.type === type)?.value ?? '';
 }
 
-/** "Fri 10 Oct", with the year appended when it is not the current year ("Fri 10 Oct 2025"). */
-export function formatSessionDay(date: Date, now: Date = new Date()): string {
+/**
+ * "Fri 10 Oct", with the year appended when it is not the current year ("Fri 10 Oct 2025").
+ * `alwaysYear` keeps it on records that may be read years later (e.g. a session summary heading).
+ */
+export function formatSessionDay(date: Date, now: Date = new Date(), alwaysYear = false): string {
   const parts = DAY_PARTS.formatToParts(date);
   const day = `${part(parts, 'weekday')} ${part(parts, 'day')} ${part(parts, 'month')}`;
-  return date.getFullYear() === now.getFullYear() ? day : `${day} ${date.getFullYear()}`;
+  return !alwaysYear && date.getFullYear() === now.getFullYear() ? day : `${day} ${date.getFullYear()}`;
 }
 
 /** "Fri 10 Oct · Jordan's place", or "Fri 10 Oct" when no location is set. */

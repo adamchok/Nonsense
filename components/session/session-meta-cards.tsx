@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
   chipsBlindsRow: {
     flexDirection: 'row',

@@ -1,4 +1,5 @@
 import { errorBorder, FieldError, invalidProps } from '@/components/field-error';
+import { buyInQuickAmounts } from '@/lib/amount-steps';
 import { PressableScale } from '@/components/motion';
 import { ModalShell } from '@/components/session/modal-shell';
 import { PlayerPicker } from '@/components/session/player-picker';
@@ -24,6 +25,8 @@ type Props = {
   playerProfile: PlayerProfile | null;
   lastAmountByPlayer: ReadonlyMap<string, number>;
   commonAmount: number | null;
+  /** Session big blind, used to size the quick picks before anyone has bought in. */
+  bigBlind?: number | null;
   onClose: () => void;
   onSubmit: (draft: BuyInDraft) => Promise<boolean>;
 };
@@ -38,6 +41,7 @@ export function BuyInModal({
   playerProfile,
   lastAmountByPlayer,
   commonAmount,
+  bigBlind,
   onClose,
   onSubmit,
 }: Props) {
@@ -55,9 +59,7 @@ export function BuyInModal({
   const friendsNotInSession = friends.filter((f) => !sessionPlayerIds.has(f.playerId));
 
   const lastAmount = draft.pickedPlayerId ? lastAmountByPlayer.get(draft.pickedPlayerId) : undefined;
-  const quickAmounts = [lastAmount, commonAmount ?? undefined, ...PRESET_AMOUNTS].filter(
-    (v, i, all): v is number => v != null && all.indexOf(v) === i
-  );
+  const quickAmounts = buyInQuickAmounts({ lastAmount, commonAmount, bigBlind });
 
   function setName(playerName: string, pickedPlayerId: string | null) {
     setDraft((d) => ({ ...d, playerName, pickedPlayerId }));
@@ -97,15 +99,15 @@ export function BuyInModal({
       visible={visible}
       onClose={onClose}
       title={title}
+      titleIcon={{ name: 'money-in', color: c.textMuted }}
       cardStyle={styles.card}
-      primary={{ label: 'Add', onPress: () => void submit(), busy: isSubmitting }}>
-      <Text style={[formStyles.sub, { color: c.textMuted }]}>
-        {draft.isBuyBack
-          ? 'Enter the chips they are buying back in with. This clears their early cash-out.'
-          : unit === 'chips'
-            ? 'Enter name and chip amount, or pick a player below.'
-            : 'Enter name and amount, or pick a player below.'}
-      </Text>
+      primary={{ label: 'Add', onPress: () => void submit(), busy: isSubmitting, icon: 'add' }}>
+      {/* The fields and player list explain themselves; only a buy-back needs a warning. */}
+      {draft.isBuyBack ? (
+        <Text style={[formStyles.sub, { color: c.textMuted }]}>
+          Enter the chips they are buying back in with. This clears their early cash-out.
+        </Text>
+      ) : null}
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
@@ -200,8 +202,6 @@ export function BuyInModal({
     </ModalShell>
   );
 }
-
-const PRESET_AMOUNTS = [100, 200, 300, 500, 1000];
 
 function buyInAmountError(amount: string): string | null {
   if (!amount.trim()) return 'Enter an amount';

@@ -1,7 +1,7 @@
 import { useAppColors } from '@/lib/app-theme';
 import { Icon } from '@/components/icon';
 import { text as type } from '@/lib/ui';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { AppSwitch } from '@/components/app-switch';
 
 type Props = {
@@ -28,9 +28,23 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
           </View>
         ) : null}
         {showTapHint ? (
-          <Text style={[styles.hint, { color: c.textMuted }]}>
-            Tap a player to add a rebuy. Long-press to correct their total.
-          </Text>
+          Platform.OS === 'web' ? (
+            // Shows a mini version of the row's ⋮ button so the hint points at what's on screen.
+            <View
+              style={styles.hintRow}
+              accessible
+              accessibilityLabel="Click a player to add a rebuy. Use the more button for more options.">
+              <Text style={[styles.hint, { color: c.textMuted }]}>Click a player to add a rebuy. Use</Text>
+              <View style={[styles.hintDots, { borderColor: c.border }]}>
+                <Icon name="more-vert" size={10} color={c.textSecondary} weight="bold" />
+              </View>
+              <Text style={[styles.hint, { color: c.textMuted }]}>for more options.</Text>
+            </View>
+          ) : (
+            <Text style={[styles.hint, { color: c.textMuted }]}>
+              Tap a player to add a rebuy. Long-press to correct their total.
+            </Text>
+          )
         ) : null}
       </View>
       {dollarsToggle ? (
@@ -61,17 +75,33 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
 }
 
 const styles = StyleSheet.create({
+  hintRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 5,
+  },
+  hintDots: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 4,
     minHeight: 32,
+    // Breathing room between the title/hint and the ledger card below.
+    marginBottom: 4,
   },
   title: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+    gap: 6,
   },
   syncRow: {
     flexDirection: 'row',

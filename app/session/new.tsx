@@ -1,5 +1,5 @@
-import { text } from '@/lib/ui';
-import { ModalBackdrop } from '@/components/modal-backdrop';
+import { ModalShell } from '@/components/session/modal-shell';
+import { pressBg } from '@/lib/ui';
 import { GroupMemberAvatar } from '@/components/group-member-avatar';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { appAlert } from '@/lib/app-alert';
@@ -16,7 +16,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -434,7 +433,7 @@ export default function NewSessionScreen() {
                 <View style={styles.groupSectionHeader}>
                   <Icon name="group" size={20} color={c.textMuted} style={styles.icons} />
                   <Text style={[styles.groupSectionTitle, { color: c.text }]}>Play with a group</Text>
-                  <Text style={[styles.optionalTag, { color: c.textHint }]}>Optional</Text>
+                  <Text style={[styles.optionalTag, { color: c.textMuted }]}>(optional)</Text>
                 </View>
                 <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
                   Select a group to auto-add all members with a uniform buy-in.
@@ -570,7 +569,7 @@ export default function NewSessionScreen() {
             <View style={styles.amountModeHeader}>
               <Icon name="place" size={20} color={c.textMuted} style={styles.icons} />
               <Text style={[styles.amountModeTitle, { color: c.text }]}>Location</Text>
-              <Text style={[styles.optionalTag, { color: c.textHint }]}>Optional</Text>
+              <Text style={[styles.optionalTag, { color: c.textMuted }]}>(optional)</Text>
             </View>
             {hasSavedLocations ? (
               <Pressable
@@ -628,92 +627,52 @@ export default function NewSessionScreen() {
             </Animated.View>
         </ScrollView>
 
-      <Modal
+      <ModalShell
         visible={showGroupPicker}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowGroupPicker(false)}>
-        <View style={styles.modalRoot}>
-          <ModalBackdrop
-                        importantForAccessibility="no"
-            onPress={() => setShowGroupPicker(false)}
-          />
-          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
-            <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={[styles.pickerTitle, { color: c.text }]} accessibilityRole="header">
-                Select Group
-              </Text>
-              <ScrollView style={styles.pickerList}>
-                {groups.map((g) => (
-                  <Pressable
-                    key={g.id}
-                    style={[styles.pickerRow, { borderColor: c.border }]}
-                    accessibilityRole="button"
-                    onPress={() => handleSelectGroup(g)}>
-                    <Icon name="group" size={20} color={c.textMuted} />
-                    <Text style={[styles.pickerRowText, { color: c.text }]}>{g.name}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <Pressable
-                {...({ dataSet: { textButton: 'danger' } } as object)}
-                style={styles.pickerCancel}
-                accessibilityRole="button"
-                onPress={() => setShowGroupPicker(false)}>
-                <Text style={[styles.pickerCancelText, { color: c.lossLight }]}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowGroupPicker(false)}
+        title="Select group"
+        titleIcon={{ name: 'group', color: c.textMuted }}
+        avoidKeyboard={false}>
+        <ScrollView style={styles.pickerList}>
+          {groups.map((g) => (
+            <Pressable
+              key={g.id}
+              style={(state) => [styles.pickerRow, { borderColor: c.border }, pressBg(c, state)]}
+              accessibilityRole="button"
+              onPress={() => handleSelectGroup(g)}>
+              <Icon name="group" size={20} color={c.textMuted} />
+              <Text style={[styles.pickerRowText, { color: c.text }]}>{g.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </ModalShell>
 
-      <Modal
+      <ModalShell
         visible={showLocationPicker}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowLocationPicker(false)}>
-        <View style={styles.modalRoot}>
-          <ModalBackdrop
-                        importantForAccessibility="no"
-            onPress={() => setShowLocationPicker(false)}
-          />
-          <View style={[styles.modalCenter, { pointerEvents: 'box-none' }]}>
-            <View style={[styles.pickerCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={[styles.pickerTitle, { color: c.text }]} accessibilityRole="header">
-                Select Location
-              </Text>
-              <ScrollView style={styles.pickerList}>
-                {savedLocations.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    style={[styles.pickerRow, { borderColor: c.border }]}
-                    accessibilityRole="button"
-                    onPress={() => onSelectSavedLocation(item)}>
-                    <Icon name="place" size={18} color={c.textMuted} />
-                    <Text style={[styles.pickerRowText, { color: c.text }]}>{item.name}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <Pressable
-                style={[styles.pickerRow, { borderColor: c.border }]}
-                accessibilityRole="button"
-                onPress={onSelectOtherLocation}>
-                <Icon name="edit-location-alt" size={18} color={c.textMuted} />
-                <Text style={[styles.pickerRowText, { color: c.text }]}>Other</Text>
-              </Pressable>
-              <Pressable
-                {...({ dataSet: { textButton: 'danger' } } as object)}
-                style={styles.pickerCancel}
-                accessibilityRole="button"
-                onPress={() => setShowLocationPicker(false)}>
-                <Text style={[styles.pickerCancelText, { color: c.lossLight }]}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowLocationPicker(false)}
+        title="Select location"
+        titleIcon={{ name: 'place', color: c.textMuted }}
+        avoidKeyboard={false}>
+        <ScrollView style={styles.pickerList}>
+          {savedLocations.map((item) => (
+            <Pressable
+              key={item.id}
+              style={(state) => [styles.pickerRow, { borderColor: c.border }, pressBg(c, state)]}
+              accessibilityRole="button"
+              onPress={() => onSelectSavedLocation(item)}>
+              <Icon name="place" size={18} color={c.textMuted} />
+              <Text style={[styles.pickerRowText, { color: c.text }]}>{item.name}</Text>
+            </Pressable>
+          ))}
+          <Pressable
+            style={(state) => [styles.pickerRow, { borderColor: c.border }, pressBg(c, state)]}
+            accessibilityRole="button"
+            onPress={onSelectOtherLocation}>
+            <Icon name="edit-location-alt" size={18} color={c.textMuted} />
+            <Text style={[styles.pickerRowText, { color: c.text }]}>Other</Text>
+          </Pressable>
+        </ScrollView>
+      </ModalShell>
     </>
   );
 }
@@ -723,7 +682,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   screenContent: {
-    paddingTop: 16,
+    paddingTop: 32,
     gap: 16,
   },
   title: {
@@ -864,9 +823,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  // Sits right after the field title ("Location (optional)") so the hint reads with what it qualifies.
   optionalTag: {
-    fontSize: 12,
-    marginLeft: 'auto',
+    fontSize: 13,
+    fontWeight: '400',
   },
   amountModeCard: {
     borderRadius: 14,
@@ -937,24 +897,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  modalRoot: {
-    flex: 1,
-  },
-  modalCenter: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  pickerCard: {
-    width: '100%',
-    maxWidth: 480,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 20,
-    gap: 4,
-  },
-  pickerTitle: text.modalTitle,
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -969,15 +911,5 @@ const styles = StyleSheet.create({
   },
   pickerList: {
     maxHeight: 360,
-  },
-  pickerCancel: {
-    minHeight: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  pickerCancelText: {
-    fontWeight: '600',
-    fontSize: 15,
   },
 });

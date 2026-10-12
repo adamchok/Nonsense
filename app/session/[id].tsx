@@ -1,4 +1,5 @@
 import { BlindsEditorModal } from '@/components/session/blinds-editor-modal';
+import { SessionTitle } from '@/components/meta-line';
 import { BuyInModal } from '@/components/session/buy-in-modal';
 import { CashedOutDetailModal } from '@/components/session/cashed-out-detail-modal';
 import { ChipValueEditorModal } from '@/components/session/chip-value-editor-modal';
@@ -9,18 +10,12 @@ import { LocationEditorModal } from '@/components/session/location-editor-modal'
 import { PlayerTotalsList } from '@/components/session/player-totals-list';
 import { PotBadge } from '@/components/session/pot-badge';
 import { SessionFooterActions } from '@/components/session/session-footer-actions';
-import { SessionHeader } from '@/components/session/session-header';
 import { SessionMetaCards } from '@/components/session/session-meta-cards';
-import { formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
+import { formatSessionTitle } from '@/components/session/session-title';
 import { LiveSessionSkeleton } from '@/components/session/session-skeletons';
 import { hapticTap } from '@/components/session/feedback';
 import { UndoSnackbar } from '@/components/session/undo-snackbar';
-import {
-  deleteBuyInEntry,
-  useAddBuyIn,
-  type BuyInDraft,
-  type QueuedBuyIn,
-} from '@/hooks/use-add-buy-in';
+import { deleteBuyInEntry, useAddBuyIn, type BuyInDraft, type QueuedBuyIn } from '@/hooks/use-add-buy-in';
 import { useLiveSession } from '@/hooks/use-live-session';
 import { useSessionActions } from '@/hooks/use-session-actions';
 import { usePageLayout } from '@/hooks/use-page-layout';
@@ -80,7 +75,7 @@ export default function ActiveSessionScreen() {
   const dismissUndo = useCallback(() => setUndoable(null), []);
 
   const { handleAddBuyIn, pendingBuyIns } = useAddBuyIn(id, live, playerProfile, (queued, draft) =>
-    setUndoable(draft.isBuyBack ? null : { ...queued, key: Date.now() })
+    setUndoable(draft.isBuyBack ? null : { ...queued, key: Date.now() }),
   );
   const actions = useSessionActions({
     id,
@@ -105,7 +100,7 @@ export default function ActiveSessionScreen() {
     void target.buyInId.then((buyInId) => {
       if (!buyInId) return;
       return deleteBuyInEntry(id, buyInId).catch((e) =>
-        appAlert('Undo failed', userMessage(e, 'Could not remove that buy-in.'))
+        appAlert('Undo failed', userMessage(e, 'Could not remove that buy-in.')),
       );
     });
   }
@@ -176,6 +171,16 @@ export default function ActiveSessionScreen() {
     : undefined;
 
   const screenTitle = session?.date ? formatSessionTitle(session.date, session.location) : 'Live session';
+  const sessionDate = session?.date;
+  const headerTitle = sessionDate
+    ? () => (
+        <SessionTitle
+          date={sessionDate}
+          location={session?.location}
+          textStyle={[styles.headerTitle, { color: c.text }]}
+        />
+      )
+    : undefined;
 
   if (live.isLoading) {
     return (
@@ -188,23 +193,18 @@ export default function ActiveSessionScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerRight, title: screenTitle }} />
+      <Stack.Screen options={{ headerRight, title: screenTitle, headerTitle }} />
       <ScrollView
         style={[styles.screen, { backgroundColor: c.bg }]}
         contentContainerStyle={layout.content}
         keyboardShouldPersistTaps="handled">
         <View style={styles.group}>
-          <SessionHeader
-            meta={session?.date ? `Started ${formatSessionTime(session.date)}` : null}
-            hostActions={
-              canAct
-                ? {
-                    onBuyIn: () => openModal({ kind: 'buyIn', draft: EMPTY_BUY_IN }),
-                  }
-                : null
-            }
+          <PotBadge
+            total={live.totalPot}
+            unit={unit}
+            startedAt={session?.date ?? null}
+            onBuyIn={canAct ? () => openModal({ kind: 'buyIn', draft: EMPTY_BUY_IN }) : null}
           />
-          <PotBadge total={live.totalPot} unit={unit} />
           {live.showSessionMetaCards ? (
             <SessionMetaCards
               session={session}
@@ -228,8 +228,8 @@ export default function ActiveSessionScreen() {
         ) : null}
         {live.isActive && !viewerIsHost ? (
           <Text style={[type.label, { color: c.textMuted }]}>
-            View-only mode: only the host can add buy-ins, cash out players, edit location, blinds, dollars per
-            chip, or end the session.
+            View-only mode: only the host can add buy-ins, cash out players, edit location, blinds, dollars per chip, or
+            end the session.
           </Text>
         ) : null}
 
@@ -303,6 +303,7 @@ export default function ActiveSessionScreen() {
         playerProfile={playerProfile}
         lastAmountByPlayer={lastAmountByPlayer}
         commonAmount={commonAmount}
+        bigBlind={session?.bigBlind ?? null}
         onClose={closeModal}
         onSubmit={submitBuyIn}
       />
@@ -349,6 +350,10 @@ export default function ActiveSessionScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
   screen: {
     flex: 1,
   },
