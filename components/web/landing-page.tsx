@@ -37,7 +37,7 @@ import {
 
 const WIDE_BREAKPOINT = 960;
 const CTA_LABEL = 'Get started free';
-const PAGE_TITLE = 'Nonsense: track home poker games and settle up fast';
+const PAGE_TITLE = 'Nonsense · Home poker tracker';
 const PAGE_DESCRIPTION = 'Free home-poker tracker. Log buy-ins live, then settle the table in the fewest payments.';
 
 type Moment = { time: string; icon: IconName; title: string; body: string; settles?: boolean };
@@ -238,7 +238,8 @@ function NightTimeline({ c, isWide, signal }: { c: AppColors; isWide: boolean; s
           <View key={step.time} style={[styles.moment, isWide && styles.momentWide]}>
             <MomentNode step={step} lit={inView} delay={delay} c={c} signal={signal} />
             <Reveal shown={inView} delay={delay + 80} style={styles.momentText}>
-              <Text style={[styles.time, { color: step.settles ? c.blue : c.accentText }]}>{step.time}</Text>              <Text role="heading" aria-level={3} style={[styles.momentTitle, { color: c.text }]}>
+              <Text style={[styles.time, { color: step.settles ? c.blue : c.accentText }]}>{step.time}</Text>
+              <Text role="heading" aria-level={3} style={[styles.momentTitle, { color: c.text }]}>
                 {step.title}
               </Text>
               <Text style={[text.body, { color: c.textMuted }]}>{step.body}</Text>

@@ -390,7 +390,7 @@ export default function GroupMembersScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: c.border, backgroundColor: c.bg }]}>
+      <View style={[styles.footer, { backgroundColor: c.bg }]}>
         <PressableScale
           style={[styles.doneBtn, { backgroundColor: c.accent }]}
           accessibilityRole="button"
@@ -600,7 +600,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   doneBtn: {
     minHeight: 48,

@@ -34,7 +34,8 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
-const CHIP_AMOUNTS = [5, 10, 25, 50];
+// Three steps each way keep the quick-adjust chips on one line, even on 360px Android phones.
+const CHIP_AMOUNTS = [5, 10, 25];
 const NEGATIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => b - a);
 const POSITIVE_CHIP_AMOUNTS = [...CHIP_AMOUNTS].sort((a, b) => a - b);
 
@@ -883,25 +884,23 @@ const styles = StyleSheet.create({
   },
   chipRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
-    justifyContent: 'center',
   },
   chipMinus: {
+    flex: 1,
+    minWidth: 0,
     borderRadius: 8,
-    minWidth: 44,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
   },
   chipPlus: {
+    flex: 1,
+    minWidth: 0,
     borderRadius: 8,
-    minWidth: 44,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
   },
   chipLabel: {
     fontSize: 13,
