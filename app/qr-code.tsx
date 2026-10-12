@@ -26,6 +26,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userMessage } from '@/lib/user-message';
 
 type Tab = 'my' | 'scan';
@@ -40,6 +41,7 @@ const iconSwapEntering = ZoomIn.duration(180).reduceMotion(ReduceMotion.System);
 
 export default function QrCodeScreen() {
   const c = useAppColors();
+  const insets = useSafeAreaInsets();
   const { playerProfile, user } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('my');
@@ -452,7 +454,10 @@ export default function QrCodeScreen() {
 
         </Animated.View>
       ) : (
-        <Animated.View key="scan" entering={fadeIn} style={styles.scanRoot}>
+        <Animated.View
+          key="scan"
+          entering={fadeIn}
+          style={[styles.scanRoot, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
           <View style={[styles.scanCard, { borderColor: c.border }]}>
             <CameraView
               style={StyleSheet.absoluteFill}

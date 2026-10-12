@@ -397,7 +397,7 @@ export const PLChart = memo(function PLChart({
         </View>
       </View>
 
-      <GestureDetector gesture={plotGesture}>
+      <GestureDetector gesture={plotGesture} touchAction="pan-y">
         <View
           style={styles.plot}
           nativeID="pl-chart"
