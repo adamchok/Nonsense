@@ -1,1 +1,1 @@
-export function applyWebTheme(_scheme: 'light' | 'dark'): void {}
+export function applyWebTheme(_scheme: 'light' | 'dark', _isReady: boolean): void {}

@@ -4,7 +4,7 @@ import { type AppColors } from '@/lib/app-theme';
 import { radius, space } from '@/lib/spacing';
 import { useResolvedColorScheme, useThemePreference } from '@/lib/theme-context';
 import { text } from '@/lib/ui';
-import { Link } from 'expo-router';
+import { Link, type Href } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
@@ -142,10 +142,19 @@ export function TextLink({
   color: string;
   style?: StyleProp<TextStyle>;
 }) {
+  if (!href.startsWith('/')) {
+    return (
+      <Text role="link" {...({ href, dataSet: { textLink: 'true' } } as object)} style={[style, { color }]}>
+        {label}
+      </Text>
+    );
+  }
   return (
-    <Text role="link" {...({ href, dataSet: { textLink: 'true' } } as object)} style={[style, { color }]}>
-      {label}
-    </Text>
+    <Link href={href as Href} asChild>
+      <Text role="link" {...({ dataSet: { textLink: 'true' } } as object)} style={StyleSheet.flatten([style, { color }])}>
+        {label}
+      </Text>
+    </Link>
   );
 }
 
@@ -170,10 +179,16 @@ export function SiteFooter({
         <View style={[container, styles.footerInner]}>
           <View style={[styles.footerTop, isWide ? styles.footerTopWide : styles.footerTopStacked]}>
             <View style={styles.footerBrand}>
-              <View style={styles.footerBrandRow}>
-                <Image source={logo} style={styles.footerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
-                <Text style={[styles.footerWordmark, { color: c.text }]}>Nonsense</Text>
-              </View>
+              <Link href="/" asChild>
+                <Pressable
+                  role="link"
+                  aria-label="Nonsense home"
+                  {...({ dataSet: { plainLink: 'true' } } as object)}
+                  style={StyleSheet.flatten([styles.footerBrandRow, styles.brandLink])}>
+                  <Image source={logo} style={styles.footerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
+                  <Text style={[styles.footerWordmark, { color: c.text }]}>Nonsense</Text>
+                </Pressable>
+              </Link>
               <Text style={[styles.footerTagline, { color: c.textMuted }]}>
                 A free session tracker for home poker. It records the game and never handles money.
               </Text>

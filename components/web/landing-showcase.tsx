@@ -14,7 +14,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import {
   FadeIn,
   FadeInDown,
@@ -82,6 +88,11 @@ const CLIPS: Clip[] = [
     label: "Screen recording: the friends list, groups and leaderboard.",
   },
 ];
+
+const PHONE_MAX_WIDTH = 340;
+const PHONE_VIEWPORT_SHARE = 0.72;
+const PHONE_ASPECT = 844 / 390;
+const PHONE_CHROME = 18;
 
 const VIDEO_STYLE = {
   width: "100%",
@@ -393,6 +404,13 @@ export function LandingShowcase({
   cta: ReactNode;
 }) {
   const [active, setActive] = useState(0);
+  const { height: viewportHeight } = useWindowDimensions();
+  const phoneWidth = isWide
+    ? PHONE_MAX_WIDTH
+    : Math.min(
+        PHONE_MAX_WIDTH,
+        Math.round((viewportHeight * PHONE_VIEWPORT_SHARE - PHONE_CHROME) / PHONE_ASPECT),
+      );
   const reduceMotion = useReducedMotion();
   const dark = useResolvedColorScheme() === "dark";
   const tabRefs = useRef<(View | null)[]>([]);
@@ -507,7 +525,7 @@ export function LandingShowcase({
             disabled={reduceMotion}
             onPress={() => setPaused((p) => !p)}
             {...({ dataSet: { hoverNone: "true" } } as object)}
-            style={styles.phoneSlotInner}
+            style={[styles.phoneSlotInner, { maxWidth: phoneWidth }]}
           >
             <PhoneVideo
               clip={clip}

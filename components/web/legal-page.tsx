@@ -7,7 +7,7 @@ import { type Block, type Inline, type LegalDoc } from '@/lib/legal-content';
 import { radius, space } from '@/lib/spacing';
 import { useResolvedColorScheme } from '@/lib/theme-context';
 import { text } from '@/lib/ui';
-import { router } from 'expo-router';
+import { Link, router, type Href } from 'expo-router';
 import Head from 'expo-router/head';
 import { Fragment, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -41,6 +41,18 @@ function Rich({ parts, c }: { parts: Inline[]; c: AppColors }) {
               {part.bold}
             </Text>
           );
+        if (IS_WEB && part.href.startsWith('/')) {
+          return (
+            <Link key={i} href={part.href as Href} asChild>
+              <Text
+                role="link"
+                {...({ dataSet: { textLink: 'true' } } as object)}
+                style={StyleSheet.flatten([styles.link, { color: c.accentText }])}>
+                {part.link}
+              </Text>
+            </Link>
+          );
+        }
         return (
           <Text key={i} role="link" {...linkProps(part.href)} style={[styles.link, { color: c.accentText }]}>
             {part.link}

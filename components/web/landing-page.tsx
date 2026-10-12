@@ -498,12 +498,11 @@ function FaqSection({ c, isWide, signal, container }: SectionProps) {
           intro={
             <>
               Can’t find your answer?{' '}
-              <Text
-                role="link"
-                {...({ href: '/contact', dataSet: { textLink: 'true' } } as object)}
-                style={{ color: c.accentText }}>
-                Contact us
-              </Text>
+              <Link href="/contact" asChild>
+                <Text role="link" {...({ dataSet: { textLink: 'true' } } as object)} style={{ color: c.accentText }}>
+                  Contact us
+                </Text>
+              </Link>
               .
             </>
           }
@@ -600,6 +599,15 @@ function Closer({ c, isWide, signal, container }: SectionProps) {
 
 
 
+const HASH_SCROLL_MAX_FRAMES = 120;
+
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    if (/auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+  }
+  return null;
+}
+
 export function LandingPage() {
   const c = useAppColors();
   const scheme = useResolvedColorScheme();
@@ -611,6 +619,27 @@ export function LandingPage() {
   const logo = siteLogo(dark);
   const container = [chromeStyles.container, { paddingHorizontal: gutter }];
   const section = { c, isWide, signal, container };
+
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return;
+    let frame = 0;
+    let tries = 0;
+    const scrollToTarget = () => {
+      const hash = window.location.hash;
+      const target = hash.length > 1 ? decodeURIComponent(hash.slice(1)) : '';
+      const el = [...document.querySelectorAll<HTMLElement>(target ? `[id="${CSS.escape(target)}"]` : ':not(*)')].find(
+        (candidate) => candidate.getBoundingClientRect().height > 0,
+      );
+      const scroller = el ? scrollParent(el) : null;
+      if (el && scroller) {
+        scroller.scrollTop += el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        return;
+      }
+      if (++tries < HASH_SCROLL_MAX_FRAMES) frame = requestAnimationFrame(scrollToTarget);
+    };
+    frame = requestAnimationFrame(scrollToTarget);
+    return () => cancelAnimationFrame(frame);
+  }, [hydrated]);
 
   return (
     <ScrollView

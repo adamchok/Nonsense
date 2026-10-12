@@ -56,8 +56,8 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
   }, [preference, systemScheme]);
 
   useEffect(() => {
-    applyWebTheme(resolvedColorScheme);
-  }, [resolvedColorScheme]);
+    applyWebTheme(resolvedColorScheme, isReady);
+  }, [resolvedColorScheme, isReady]);
 
   const setPreference = useCallback(async (p: ThemePreference) => {
     setPreferenceState(p);
