@@ -11,14 +11,18 @@ import { Platform, TurboModuleRegistry } from 'react-native';
 import {
   type AuthCredential,
   type User,
+  EmailAuthProvider,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
 } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import {
   AccountLinkError,
   accountEmail,
@@ -28,11 +32,12 @@ import {
   linkAnonymousWithCredential,
   linkAnonymousWithPopup,
   linkedEmail as getLinkedEmail,
+  reauthenticateWithPopupProvider,
   signInWithAccountCredential,
   signInWithPopupProvider,
   toAccountLinkError,
 } from '@/lib/account-link';
-import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { getFirebaseAuth, getFirebaseFunctions, isFirebaseConfigured } from '@/lib/firebase';
 import {
   ensureRefCode,
   getPlayerProfile,
@@ -65,6 +70,13 @@ interface AuthContextValue {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   createAccountWithEmail: (email: string, password: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
+  /** Email/password accounts only: confirms the current password, then sets the new one. */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /**
+   * Re-confirms identity (password when given, otherwise Google; none for guests), then deletes the
+   * account and its data on the server and signs out.
+   */
+  deleteAccount: (password?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -87,6 +99,8 @@ const AuthContext = createContext<AuthContextValue>({
   signInWithEmail: async () => {},
   createAccountWithEmail: async () => {},
   sendPasswordReset: async () => {},
+  changePassword: async () => {},
+  deleteAccount: async () => {},
 });
 
 export function useAuth() {
@@ -357,6 +371,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
   }, []);
 
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const current = getFirebaseAuth().currentUser;
+    if (!current?.email) throw new AccountLinkError('no-user');
+    // Firebase requires a recent sign-in to change the password; re-checking the old one covers that.
+    await reauthenticateWithCredential(current, EmailAuthProvider.credential(current.email, currentPassword));
+    await updatePassword(current, newPassword);
+  }, []);
+
+  const deleteAccount = useCallback(async (password?: string) => {
+    const auth = getFirebaseAuth();
+    const current = auth.currentUser;
+    if (!current) throw new AccountLinkError('no-user');
+    // The server only accepts a sign-in from the last few minutes, so confirm it is really them first.
+    if (password !== undefined) {
+      if (!current.email) throw new AccountLinkError('no-user');
+      await reauthenticateWithCredential(current, EmailAuthProvider.credential(current.email, password));
+    } else if (!current.isAnonymous) {
+      if (IS_WEB) await reauthenticateWithPopupProvider(current, newGoogleProvider());
+      else await reauthenticateWithCredential(current, await getGoogleCredential());
+    }
+    await httpsCallable(getFirebaseFunctions(), 'deleteAccount')();
+    await signOut(auth);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -378,6 +416,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithEmail,
       createAccountWithEmail,
       sendPasswordReset,
+      changePassword,
+      deleteAccount,
     }),
     [
       user,
@@ -394,6 +434,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithEmail,
       createAccountWithEmail,
       sendPasswordReset,
+      changePassword,
+      deleteAccount,
     ]
   );
 

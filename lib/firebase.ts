@@ -8,6 +8,7 @@ import {
   type Auth,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 import { Platform } from 'react-native';
 
 const firebaseConfig = {
@@ -37,6 +38,9 @@ const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
 const EMULATOR_HOST = process.env.EXPO_PUBLIC_EMULATOR_HOST || '127.0.0.1';
 const FIRESTORE_EMULATOR_PORT = 8080;
 const AUTH_EMULATOR_PORT = 9099;
+const FUNCTIONS_EMULATOR_PORT = 5001;
+/** Must match the region the callable functions are deployed to (functions/index.js). */
+const FUNCTIONS_REGION = 'asia-southeast1';
 
 let app: FirebaseApp | undefined;
 
@@ -85,4 +89,16 @@ export function getFirestoreDb(): Firestore {
     }
   }
   return db;
+}
+
+let functions: Functions | undefined;
+
+export function getFirebaseFunctions(): Functions {
+  if (!functions) {
+    functions = getFunctions(getFirebaseApp(), FUNCTIONS_REGION);
+    if (USE_EMULATOR) {
+      connectFunctionsEmulator(functions, EMULATOR_HOST, FUNCTIONS_EMULATOR_PORT);
+    }
+  }
+  return functions;
 }

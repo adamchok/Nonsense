@@ -1,14 +1,16 @@
 import { WebAppFrame, WebContentColumn } from '@/components/web/web-app-frame';
+import { WebSidebar } from '@/components/web/web-sidebar';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { AppAlertProvider } from '@/lib/app-alert';
 import { AuthProvider, readSignedInHint, useAuth } from '@/lib/auth-context';
 import { ThemePreferenceProvider, useThemePreference } from '@/lib/theme-context';
-import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { Stack, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useSyncExternalStore, type ReactElement } from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '@/lib/reanimated-setup';
 
@@ -18,8 +20,8 @@ export const unstable_settings = {
   anchor: 'index',
 };
 
-const FULL_WIDTH_ROUTES = new Set(['(tabs)', 'index', 'privacy', 'terms', 'contact']);
-const PUBLIC_WEB_PATHS = new Set(['/privacy', '/terms', '/contact']);
+const FULL_WIDTH_ROUTES = new Set(['(tabs)', 'index', 'privacy', 'privacy-ms', 'terms', 'contact']);
+const PUBLIC_WEB_PATHS = new Set(['/privacy', '/privacy-ms', '/terms', '/contact']);
 
 const webScreenLayout =
   Platform.OS === 'web'
@@ -28,6 +30,11 @@ const webScreenLayout =
     : undefined;
 
 const IS_WEB = Platform.OS === 'web';
+const AUTH_PATHS = new Set(['/sign-in', '/name', '/secure']);
+
+function isPublicOrAuthPath(pathname: string): boolean {
+  return PUBLIC_WEB_PATHS.has(pathname) || AUTH_PATHS.has(pathname);
+}
 
 const subscribeNoop = () => () => {};
 // Server snapshot is false so static HTML and the hydration pass both render the landing.
@@ -39,6 +46,9 @@ function RootNavigator() {
   const { resolvedColorScheme } = useThemePreference();
   const pathname = usePathname();
   const hasSignedInHint = useSyncExternalStore(subscribeNoop, readSignedInHint, getServerHint);
+  const { isMd } = useBreakpoint();
+  // Desktop web keeps the app sidebar on every signed-in screen (tabs and pushed screens alike).
+  const showSidebar = IS_WEB && isMd && isSignedIn && !isPublicOrAuthPath(pathname);
 
   useEffect(() => {
     if (!isReady) return;
@@ -52,8 +62,7 @@ function RootNavigator() {
   // On web, "/" is the public landing: render it before auth resolves (static export, LCP), unless
   // this browser was last signed in, in which case wait so the landing never flashes. Protected
   // routes stay guarded because isSignedIn is false until auth is ready.
-  const canRenderBeforeReady =
-    IS_WEB && ((pathname === '/' && !hasSignedInHint) || PUBLIC_WEB_PATHS.has(pathname));
+  const canRenderBeforeReady = IS_WEB && ((pathname === '/' && !hasSignedInHint) || PUBLIC_WEB_PATHS.has(pathname));
 
   if (!isReady && !canRenderBeforeReady) {
     return null;
@@ -64,38 +73,37 @@ function RootNavigator() {
       <Head>
         <title>Nonsense</title>
       </Head>
-      <Stack screenLayout={webScreenLayout}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="privacy" options={{ headerShown: false, title: 'Privacy Policy' }} />
-        <Stack.Screen name="terms" options={{ headerShown: false, title: 'Terms of Service' }} />
-        <Stack.Screen name="contact" options={{ headerShown: false, title: 'Contact' }} />
-        <Stack.Protected guard={isSignedIn}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="session/new"
-            options={{ title: 'New Session', presentation: 'modal', headerBackTitle: 'Back' }}
-          />
-          <Stack.Screen name="session/[id]" options={{ title: 'Active Session' }} />
-          <Stack.Screen name="session/cashout/[id]" options={{ title: 'End Session' }} />
-          <Stack.Screen
-            name="session/summary/[id]"
-            options={{ title: 'Session Summary', headerBackTitle: 'Back' }}
-          />
-          <Stack.Screen
-            name="group/[id]/members"
-            options={{ title: 'Group Members', headerBackTitle: 'Back' }}
-          />
-          <Stack.Screen
-            name="locations/index"
-            options={{ title: 'Saved Locations', headerBackTitle: 'Back' }}
-          />
-          <Stack.Screen
-            name="qr-code"
-            options={{ title: 'QR code', headerBackTitle: 'Back' }}
-          />
-        </Stack.Protected>
-      </Stack>
+      <View style={styles.shell}>
+        {showSidebar ? <WebSidebar /> : null}
+        <View style={styles.main}>
+          <Stack screenLayout={webScreenLayout}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="privacy" options={{ headerShown: false, title: 'Privacy Policy' }} />
+            <Stack.Screen name="privacy-ms" options={{ headerShown: false, title: 'Dasar Privasi' }} />
+            <Stack.Screen name="terms" options={{ headerShown: false, title: 'Terms of Service' }} />
+            <Stack.Screen name="contact" options={{ headerShown: false, title: 'Contact' }} />
+            {/* Outside the guard: signed-out visitors (store listing link) see how to request deletion. */}
+            <Stack.Screen name="delete-account" options={{ title: 'Delete account', headerBackTitle: 'Back' }} />
+            <Stack.Protected guard={isSignedIn}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="session/new"
+                options={{ title: 'New Session', presentation: 'modal', headerBackTitle: 'Back' }}
+              />
+              <Stack.Screen name="session/[id]" options={{ title: 'Active Session' }} />
+              <Stack.Screen name="session/cashout/[id]" options={{ title: 'Cash out' }} />
+              <Stack.Screen
+                name="session/summary/[id]"
+                options={{ title: 'Session summary', headerBackTitle: 'Back' }}
+              />
+              <Stack.Screen name="locations/index" options={{ title: 'Saved Locations', headerBackTitle: 'Back' }} />
+              <Stack.Screen name="qr-code" options={{ title: 'QR code', headerBackTitle: 'Back' }} />
+              <Stack.Screen name="change-password" options={{ title: 'Change password', headerBackTitle: 'Back' }} />
+            </Stack.Protected>
+          </Stack>
+        </View>
+      </View>
       <StatusBar style={resolvedColorScheme === 'dark' ? 'light' : 'dark'} />
     </>
   );
@@ -127,4 +135,8 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({ root: { flex: 1 } });
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  shell: { flex: 1, flexDirection: 'row' },
+  main: { flex: 1, minWidth: 0 },
+});

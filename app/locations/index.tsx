@@ -56,7 +56,7 @@ export default function SavedLocationsScreen() {
       return () => {
         active = false;
       };
-    }, [user])
+    }, [user]),
   );
 
   async function onAddLocation() {
@@ -106,10 +106,7 @@ export default function SavedLocationsScreen() {
             accessibilityLabel="New location name"
             placeholder="e.g. Adam's place"
             placeholderTextColor={c.placeholder}
-            style={[
-              styles.input,
-              { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text },
-            ]}
+            style={[styles.input, { borderColor: c.inputBorder, backgroundColor: c.inputBg, color: c.text }]}
           />
           <PressableScale
             pressedScale={0.92}
@@ -125,32 +122,37 @@ export default function SavedLocationsScreen() {
 
       {error ? <Text style={{ color: c.loss }}>{error}</Text> : null}
 
-      <Animated.View layout={layoutTransition} style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+      <Animated.View
+        layout={layoutTransition}
+        style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
         <Text style={[styles.label, { color: c.textMuted }]}>SAVED LOCATIONS</Text>
         {locations.length === 0 ? (
           <Animated.View entering={fadeIn}>
             <EmptyState compact icon="place" title="No saved locations" message="Locations you add appear here." />
           </Animated.View>
         ) : (
-          locations.map((item, i) => (
-            <Animated.View
-              key={item.id}
-              entering={listItemEntering(initialStagger ? i : 0)}
-              exiting={fadeOut}
-              layout={layoutTransition}
-              style={[styles.row, i > 0 && styles.rowDivider, { borderColor: c.border }]}>
-              <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Pressable
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete saved location ${item.name}`}
-                onPress={() => onDeleteLocation(item)}>
-                <Icon name="delete-outline" size={20} color={c.lossLight} />
-              </Pressable>
-            </Animated.View>
-          ))
+          // Own wrapper so the card's gap doesn't stack on row padding: dividers sit evenly between rows.
+          <View>
+            {locations.map((item, i) => (
+              <Animated.View
+                key={item.id}
+                entering={listItemEntering(initialStagger ? i : 0)}
+                exiting={fadeOut}
+                layout={layoutTransition}
+                style={[styles.row, i > 0 && styles.rowDivider, { borderColor: c.border }]}>
+                <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Pressable
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete saved location ${item.name}`}
+                  onPress={() => onDeleteLocation(item)}>
+                  <Icon name="delete-outline" size={20} color={c.lossLight} />
+                </Pressable>
+              </Animated.View>
+            ))}
+          </View>
         )}
       </Animated.View>
     </ScrollView>

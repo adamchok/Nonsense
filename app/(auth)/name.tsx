@@ -61,7 +61,7 @@ export default function NameScreen() {
   }
 
   if (!user) {
-    return <Redirect href="/(auth)/welcome" />;
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
   async function onSave() {

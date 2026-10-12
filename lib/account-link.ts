@@ -5,6 +5,7 @@ import type { Auth, AuthCredential, AuthProvider, User, UserCredential } from 'f
 interface PopupAuthApi {
   linkWithPopup?: (user: User, provider: AuthProvider) => Promise<UserCredential>;
   signInWithPopup?: (auth: Auth, provider: AuthProvider) => Promise<UserCredential>;
+  reauthenticateWithPopup?: (user: User, provider: AuthProvider) => Promise<UserCredential>;
 }
 
 function popupApi<K extends keyof PopupAuthApi>(name: K): NonNullable<PopupAuthApi[K]> {
@@ -159,6 +160,15 @@ export async function signInWithAccountCredential(
   try {
     const result = await signInWithCredential(auth, credential);
     return result.user;
+  } catch (err) {
+    throw toAccountLinkError(err);
+  }
+}
+
+/** Web: confirms the signed-in user again (e.g. before deleting the account). */
+export async function reauthenticateWithPopupProvider(user: User, provider: AuthProvider): Promise<void> {
+  try {
+    await popupApi('reauthenticateWithPopup')(user, provider);
   } catch (err) {
     throw toAccountLinkError(err);
   }

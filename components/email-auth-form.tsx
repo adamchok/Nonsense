@@ -1,18 +1,14 @@
 import { ConsentCheckbox } from '@/components/consent-checkbox';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
+import { PasswordField } from '@/components/password-field';
 import { Animated, PressableScale, fadeIn } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
-  MAX_PASSWORD_LENGTH,
-  PASSWORD_RULES,
   authErrorInfo,
   emailInputError,
   passwordInputError,
 } from '@/lib/auth-errors';
-import { Icon } from '@/components/icon';
-import { EyeIcon } from 'phosphor-react-native/src/icons/Eye';
-import { EyeSlashIcon } from 'phosphor-react-native/src/icons/EyeSlash';
 import { useId, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -45,7 +41,6 @@ export function EmailAuthForm({
   const passwordErrorId = `${idBase}-password-error`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -145,7 +140,6 @@ export function EmailAuthForm({
   }
 
   const inputStyle = [styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }];
-  const EyeGlyph = isPasswordVisible ? EyeSlashIcon : EyeIcon;
   const submitLabel = isCreate ? 'Create account' : 'Sign in';
 
   return (
@@ -179,93 +173,50 @@ export function EmailAuthForm({
         <FieldError message={emailError} nativeID={emailErrorId} />
       </View>
 
-      <View>
-        <Text style={[styles.label, { color: c.textSecondary }]}>Password</Text>
-        <View style={styles.passwordRow}>
-          <TextInput
-            ref={passwordRef}
-            value={password}
-            onChangeText={(t) => {
-              setPassword(t);
-              setPasswordError(null);
-              clearMessages();
-            }}
-            accessibilityLabel="Password"
-            placeholder={isCreate ? 'Create a password' : 'Your password'}
-            placeholderTextColor={c.placeholder}
-            secureTextEntry={!isPasswordVisible}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete={isCreate ? 'new-password' : 'current-password'}
-            textContentType={isCreate ? 'newPassword' : 'password'}
-            passwordRules={
-              isCreate
-                ? `minlength: 8; maxlength: ${MAX_PASSWORD_LENGTH}; required: upper; required: lower; required: digit; required: special;`
-                : undefined
-            }
-            maxLength={isCreate ? MAX_PASSWORD_LENGTH : undefined}
-            returnKeyType="go"
-            onSubmitEditing={handleSubmit}
-            editable={!isBusy}
-            style={[inputStyle, styles.passwordInput, errorBorder(c, passwordError)]}
-            {...invalidProps(passwordError, passwordErrorId)}
-          />
-          <PressableScale
-            onPress={() => setIsPasswordVisible((v) => !v)}
-            accessibilityRole="button"
-            accessibilityLabel={isPasswordVisible ? 'Hide password' : 'Show password'}
-            hitSlop={8}
-            style={styles.eyeButton}>
-            <EyeGlyph size={20} color={c.textMuted} {...eyeA11yHidden} />
-          </PressableScale>
-        </View>
-        <FieldError message={passwordError} nativeID={passwordErrorId} />
-        {isCreate ? (
-          <View style={styles.rules} accessibilityLabel="Password requirements">
-            {PASSWORD_RULES.map((rule) => {
-              const met = rule.test(password);
-              return (
-                <View
-                  key={rule.key}
-                  style={styles.rule}
-                  accessible
-                  accessibilityLabel={`${rule.label}, ${met ? 'done' : 'not yet'}`}>
-                  <Icon
-                    name={met ? 'check-circle' : 'check-circle-outline'}
-                    size={14}
-                    color={met ? c.profit : c.textHint}
-                    weight={met ? 'fill' : 'regular'}
-                  />
-                  <Text style={[styles.ruleText, { color: met ? c.text : c.textMuted }]}>{rule.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-        ) : null}
-        {showForgot && !isCreate ? (
-          <PressableScale
-            onPress={handleForgot}
-            disabled={isBusy}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isBusy, busy: isSendingReset }}
-            {...({ dataSet: { textButton: 'true' } } as object)}
-            style={styles.forgotButton}>
-            {isSendingReset ? (
-              <ActivityIndicator size="small" color={c.accentText} />
-            ) : (
-              <Text style={[styles.forgotLabel, { color: c.accentText }]}>Forgot password?</Text>
-            )}
-          </PressableScale>
-        ) : null}
-        {resetNote ? (
-          <Animated.View
-            entering={fadeIn}
-            style={[styles.note, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
-            accessibilityLiveRegion="polite">
-            <Text style={[styles.noteText, { color: c.text }]}>{resetNote}</Text>
-          </Animated.View>
-        ) : null}
-      </View>
+      <PasswordField
+        label="Password"
+        value={password}
+        onChangeText={(t) => {
+          setPassword(t);
+          setPasswordError(null);
+          clearMessages();
+        }}
+        kind={isCreate ? 'new' : 'current'}
+        placeholder={isCreate ? 'Create a password' : 'Your password'}
+        error={passwordError}
+        errorId={passwordErrorId}
+        inputRef={passwordRef}
+        editable={!isBusy}
+        returnKeyType="go"
+        onSubmitEditing={handleSubmit}
+        footer={
+          <>
+            {showForgot && !isCreate ? (
+              <PressableScale
+                onPress={handleForgot}
+                disabled={isBusy}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isBusy, busy: isSendingReset }}
+                {...({ dataSet: { textButton: 'true' } } as object)}
+                style={styles.forgotButton}>
+                {isSendingReset ? (
+                  <ActivityIndicator size="small" color={c.accentText} />
+                ) : (
+                  <Text style={[styles.forgotLabel, { color: c.accentText }]}>Forgot password?</Text>
+                )}
+              </PressableScale>
+            ) : null}
+            {resetNote ? (
+              <Animated.View
+                entering={fadeIn}
+                style={[styles.note, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
+                accessibilityLiveRegion="polite">
+                <Text style={[styles.noteText, { color: c.text }]}>{resetNote}</Text>
+              </Animated.View>
+            ) : null}
+          </>
+        }
+      />
 
       {needsConsent ? (
         <ConsentCheckbox
@@ -319,13 +270,8 @@ export function EmailAuthForm({
 
 export const CONSENT_REQUIRED = 'Tick the box to accept the Terms of Service and Privacy Policy.';
 
-const eyeA11yHidden: object =
-  Platform.OS === 'web' ? { 'aria-hidden': true } : { importantForAccessibility: 'no', accessibilityElementsHidden: true };
 
 const styles = StyleSheet.create({
-  rules: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 },
-  rule: { width: '50%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
-  ruleText: { fontSize: 12, lineHeight: 16 },
   root: { gap: 14 },
   label: { fontSize: 13, lineHeight: 18, fontWeight: '500', marginBottom: 6 },
   input: {
@@ -335,17 +281,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-  },
-  passwordRow: { justifyContent: 'center' },
-  passwordInput: { paddingRight: 52 },
-  eyeButton: {
-    position: 'absolute',
-    right: 2,
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
   },
   forgotButton: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 4, marginTop: 4 },
   forgotLabel: { fontSize: 13, fontWeight: '600' },

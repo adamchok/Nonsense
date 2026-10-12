@@ -1,11 +1,10 @@
 import { HapticTab } from '@/components/haptic-tab';
 import { Icon } from '@/components/icon';
 import { WebContentColumn } from '@/components/web/web-app-frame';
-import { WebSidebar } from '@/components/web/web-sidebar';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { BottomTabBar, type BottomTabNavigationOptions } from "expo-router/js-tabs";
+import { BottomTabBar, type BottomTabNavigationOptions } from 'expo-router/js-tabs';
 import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
@@ -38,7 +37,7 @@ export default function TabLayout() {
   };
 
   if (isReady && !user) {
-    return <Redirect href="/(auth)/welcome" />;
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
   if (isReady && isAnonymous) {
@@ -71,7 +70,8 @@ export default function TabLayout() {
           paddingBottom: 'max(10px, env(safe-area-inset-bottom))' as unknown as number,
         },
       }}
-      tabBar={(props) => (isMd ? <WebSidebar {...props} /> : <BottomTabBar {...props} />)}
+      // Wide web: the root layout draws the sidebar next to every signed-in screen, so no tab bar here.
+      tabBar={(props) => (isMd ? null : <BottomTabBar {...props} />)}
       screenLayout={({ route, children }) => (
         <WebContentColumn wide={WIDE_TAB_ROUTES.has(route.name)}>{children}</WebContentColumn>
       )}>
@@ -112,12 +112,12 @@ const tabScreens = [
     }}
   />,
   <Tabs.Screen
-    key="settings"
-    name="settings"
+    key="profile"
+    name="profile"
     options={{
-      title: 'Settings',
+      title: 'Profile',
       tabBarIcon: ({ color, size, focused }) => (
-        <Icon size={isWeb ? size : 28} name="settings" color={color as string} weight={focused ? 'fill' : 'regular'} />
+        <Icon size={isWeb ? size : 28} name="person" color={color as string} weight={focused ? 'fill' : 'regular'} />
       ),
     }}
   />,

@@ -53,7 +53,7 @@ export default function SecureAccountScreen() {
     );
   }
 
-  if (!user) return <Redirect href="/(auth)/welcome" />;
+  if (!user) return <Redirect href="/(auth)/sign-in" />;
   if (!isAnonymous) return <Redirect href="/" />;
 
   const isGoogleBusy = googleBusy !== null;

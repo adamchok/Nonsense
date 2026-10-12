@@ -13,7 +13,7 @@ export default function IndexScreen() {
   }
 
   if (!user) {
-    return Platform.OS === 'web' ? <LandingPage /> : <Redirect href="/(auth)/welcome" />;
+    return Platform.OS === 'web' ? <LandingPage /> : <Redirect href="/(auth)/sign-in" />;
   }
 
   if (isAnonymous) {
