@@ -5,6 +5,7 @@
   --interaction-hover-overlay: rgba(15, 23, 42, 0.06);
   --danger: #dc2626;
   --danger-hover-overlay: rgba(220, 38, 38, 0.08);
+  --warm-hover-overlay: rgba(224, 178, 74, 0.16);
   --input-hover-ring: rgba(71, 85, 105, 0.5);
   --interaction-ease: cubic-bezier(0.23, 1, 0.32, 1);
   --scrollbar-thumb: rgba(15, 23, 42, 0.2);
@@ -19,6 +20,7 @@
     --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
     --danger: #f87171;
     --danger-hover-overlay: rgba(248, 113, 113, 0.14);
+  --warm-hover-overlay: rgba(245, 196, 81, 0.1);
     --input-hover-ring: rgba(148, 163, 184, 0.5);
     --scrollbar-thumb: rgba(148, 163, 184, 0.25);
     --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
@@ -32,6 +34,7 @@
   --interaction-hover-overlay: rgba(255, 255, 255, 0.08);
   --danger: #f87171;
   --danger-hover-overlay: rgba(248, 113, 113, 0.14);
+  --warm-hover-overlay: rgba(245, 196, 81, 0.1);
   --input-hover-ring: rgba(148, 163, 184, 0.5);
   --scrollbar-thumb: rgba(148, 163, 184, 0.25);
   --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
@@ -85,8 +88,34 @@
       a[href],
       button,
       [tabindex='0']
-    ):not([aria-disabled='true'], :disabled, [aria-selected='true'], [aria-hidden='true'], [data-hover-ring]):hover {
+    ):not([aria-disabled='true'], :disabled, [aria-selected='true'], [aria-hidden='true'], [data-hover-ring], [data-hover-warm], [data-hover-none]):hover {
     filter: var(--interaction-hover-filter);
+    box-shadow: inset 0 0 0 100vmax var(--interaction-hover-overlay);
+  }
+
+  /* Warm gold hover for surfaces where the grey overlay would vanish into a grey page (landing FAQ).
+     Doubled attribute out-ranks the generic button hover rule above. */
+  [data-hover-warm][data-hover-warm]:hover {
+    filter: none;
+    box-shadow: inset 0 0 0 100vmax var(--warm-hover-overlay);
+  }
+
+  /* Field whose main area is a button (e.g. the date range field): hover tints the whole field, not just the button. */
+  [data-hover-field]:has(> :first-child:not([aria-disabled='true']):hover) {
+    box-shadow: inset 0 0 0 100vmax var(--interaction-hover-overlay);
+  }
+  /* Doubled attribute: must out-rank the generic button hover rule above, or the overlay applies twice. */
+  [data-hover-field][data-hover-field] > :first-child:hover {
+    filter: none;
+    box-shadow: none;
+  }
+
+  /* Small icon button inside a bigger tap area (clear x in inputs): fill the inner circle, not the whole 44px button. */
+  [data-hover-dot][data-hover-dot]:not([aria-disabled='true']):hover {
+    filter: none;
+    box-shadow: none;
+  }
+  [data-hover-dot]:not([aria-disabled='true']):hover > :first-child {
     box-shadow: inset 0 0 0 100vmax var(--interaction-hover-overlay);
   }
 
@@ -191,7 +220,12 @@
 }
 
 @media (hover: hover) {
-  :is(input, textarea):not(:disabled, :focus, [readonly]):hover {
+  :is(input, textarea)[class*='r-borderWidth']:not(:disabled, :focus, [readonly]):hover {
+    box-shadow: 0 0 0 1px var(--input-hover-ring);
+  }
+
+  /* Borderless input inside a bordered field: hover rings the field, not the inner input. */
+  :has(> :is(input, textarea):not([class*='r-borderWidth'], :disabled, :focus, [readonly]):hover) {
     box-shadow: 0 0 0 1px var(--input-hover-ring);
   }
 }
@@ -212,14 +246,21 @@
   outline: none;
 }
 
-/* Keyboard focus on a valid field gets a clear accent ring on top of the border colour. */
-:is(input, textarea):not([readonly], [aria-invalid='true']):focus-visible {
-  box-shadow: 0 0 0 2px var(--accent);
+/* Keyboard focus on a valid field: the accent border thickens inward. An outer ring got clipped by
+   scroll containers (modals) on three sides and looked lopsided; an inset ring never clips. */
+:is(input, textarea)[class*='r-borderWidth']:not([readonly], [aria-invalid='true']):focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-/* Invalid fields keep their danger border, so focus needs its own visible ring. */
+/* Borderless input inside a bordered field (e.g. "$" prefix + amount): the ring goes on the field,
+   never on the inner input too, so focus reads as one box. */
+:has(> :is(input, textarea):not([class*='r-borderWidth'], [readonly], [aria-invalid='true']):focus-visible) {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Invalid fields keep their danger border, so focus needs its own visible ring (inset, see above). */
 :is(input, textarea)[aria-invalid='true']:focus {
-  box-shadow: 0 0 0 2px var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
 }
 
 /* No double-tap-zoom delay on tappable controls. */

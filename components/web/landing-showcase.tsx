@@ -1,5 +1,7 @@
 import { Icon, type IconName } from "@/components/icon";
 import { Animated } from "@/components/motion";
+import { DeviceFrame, useDeviceKind } from "@/components/web/device-frame";
+import { SectionHeading } from "@/components/web/landing-section";
 import { type AppColors } from "@/lib/app-theme";
 import { radius, space } from "@/lib/spacing";
 import { useResolvedColorScheme } from "@/lib/theme-context";
@@ -44,7 +46,7 @@ const CLIPS: Clip[] = [
   },
   {
     key: "settle-up",
-    icon: "bank-transfer",
+    icon: "pays",
     title: "Settle up",
     body: "Enter final stacks and get the shortest list of payments.",
     points: [
@@ -57,7 +59,7 @@ const CLIPS: Clip[] = [
   },
   {
     key: "history",
-    icon: "trend-up",
+    icon: "chart-line-up",
     title: "See your history",
     body: "Every session on one chart. Drag across it to find any night.",
     points: [
@@ -182,6 +184,7 @@ function PhoneVideo({
   onEnded: () => void;
 }) {
   const reduceMotion = useReducedMotion();
+  const device = useDeviceKind();
   const ref = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -218,30 +221,19 @@ function PhoneVideo({
   const halo = webStyle({
     boxShadow: (dark
       ? [
-          `0 0 0 1px ${withAlpha(c.accent, 0.45)}`,
-          `0 40px 90px -30px ${withAlpha(c.accent, 0.55)}`,
+          `0 40px 90px -30px ${withAlpha(c.accent, 0.5)}`,
           `0 0 140px -10px ${withAlpha(c.borderBlue, 0.35)}`,
         ]
       : [
-          `0 0 0 1px ${withAlpha(c.text, 0.08)}`,
-          `inset 0 0 0 1px ${withAlpha(c.card, 0.9)}`,
-          `0 2px 6px ${withAlpha(c.text, 0.05)}`,
-          `0 36px 72px -32px ${withAlpha(c.text, 0.24)}`,
+          `0 2px 6px ${withAlpha(c.text, 0.08)}`,
+          `0 36px 72px -32px ${withAlpha(c.text, 0.32)}`,
           `0 24px 60px -36px ${withAlpha(c.borderAccent, 0.35)}`,
         ]
     ).join(", "),
   });
 
   return (
-    <View
-      style={[
-        styles.phone,
-        dark
-          ? { backgroundColor: c.cardAlt, borderColor: c.cardAlt }
-          : { backgroundColor: c.border, borderColor: c.border },
-        halo,
-      ]}
-    >
+    <DeviceFrame kind={device} c={c} dark={dark} style={halo}>
       {createElement("video", {
         key: file,
         ref,
@@ -254,7 +246,7 @@ function PhoneVideo({
         "aria-label": clip.label,
         style: reduceMotion ? VIDEO_STYLE : VIDEO_STYLE_ANIMATED,
       })}
-    </View>
+    </DeviceFrame>
   );
 }
 
@@ -328,6 +320,8 @@ function FeatureTab({
           name={clip.icon}
           size={18}
           color={selected ? c.accentText : c.textMuted}
+          weight="duotone"
+          duotoneOpacity={selected ? 0.3 : 0.15}
           importantForAccessibility="no"
         />
       </View>
@@ -407,9 +401,11 @@ function ClipDetail({
           {clip.points.map((point) => (
             <View key={point} style={styles.point}>
               <Icon
-                name="check-circle-outline"
+                name="check-circle"
                 size={18}
-                color={c.accentText}
+                color={c.profit}
+                weight="duotone"
+                duotoneOpacity={0.3}
                 importantForAccessibility="no"
               />
               <Text style={[styles.pointText, { color: c.textSecondary }]}>
@@ -496,18 +492,19 @@ export function LandingShowcase({
       />
 
       <Reveal style={[styles.lead, isWide && styles.leadWide]}>
-        <View style={styles.intro}>
-          <Text
-            role="heading"
-            aria-level={2}
-            style={[styles.h2, isWide && styles.h2Wide, { color: c.text }]}
-          >
-            See it at <Text style={{ color: c.accentText }}>the table.</Text>
-          </Text>
-          <Text style={[text.body, { color: c.textMuted }]}>
-            Real screens from a game night. Pick a step, or let it play through.
-          </Text>
-        </View>
+        <SectionHeading
+          c={c}
+          icon="play"
+          hue={c.accentText}
+          label="Product tour"
+          title={
+            <>
+              See it at <Text style={{ color: c.accentText }}>the table.</Text>
+            </>
+          }
+          intro="Real screens from a game night. Pick a step, or let it play through."
+          isWide={isWide}
+        />
         <View
           role="tablist"
           aria-label="App features"
@@ -544,43 +541,26 @@ export function LandingShowcase({
           delay={120}
           style={[styles.phoneSlot, isWide && styles.phoneSlotWide]}
         >
-          <PhoneVideo
-            clip={clip}
-            c={c}
-            dark={dark}
-            paused={paused}
-            onProgress={handleProgress}
-            onEnded={handleEnded}
-          />
-          {!reduceMotion && (
-            <Pressable
-              role="button"
-              aria-label={paused ? "Play demo" : "Pause demo"}
-              aria-pressed={paused}
-              onPress={() => setPaused((p) => !p)}
-              style={[
-                styles.playToggle,
-                {
-                  borderColor: c.border,
-                  backgroundColor: dark ? withAlpha(c.card, 0.8) : c.card,
-                },
-                !dark &&
-                  webStyle({
-                    boxShadow: `0 6px 16px -8px ${withAlpha(c.text, 0.18)}`,
-                  }),
-              ]}
-            >
-              <Icon
-                name={paused ? "play" : "pause"}
-                size={16}
-                color={c.accentText}
-                importantForAccessibility="no"
-              />
-              <Text style={[text.label, { color: c.text }]}>
-                {paused ? "Play demo" : "Pause demo"}
-              </Text>
-            </Pressable>
-          )}
+          {/* No visible play/pause button: tapping the phone pauses and resumes (WCAG 2.2.2 for moving content). */}
+          <Pressable
+            role="button"
+            aria-label={paused ? "Play demo" : "Pause demo"}
+            aria-pressed={paused}
+            disabled={reduceMotion}
+            onPress={() => setPaused((p) => !p)}
+            // The phone has its own rounded shape and glow; the generic grey button hover would box it in.
+            {...({ dataSet: { hoverNone: "true" } } as object)}
+            style={styles.phoneSlotInner}
+          >
+            <PhoneVideo
+              clip={clip}
+              c={c}
+              dark={dark}
+              paused={paused}
+              onProgress={handleProgress}
+              onEnded={handleEnded}
+            />
+          </Pressable>
         </Reveal>
         <Reveal
           delay={240}
@@ -605,9 +585,6 @@ const styles = StyleSheet.create({
   field: { pointerEvents: "none" },
   lead: { gap: space.xl },
   leadWide: { flexBasis: 340, flexShrink: 1, minWidth: 280 },
-  intro: { gap: space.sm },
-  h2: { fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -1 },
-  h2Wide: { fontSize: 44, lineHeight: 48, letterSpacing: -1.6 },
   tabs: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   tabsWide: { flexDirection: "column", flexWrap: "nowrap", gap: space.xs },
   tab: {
@@ -665,23 +642,8 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
   phoneSlotWide: { flexBasis: 340, flexShrink: 1, minWidth: 260 },
-  playToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.sm,
-    minHeight: 44,
-    paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  phone: {
-    width: 340,
-    maxWidth: "100%",
-    aspectRatio: 390 / 844,
-    borderRadius: 44,
-    borderWidth: 9,
-    overflow: "hidden",
-  },
+  // Only the phone itself is clickable, not the empty space beside it.
+  phoneSlotInner: { width: "100%", maxWidth: 340, alignSelf: "center" },
   detailSlot: { width: "100%" },
   detailSlotWide: {
     flexGrow: 1,

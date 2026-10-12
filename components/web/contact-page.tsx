@@ -1,11 +1,10 @@
 import { Icon, type IconName } from '@/components/icon';
-import { CONTACT_EMAIL, SiteFooter, SiteNav, SkipLink, TextLink, chromeStyles, siteLogo } from '@/components/web/site-chrome';
+import { CONTACT_EMAIL, SiteFooter, SiteNav, SkipLink, chromeStyles, siteLogo } from '@/components/web/site-chrome';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useHydrated } from '@/hooks/use-hydrated';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { radius, space } from '@/lib/spacing';
 import { useResolvedColorScheme } from '@/lib/theme-context';
-import { text } from '@/lib/ui';
 import * as Clipboard from 'expo-clipboard';
 import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';
@@ -13,39 +12,37 @@ import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from
 
 const WIDE_BREAKPOINT = 1024;
 const COPIED_MS = 2000;
+/** Below this the email card drops its icon and shrinks the address so it fits on one line. */
+const COMPACT_EMAIL_BREAKPOINT = 420;
 const IS_WEB = Platform.OS === 'web';
 
-function mailto(subject?: string): string {
-  return subject ? `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}` : `mailto:${CONTACT_EMAIL}`;
-}
+const MAILTO = `mailto:${CONTACT_EMAIL}`;
 
 /** Web gets a real <a href>; native opens the mail app. */
 function linkProps(href: string): object {
   return IS_WEB ? { href } : { onPress: () => Linking.openURL(href).catch(() => {}) };
 }
 
-const TOPICS: { icon: IconName; title: string; body: string; subject: string }[] = [
+const TOPICS: { icon: IconName; title: string; body: string }[] = [
   {
     icon: 'bug',
     title: 'Report a bug',
-    body: 'Tell us what you tapped, what you expected and what happened instead. A screenshot helps.',
-    subject: 'Bug report',
+    body: 'What you tapped and what went wrong. Screenshots help.',
   },
   {
     icon: 'lightbulb',
     title: 'Suggest a feature',
-    body: 'Something your table keeps wishing for? Every idea gets read.',
-    subject: 'Feature idea',
+    body: 'Something your table keeps wishing for.',
   },
   {
     icon: 'person-remove',
     title: 'Delete your account',
-    body: 'Email us from the address on your account and we will delete it within 30 days.',
-    subject: 'Delete my account',
+    body: 'Use Profile in the app, or email us from your account’s address.',
   },
 ];
 
-function CopyButton({ c, dark }: { c: AppColors; dark: boolean }) {
+/** Small copy icon beside the address: for browsers with no mail app set up. */
+function CopyButton({ c }: { c: AppColors }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -62,58 +59,55 @@ function CopyButton({ c, dark }: { c: AppColors; dark: boolean }) {
           .then(() => setCopied(true))
           .catch(() => {})
       }
-      style={[
-        styles.button,
-        { borderWidth: 1, borderColor: dark ? c.border : c.inputBorder, backgroundColor: dark ? c.bg : c.card },
-      ]}>
-      <Icon name={copied ? 'check' : 'content-copy'} size={16} color={copied ? c.profit : c.text} importantForAccessibility="no" />
-      <Text style={[text.button, { color: c.text }]} aria-live="polite">
-        {copied ? 'Copied' : 'Copy address'}
-      </Text>
+      hitSlop={6}
+      style={styles.copyBtn}
+      {...({ dataSet: { hoverDot: 'true' } } as object)}>
+      <View style={styles.copyDot}>
+        <Icon
+          name={copied ? 'check' : 'content-copy'}
+          size={18}
+          color={copied ? c.profit : c.textMuted}
+          importantForAccessibility="no"
+        />
+      </View>
     </Pressable>
   );
 }
 
-function EmailCard({ c, dark, isWide }: { c: AppColors; dark: boolean; isWide: boolean }) {
+function EmailCard({ c, isWide, isCompact }: { c: AppColors; isWide: boolean; isCompact: boolean }) {
   return (
-    <View style={[styles.emailCard, isWide && styles.emailCardWide, { backgroundColor: c.card, borderColor: c.accentBorder }]}>
-      <View style={styles.emailMain}>
+    <View
+      style={[styles.emailCard, isCompact && styles.emailCardCompact, { backgroundColor: c.card, borderColor: c.accentBorder }]}>
+      {isCompact ? null : (
         <View style={[styles.ring, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
           <Icon name="mail" size={22} color={c.accentText} importantForAccessibility="no" />
         </View>
-        <View style={styles.emailText}>
-          <Text
-            role="link"
-            aria-label={`Email ${CONTACT_EMAIL}`}
-            {...({ ...linkProps(mailto()), dataSet: { textLink: 'true' } } as object)}
-            style={[styles.address, isWide && styles.addressWide, { color: c.text }]}>
-            {CONTACT_EMAIL}
-          </Text>
-          <Text style={[text.body, { color: c.textMuted }]}>A real person reads every message.</Text>
-        </View>
-      </View>
-      <View style={[styles.actions, isWide && styles.actionsWide]}>
-        <Pressable role="link" {...(linkProps(mailto()) as object)} style={[styles.button, { backgroundColor: c.accent }]}>
-          <Icon name="mail" size={16} color={c.onAccent} importantForAccessibility="no" />
-          <Text style={[text.button, { color: c.onAccent }]}>Write an email</Text>
-        </Pressable>
-        <CopyButton c={c} dark={dark} />
-      </View>
+      )}
+      <Text
+        role="link"
+        aria-label={`Email ${CONTACT_EMAIL}`}
+        {...({ ...linkProps(MAILTO), dataSet: { textLink: 'true' } } as object)}
+        style={[styles.address, isWide && styles.addressWide, isCompact && styles.addressCompact, { color: c.text }]}>
+        {CONTACT_EMAIL}
+      </Text>
+      <CopyButton c={c} />
     </View>
   );
 }
 
-function TopicCard({ topic, c }: { topic: (typeof TOPICS)[number]; c: AppColors }) {
+/** What to email us about; the address itself is in the card above. */
+function TopicRow({ topic, c, isFirst }: { topic: (typeof TOPICS)[number]; c: AppColors; isFirst: boolean }) {
   return (
-    <View style={[styles.topic, { backgroundColor: c.card, borderColor: c.border }]}>
+    <View style={[styles.topicRow, !isFirst && styles.topicDivider, { borderTopColor: c.border }]}>
       <View style={[styles.topicIcon, { backgroundColor: c.cardAlt, borderColor: c.border }]}>
-        <Icon name={topic.icon} size={20} color={c.text} importantForAccessibility="no" />
+        <Icon name={topic.icon} size={18} color={c.text} importantForAccessibility="no" />
       </View>
-      <Text role="heading" aria-level={2} style={[styles.topicTitle, { color: c.text }]}>
-        {topic.title}
-      </Text>
-      <Text style={[text.body, styles.topicBody, { color: c.textMuted }]}>{topic.body}</Text>
-      <TextLink label="Email about this →" href={mailto(topic.subject)} color={c.accentText} style={styles.topicLink} />
+      <View style={styles.topicText}>
+        <Text role="heading" aria-level={2} style={[styles.topicTitle, { color: c.text }]}>
+          {topic.title}
+        </Text>
+        <Text style={[styles.topicBody, { color: c.textMuted }]}>{topic.body}</Text>
+      </View>
     </View>
   );
 }
@@ -147,23 +141,16 @@ export function ContactPage() {
           <Text role="heading" aria-level={1} style={[styles.h1, isWide && styles.h1Wide, { color: c.text }]}>
             Get in touch
           </Text>
-          <Text style={[styles.lede, { color: c.textMuted }]}>
-            Nonsense is made by one developer for home games. Email is the quickest way to reach us.
-          </Text>
         </View>
       </View>
 
       <View role="main" nativeID="content" {...({ tabIndex: -1 } as object)} style={[container, styles.main]}>
-        <EmailCard c={c} dark={dark} isWide={isWide} />
-        <View style={[styles.topics, isWide && styles.topicsWide]}>
-          {TOPICS.map((t) => (
-            <TopicCard key={t.title} topic={t} c={c} />
+        <EmailCard c={c} isWide={isWide} isCompact={hydrated && width < COMPACT_EMAIL_BREAKPOINT} />
+        <View style={[styles.topics, { backgroundColor: c.card, borderColor: c.border }]}>
+          {TOPICS.map((t, i) => (
+            <TopicRow key={t.title} topic={t} c={c} isFirst={i === 0} />
           ))}
         </View>
-        <Text style={[text.body, { color: c.textMuted }]}>
-          Looking for a quick answer? Try the <TextLink label="FAQ" href="/#faq" color={c.accentText} />. How we handle
-          your data is in the <TextLink label="Privacy Policy" href="/privacy" color={c.accentText} />.
-        </Text>
       </View>
 
       <SiteFooter c={c} isWide={isWide} logo={siteLogo(dark)} rule={c.border} container={container} />
@@ -176,18 +163,17 @@ const styles = StyleSheet.create({
   header: { gap: space.md, paddingTop: space.xxl, paddingBottom: space.lg },
   h1: { fontSize: 38, lineHeight: 44, fontWeight: '800', letterSpacing: -1 },
   h1Wide: { fontSize: 52, lineHeight: 58, letterSpacing: -1.6 },
-  lede: { fontSize: 19, lineHeight: 30, maxWidth: 640 },
   main: { gap: space.xl, paddingBottom: space.xxl },
-  emailCard: { borderWidth: 1, borderRadius: radius.lg, padding: space.lg, gap: space.lg },
-  emailCardWide: {
+  emailCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: space.lg,
+    borderWidth: 1,
+    borderRadius: radius.lg,
     paddingVertical: space.lg,
     paddingHorizontal: space.xl,
   },
-  emailMain: { flexDirection: 'row', alignItems: 'center', gap: space.xl, flexShrink: 1 },
-  emailText: { gap: 2, flexShrink: 1 },
+  emailCardCompact: { gap: space.xs, paddingHorizontal: space.lg },
   ring: {
     width: 48,
     height: 48,
@@ -197,32 +183,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  address: { fontSize: 20, lineHeight: 28, fontWeight: '700', letterSpacing: -0.3 },
+  address: { fontSize: 20, lineHeight: 28, fontWeight: '700', letterSpacing: -0.3, flexShrink: 1 },
   addressWide: { fontSize: 26, lineHeight: 34, letterSpacing: -0.5 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
-  actionsWide: { flexShrink: 0 },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    paddingHorizontal: 20,
-    borderRadius: radius.pill,
-  },
-  topics: { gap: space.lg },
-  topicsWide: { flexDirection: 'row' },
-  topic: { flex: 1, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.md, gap: space.sm },
+  addressCompact: { fontSize: 17, lineHeight: 24 },
+  copyBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  copyDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  topics: { borderWidth: 1, borderRadius: radius.lg, overflow: 'hidden' },
+  topicRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, paddingHorizontal: space.lg },
+  topicDivider: { borderTopWidth: StyleSheet.hairlineWidth },
   topicIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: radius.md,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: space.xs,
+    flexShrink: 0,
   },
-  topicTitle: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.2 },
-  topicBody: { flexGrow: 1 },
-  topicLink: { fontSize: 15, lineHeight: 44, fontWeight: '600' },
+  topicText: { flex: 1, minWidth: 0, gap: 2 },
+  topicTitle: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
+  topicBody: { fontSize: 14, lineHeight: 20 },
 });

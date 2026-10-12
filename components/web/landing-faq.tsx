@@ -49,30 +49,24 @@ function FaqItem({
   item,
   index,
   isOpen,
-  isLast,
+  isFirst,
   c,
-  dark,
   rule,
   onToggle,
 }: {
   item: Faq;
   index: number;
   isOpen: boolean;
-  isLast: boolean;
+  isFirst: boolean;
   c: AppColors;
-  dark: boolean;
   rule: string;
   onToggle: (i: number) => void;
 }) {
   const answerId = `faq-answer-${index}`;
   const questionId = `faq-question-${index}`;
-  // Dark keeps its lifted question row; light wraps question and answer in one white card with an ink-tinted lift.
-  const openItem = isOpen && !dark && [styles.openLight, { backgroundColor: c.card }, liftLight(c)];
-  const showRule = !isLast && !(isOpen && !dark);
 
   return (
-    <View
-      style={[styles.item, showRule && { borderBottomColor: rule, borderBottomWidth: StyleSheet.hairlineWidth }, openItem]}>
+    <View style={[!isFirst && styles.divider, { borderTopColor: rule }]}>
       <View role="heading" aria-level={3}>
         <Pressable
           role="button"
@@ -80,7 +74,8 @@ function FaqItem({
           aria-expanded={isOpen}
           aria-controls={answerId}
           onPress={() => onToggle(index)}
-          style={[styles.question, isOpen && dark && { backgroundColor: c.card }]}>
+          {...({ dataSet: { hoverWarm: 'true' } } as object)}
+          style={styles.question}>
           <Text style={[styles.qText, { color: c.text }]}>{item.q}</Text>
           <View style={[{ transform: [{ rotate: isOpen ? '180deg' : '0deg' }] }, chevronMotion]}>
             <Icon
@@ -107,20 +102,21 @@ function FaqItem({
 }
 
 export function LandingFaq({ c, dark, rule }: { c: AppColors; isWide: boolean; dark: boolean; rule: string }) {
-  const [open, setOpen] = useState<number | null>(0);
+  // All collapsed until the reader picks a question.
+  const [open, setOpen] = useState<number | null>(null);
   const toggle = (i: number) => setOpen((current) => (current === i ? null : i));
 
   return (
-    <View style={styles.list}>
+    // One solid card, like the other content cards, so the falling cards never run behind the questions.
+    <View style={[styles.list, { backgroundColor: c.card, borderColor: rule }, !dark && liftLight(c)]}>
       {FAQS.map((item, i) => (
         <FaqItem
           key={item.q}
           item={item}
           index={i}
           isOpen={open === i}
-          isLast={i === FAQS.length - 1}
+          isFirst={i === 0}
           c={c}
-          dark={dark}
           rule={rule}
           onToggle={toggle}
         />
@@ -130,19 +126,24 @@ export function LandingFaq({ c, dark, rule }: { c: AppColors; isWide: boolean; d
 }
 
 const styles = StyleSheet.create({
-  list: { width: '100%', maxWidth: 820, alignSelf: 'center' },
-  item: { paddingVertical: space.xs, borderRadius: radius.md },
-  openLight: { marginVertical: space.xs },
+  list: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth },
   question: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.lg,
     minHeight: 64,
     paddingVertical: space.lg,
-    paddingHorizontal: space.lg,
-    borderRadius: radius.md,
+    paddingHorizontal: space.xl,
   },
   qText: { flex: 1, fontSize: 18, lineHeight: 26, fontWeight: '600' },
-  answer: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.lg },
+  answer: { paddingHorizontal: space.xl, paddingTop: 0, paddingBottom: space.xl },
   answerText: { maxWidth: 680 },
 });

@@ -1,5 +1,9 @@
 import { ArrowCounterClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowCounterClockwise';
 import { MagnifyingGlassIcon } from 'phosphor-react-native/src/icons/MagnifyingGlass';
+import { ArrowDownRightIcon } from 'phosphor-react-native/src/icons/ArrowDownRight';
+import { ArrowUpRightIcon } from 'phosphor-react-native/src/icons/ArrowUpRight';
+import { ScalesIcon } from 'phosphor-react-native/src/icons/Scales';
+import { ReceiptIcon } from 'phosphor-react-native/src/icons/Receipt';
 import { ArrowLeftIcon } from 'phosphor-react-native/src/icons/ArrowLeft';
 import { ArrowRightIcon } from 'phosphor-react-native/src/icons/ArrowRight';
 import { ArrowsClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowsClockwise';
@@ -9,8 +13,19 @@ import { CardsIcon } from 'phosphor-react-native/src/icons/Cards';
 import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
 import { CaretLeftIcon } from 'phosphor-react-native/src/icons/CaretLeft';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
+import { ChartLineUpIcon } from 'phosphor-react-native/src/icons/ChartLineUp';
+import { ClubIcon } from 'phosphor-react-native/src/icons/Club';
+import { DiamondIcon } from 'phosphor-react-native/src/icons/Diamond';
+import { HeartIcon } from 'phosphor-react-native/src/icons/Heart';
+import { SpadeIcon } from 'phosphor-react-native/src/icons/Spade';
+import { CoinsIcon } from 'phosphor-react-native/src/icons/Coins';
+import { QuestionIcon } from 'phosphor-react-native/src/icons/Question';
+import { ShieldCheckIcon } from 'phosphor-react-native/src/icons/ShieldCheck';
+import { LockIcon } from 'phosphor-react-native/src/icons/Lock';
 import { CaretUpIcon } from 'phosphor-react-native/src/icons/CaretUp';
 import { ChartBarIcon } from 'phosphor-react-native/src/icons/ChartBar';
+import { ChartLineIcon } from 'phosphor-react-native/src/icons/ChartLine';
+import { HandTapIcon } from 'phosphor-react-native/src/icons/HandTap';
 import { CheckIcon } from 'phosphor-react-native/src/icons/Check';
 import { CheckCircleIcon } from 'phosphor-react-native/src/icons/CheckCircle';
 import { CheckSquareIcon } from 'phosphor-react-native/src/icons/CheckSquare';
@@ -35,14 +50,21 @@ import { MoonIcon } from 'phosphor-react-native/src/icons/Moon';
 import { PauseIcon } from 'phosphor-react-native/src/icons/Pause';
 import { PencilSimpleIcon } from 'phosphor-react-native/src/icons/PencilSimple';
 import { PlayIcon } from 'phosphor-react-native/src/icons/Play';
+import { HandCoinsIcon } from 'phosphor-react-native/src/icons/HandCoins';
+import { ExportIcon } from 'phosphor-react-native/src/icons/Export';
+import { ImageIcon } from 'phosphor-react-native/src/icons/Image';
+import { BankIcon } from 'phosphor-react-native/src/icons/Bank';
+import { TimerIcon } from 'phosphor-react-native/src/icons/Timer';
+import { PercentIcon } from 'phosphor-react-native/src/icons/Percent';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
 import { PokerChipIcon } from 'phosphor-react-native/src/icons/PokerChip';
 import { QrCodeIcon } from 'phosphor-react-native/src/icons/QrCode';
 import { RankingIcon } from 'phosphor-react-native/src/icons/Ranking';
 import { ScanIcon } from 'phosphor-react-native/src/icons/Scan';
-import { ShareNetworkIcon } from 'phosphor-react-native/src/icons/ShareNetwork';
+import { SidebarSimpleIcon } from 'phosphor-react-native/src/icons/SidebarSimple';
 import { SignOutIcon } from 'phosphor-react-native/src/icons/SignOut';
 import { SlidersHorizontalIcon } from 'phosphor-react-native/src/icons/SlidersHorizontal';
+import { SortAscendingIcon } from 'phosphor-react-native/src/icons/SortAscending';
 import { SortDescendingIcon } from 'phosphor-react-native/src/icons/SortDescending';
 import { SquareIcon } from 'phosphor-react-native/src/icons/Square';
 import { StopIcon } from 'phosphor-react-native/src/icons/Stop';
@@ -56,7 +78,10 @@ import { UsersIcon } from 'phosphor-react-native/src/icons/Users';
 import { UsersThreeIcon } from 'phosphor-react-native/src/icons/UsersThree';
 import { WalletIcon } from 'phosphor-react-native/src/icons/Wallet';
 import { WarningCircleIcon } from 'phosphor-react-native/src/icons/WarningCircle';
-import { WhatsappLogoIcon } from 'phosphor-react-native/src/icons/WhatsappLogo';
+import { InfoIcon } from 'phosphor-react-native/src/icons/Info';
+import { MoonStarsIcon } from 'phosphor-react-native/src/icons/MoonStars';
+import { SunHorizonIcon } from 'phosphor-react-native/src/icons/SunHorizon';
+import { WarningIcon } from 'phosphor-react-native/src/icons/Warning';
 import { BugIcon } from 'phosphor-react-native/src/icons/Bug';
 import { EnvelopeSimpleIcon } from 'phosphor-react-native/src/icons/EnvelopeSimple';
 import { LightbulbIcon } from 'phosphor-react-native/src/icons/Lightbulb';
@@ -73,14 +98,16 @@ const ICONS = {
   'delete-outline': TrashIcon,
   refresh: ArrowsClockwiseIcon,
   replay: ArrowCounterClockwiseIcon,
-  share: ShareNetworkIcon,
+  share: ExportIcon,
   'content-copy': CopyIcon,
   link: LinkIcon,
   'more-vert': DotsThreeVerticalIcon,
   sort: SortDescendingIcon,
+  'sort-asc': SortAscendingIcon,
   'filter-alt': FunnelIcon,
   tune: SlidersHorizontalIcon,
   logout: SignOutIcon,
+  sidebar: SidebarSimpleIcon,
   mic: MicrophoneIcon,
   stop: StopIcon,
   pause: PauseIcon,
@@ -89,6 +116,7 @@ const ICONS = {
   history: ClockCounterClockwiseIcon,
   settings: GearIcon,
   'chevron-right': CaretRightIcon,
+  lock: LockIcon,
   'chevron-left': CaretLeftIcon,
   'expand-more': CaretDownIcon,
   'expand-less': CaretUpIcon,
@@ -116,8 +144,19 @@ const ICONS = {
   'account-balance-wallet': WalletIcon,
   'bank-transfer': ArrowsLeftRightIcon,
   'poker-chip': PokerChipIcon,
+  'money-in': ArrowDownRightIcon,
+  'money-out': ArrowUpRightIcon,
+  receipt: ReceiptIcon,
+  scales: ScalesIcon,
   'bar-chart': ChartBarIcon,
+  'line-chart': ChartLineIcon,
+  tap: HandTapIcon,
   'trend-up': TrendUpIcon,
+  percent: PercentIcon,
+  timer: TimerIcon,
+  bank: BankIcon,
+  image: ImageIcon,
+  pays: HandCoinsIcon,
   leaderboard: RankingIcon,
   'trophy-outline': TrophyIcon,
   'crown-outline': CrownIcon,
@@ -131,16 +170,28 @@ const ICONS = {
   'phone-iphone': DeviceMobileIcon,
   'wb-sunny': SunIcon,
   'nights-stay': MoonIcon,
-  whatsapp: WhatsappLogoIcon,
   'error-outline': WarningCircleIcon,
+  info: InfoIcon,
+  sunrise: SunHorizonIcon,
+  'moon-stars': MoonStarsIcon,
+  warning: WarningIcon,
   mail: EnvelopeSimpleIcon,
   bug: BugIcon,
   lightbulb: LightbulbIcon,
   'person-remove': UserMinusIcon,
+  'chart-line-up': ChartLineUpIcon,
+  coins: CoinsIcon,
+  question: QuestionIcon,
+  'shield-check': ShieldCheckIcon,
+  'suit-spade': SpadeIcon,
+  'suit-heart': HeartIcon,
+  'suit-diamond': DiamondIcon,
+  'suit-club': ClubIcon,
 } satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;
-export type IconWeight = 'regular' | 'bold' | 'fill';
+/** 'duotone' adds a soft filled layer behind the outline (landing page feature icons). */
+export type IconWeight = 'regular' | 'bold' | 'fill' | 'duotone';
 
 const DEFAULT_WEIGHT: Partial<Record<IconName, IconWeight>> = {
   stop: 'fill',
@@ -154,6 +205,10 @@ export type IconProps = {
   size?: number;
   color?: string;
   weight?: IconWeight;
+  /** Fill colour of the duotone layer; defaults to `color`. */
+  duotoneColor?: string;
+  /** Strength of the duotone layer (Phosphor default 0.2). */
+  duotoneOpacity?: number;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
   accessibilityElementsHidden?: boolean;

@@ -1,4 +1,5 @@
 import { Icon } from '@/components/icon';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { type AppColors } from '@/lib/app-theme';
 import { radius, space } from '@/lib/spacing';
 import { useResolvedColorScheme, useThemePreference } from '@/lib/theme-context';
@@ -17,7 +18,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-export const SIGN_IN_HREF = '/(auth)/welcome';
+export const SIGN_IN_HREF = '/(auth)/sign-in';
 export const CONTACT_EMAIL = 'support@adamchok.com';
 export const SITE_MAX_WIDTH = 1280;
 
@@ -25,9 +26,9 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
   {
     title: 'Product',
     links: [
-      { label: 'How it works', href: '/#content' },
+      { label: 'How it works', href: '/#how-it-works' },
       { label: 'FAQ', href: '/#faq' },
-      { label: 'Sign in', href: '/welcome' },
+      { label: 'Sign in', href: '/sign-in' },
     ],
   },
   {
@@ -69,6 +70,9 @@ export function ThemeToggle({ c }: { c: AppColors }) {
   );
 }
 
+/** Below this width the top nav uses a smaller logo, wordmark and button padding. */
+const COMPACT_NAV_WIDTH = 400;
+
 export function SiteNav({
   c,
   logo,
@@ -79,6 +83,8 @@ export function SiteNav({
   container: StyleProp<ViewStyle>;
 }) {
   const surface = useControlSurface(c);
+  // Small phones: shrink the brand and buttons so they fit on one row without crowding.
+  const isCompact = useBreakpoint().width < COMPACT_NAV_WIDTH;
   return (
     <View role="navigation" aria-label="Primary" style={[container, styles.nav]}>
       <Link href="/" asChild>
@@ -86,17 +92,22 @@ export function SiteNav({
           role="link"
           aria-label="Nonsense home"
           {...({ dataSet: { plainLink: 'true' } } as object)}
-          style={StyleSheet.flatten([styles.brand, styles.brandLink])}>
-          <Image source={logo} style={styles.brandLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
-          <Text style={[styles.navWordmark, { color: c.text }]}>Nonsense</Text>
+          style={StyleSheet.flatten([styles.brand, styles.brandLink, isCompact && styles.brandCompact])}>
+          <Image
+            source={logo}
+            style={[styles.brandLogo, isCompact && styles.brandLogoCompact]}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
+          <Text style={[styles.navWordmark, isCompact && styles.navWordmarkCompact, { color: c.text }]}>Nonsense</Text>
         </Pressable>
       </Link>
-      <View style={styles.navActions}>
+      <View style={[styles.navActions, isCompact && styles.navActionsCompact]}>
         <ThemeToggle c={c} />
         <Link href={SIGN_IN_HREF} asChild>
           <Pressable
             role="link"
-            style={StyleSheet.flatten([styles.navLink, surface])}>
+            style={StyleSheet.flatten([styles.navLink, isCompact && styles.navLinkCompact, surface])}>
             <Text style={[text.button, { color: c.text }]}>Sign in</Text>
           </Pressable>
         </Link>
@@ -157,41 +168,44 @@ export function SiteFooter({
   cta?: boolean;
 }) {
   return (
-    <View role="contentinfo" style={[container, styles.footer]}>
-      <View style={[styles.footerInner, { borderTopColor: rule }]}>
-        <View style={[styles.footerTop, isWide && styles.footerTopWide]}>
-          <View style={styles.footerBrand}>
-            <View style={styles.footerBrandRow}>
-              <Image source={logo} style={styles.footerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
-              <Text style={[styles.footerWordmark, { color: c.text }]}>Nonsense</Text>
-            </View>
-            <Text style={[styles.footerTagline, { color: c.textMuted }]}>
-              A free session tracker for home poker. It records the game and never handles money.
-            </Text>
-            {cta ? (
-              <Link href={SIGN_IN_HREF} asChild>
-                <Pressable role="link" style={StyleSheet.flatten([styles.footerCta, { backgroundColor: c.accent }])}>
-                  <Text style={[text.button, { color: c.onAccent }]}>Get started free</Text>
-                  <Icon name="arrow-right" size={16} color={c.onAccent} importantForAccessibility="no" />
-                </Pressable>
-              </Link>
-            ) : null}
-          </View>
-          <View role="navigation" aria-label="Footer" style={[styles.footerColumns, isWide && styles.footerColumnsWide]}>
-            {FOOTER_COLUMNS.map((col) => (
-              <View key={col.title} style={styles.footerColumn}>
-                <Text role="heading" aria-level={2} style={[styles.footerHeading, { color: c.text }]}>
-                  {col.title}
-                </Text>
-                {col.links.map((l) => (
-                  <TextLink key={l.label} label={l.label} href={l.href} color={c.textMuted} style={styles.footerLink} />
-                ))}
+    <View role="contentinfo" style={styles.footer}>
+      {/* Full-width band with its own surface and rule; the content stays in the page column. */}
+      <View style={[styles.footerBand, { backgroundColor: c.card, borderTopColor: rule }]}>
+        <View style={[container, styles.footerInner]}>
+          <View style={[styles.footerTop, isWide ? styles.footerTopWide : styles.footerTopStacked]}>
+            <View style={styles.footerBrand}>
+              <View style={styles.footerBrandRow}>
+                <Image source={logo} style={styles.footerLogo} resizeMode="contain" accessibilityIgnoresInvertColors />
+                <Text style={[styles.footerWordmark, { color: c.text }]}>Nonsense</Text>
               </View>
-            ))}
+              <Text style={[styles.footerTagline, { color: c.textMuted }]}>
+                A free session tracker for home poker. It records the game and never handles money.
+              </Text>
+              {cta ? (
+                <Link href={SIGN_IN_HREF} asChild>
+                  <Pressable role="link" style={StyleSheet.flatten([styles.footerCta, { backgroundColor: c.accent }])}>
+                    <Text style={[text.button, { color: c.onAccent }]}>Get started free</Text>
+                    <Icon name="arrow-right" size={16} color={c.onAccent} importantForAccessibility="no" />
+                  </Pressable>
+                </Link>
+              ) : null}
+            </View>
+            <View role="navigation" aria-label="Footer" style={[styles.footerColumns, isWide && styles.footerColumnsWide]}>
+              {FOOTER_COLUMNS.map((col) => (
+                <View key={col.title} style={styles.footerColumn}>
+                  <Text role="heading" aria-level={2} style={[styles.footerHeading, { color: c.text }]}>
+                    {col.title}
+                  </Text>
+                  {col.links.map((l) => (
+                    <TextLink key={l.label} label={l.label} href={l.href} color={c.textMuted} style={styles.footerLink} />
+                  ))}
+                </View>
+              ))}
+            </View>
           </View>
-        </View>
-        <View style={[styles.footerBottom, { borderTopColor: rule }]}>
-          <Text style={[styles.footerText, { color: c.textMuted }]}>© 2026 Nonsense. Made for home games.</Text>
+          <View style={[styles.footerBottom, { borderTopColor: rule }]}>
+            <Text style={[styles.footerText, { color: c.textMuted }]}>© 2026 Nonsense. Made for home games.</Text>
+          </View>
         </View>
       </View>
     </View>
@@ -207,8 +221,12 @@ const styles = StyleSheet.create({
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   brandLink: { borderRadius: radius.sm, paddingHorizontal: 4, marginHorizontal: -4 },
   brandLogo: { width: 40, height: 40 },
+  brandCompact: { gap: 8 },
+  brandLogoCompact: { width: 32, height: 32 },
   navWordmark: { fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4 },
+  navWordmarkCompact: { fontSize: 19, lineHeight: 24 },
   navActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  navActionsCompact: { gap: 6 },
   iconButton: {
     width: 44,
     height: 44,
@@ -218,11 +236,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: radius.pill, borderWidth: 1 },
+  navLinkCompact: { paddingHorizontal: 14 },
   // marginTop auto pins the footer to the bottom of short pages (the ScrollView content uses flexGrow: 1).
   footer: { marginTop: 'auto', paddingTop: space.xl },
-  footerInner: { gap: space.xl, paddingTop: space.xxl, borderTopWidth: StyleSheet.hairlineWidth },
+  footerBand: { borderTopWidth: StyleSheet.hairlineWidth },
+  footerInner: { gap: space.xl, paddingTop: space.xxl },
   footerTop: { gap: space.xxl },
   footerTopWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  // Stacked: more room between the call to action and the link columns below it.
+  footerTopStacked: { rowGap: space.xxl + space.lg },
   footerBrand: { gap: space.md, maxWidth: 340, alignItems: 'flex-start' },
   footerBrandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   footerLogo: { width: 36, height: 36 },
@@ -249,10 +271,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: space.md,
-    paddingBottom: space.xxl,
+    // Even space above and below the copyright line.
+    paddingVertical: space.xl,
   },
-  footerLink: { fontSize: 14, lineHeight: 44 },
+  // 34px rows: tighter than the 44px touch ideal, still above the WCAG 2.2 24px minimum target.
+  footerLink: { fontSize: 14, lineHeight: 34 },
   skip: {
     position: 'absolute',
     zIndex: 10,

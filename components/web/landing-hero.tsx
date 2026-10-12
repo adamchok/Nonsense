@@ -59,7 +59,6 @@ const PHASE = {
 } as const;
 const PHASE_AT = [0, 500, 2300, 3300, 4300, 7000];
 const HERO_MIN_HEIGHT = 720;
-const HERO_MAX_HEIGHT = 1000;
 const LOOP_MS = 10_500;
 const BUY_IN_STAGGER = 220;
 const PAYMENT_STAGGER = 600;
@@ -263,8 +262,8 @@ function PotLabel({ phase, c, compact }: { phase: number; c: AppColors; compact:
         style={styles.potInner}>
         {/* Same rhythm as the pot: small label on top, the headline number below. */}
         <View style={styles.settledLabel}>
-          <Icon name="check-circle" size={16} color={c.profit} importantForAccessibility="no" />
-          <Text style={[text.label, { color: c.textMuted }]}>Settled in</Text>
+          <Icon name="check-circle" size={18} color={c.profit} weight="duotone" duotoneOpacity={0.3} importantForAccessibility="no" />
+          <Text style={[styles.potLabelText, { color: c.textSecondary }]}>Settled in</Text>
         </View>
         <Text style={[styles.potValue, compact && styles.settledCompact, styles.settledText, { color: c.text }]}>
           4 payments
@@ -274,7 +273,10 @@ function PotLabel({ phase, c, compact }: { phase: number; c: AppColors; compact:
   }
   return (
     <View style={styles.potInner}>
-      <Text style={[text.label, { color: c.textMuted }]}>Pot</Text>
+      <View style={styles.settledLabel}>
+        <Icon name="poker-chip" size={18} color={c.accentText} weight="duotone" duotoneOpacity={0.3} importantForAccessibility="no" />
+        <Text style={[styles.potLabelText, { color: c.textSecondary }]}>Pot</Text>
+      </View>
       <Text style={[styles.potValue, { color: c.text }]}>{money(shown)}</Text>
     </View>
   );
@@ -420,11 +422,8 @@ export function LandingHero({
   const { width } = useBreakpoint();
   const { height } = useWindowDimensions();
   const stageWidth = isWide ? Math.min(760, width * 0.54) : Math.min(width - 32, 440);
-  const fill = isWide
-    ? {
-        minHeight: Math.min(Math.max(height, HERO_MIN_HEIGHT), HERO_MAX_HEIGHT),
-      }
-    : null;
+  // The hero fills the first screen at every width; the next section only appears on scroll.
+  const fill = { minHeight: isWide ? Math.max(height, HERO_MIN_HEIGHT) : height };
   const glow = webStyle({
     backgroundImage: dark
       ? `radial-gradient(60% 45% at 50% 78%, ${c.accentBg} 0%, transparent 70%)`
@@ -464,6 +463,8 @@ export function LandingHero({
 const styles = StyleSheet.create({
   host: { position: 'relative', overflow: 'hidden' },
   content: {
+    flexGrow: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 24,
@@ -517,6 +518,7 @@ const styles = StyleSheet.create({
   potInner: { alignItems: 'center', gap: 4, paddingHorizontal: 28 },
   settledText: { textAlign: 'center' },
   settledLabel: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  potLabelText: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
   settledCompact: { fontSize: 24, lineHeight: 30 },
   potValue: {
     fontSize: 32,
