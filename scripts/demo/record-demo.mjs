@@ -111,7 +111,7 @@ const CLIPS = {
       await pause(500);
       await tap(page, page.getByText('Confirm & View Summary'), 900);
       await tap(page, page.getByRole('button', { name: 'Settle' }), 2000);
-      await smoothScroll(page, 420, 30);
+      await smoothScroll(page, 340, 30);
       await pause(1500);
     },
   },
@@ -122,11 +122,15 @@ const CLIPS = {
       await pause(900);
       const box = await page.getByText('Profit over time').first().boundingBox();
       const y = box.y + 150;
+      // A picked point swaps the chart toggle for "View" and a clear button, so clear before switching.
+      const clear = () => tap(page, page.getByRole('button', { name: 'Clear selection' }).first(), 700);
       await drag(page, 70, 360, y);
-      await pause(600);
-      await tap(page, page.getByText('Bars', { exact: true }).first(), 900);
+      await pause(900);
+      await clear();
+      await tap(page, page.getByRole('radio', { name: 'Bars', exact: true }).first(), 900);
       await drag(page, 360, 80, y);
-      await pause(600);
+      await pause(900);
+      await clear();
       await smoothScroll(page, 360);
       await pause(1000);
     },
@@ -148,11 +152,11 @@ async function signIn(browser) {
   const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: THEME });
   const page = await context.newPage();
   await page.addInitScript(([key, theme]) => localStorage.setItem(key, theme), [THEME_KEY, THEME]);
-  await page.goto(`${APP_URL}/welcome`);
+  await page.goto(`${APP_URL}/sign-in`);
   await page.getByRole('textbox', { name: 'Email' }).fill(DEMO_EMAIL);
   await page.getByRole('textbox', { name: 'Password' }).fill(DEMO_PASSWORD);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.waitForURL((url) => !url.pathname.includes('welcome'), { timeout: 20_000 });
+  await page.waitForURL((url) => !url.pathname.includes('sign-in'), { timeout: 20_000 });
   await page.getByText('History').first().waitFor({ timeout: 20_000 });
   const state = await context.storageState({ indexedDB: true });
   await context.close();
