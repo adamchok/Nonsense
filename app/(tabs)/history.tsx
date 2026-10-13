@@ -30,7 +30,7 @@ import { Icon, type IconName } from '@/components/icon';
 import { SearchInput } from '@/components/search-input';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -487,6 +487,7 @@ export default function HistoryScreen() {
           gap: layout.sectionGap,
         },
         layout.tabTop,
+        layout.column,
       ]}>
       {showSortDropdown ? (
         <Pressable
@@ -827,8 +828,8 @@ export default function HistoryScreen() {
                   isFirst={index === 0}
                   isLast={index === sortedHistory.length - 1}
                   entering={isFirstShow ? listItemEntering(index) : undefined}
-                  onOpen={() => router.push(`../session/summary/${item.id}`)}
-                  onRemove={isHost ? () => confirmDeleteSession(item.id) : undefined}
+                  onOpen={openSessionSummary}
+                  onRemove={isHost ? confirmDeleteSession : undefined}
                 />
               );
             }}
@@ -965,11 +966,21 @@ type HistoryRowProps = {
   isFirst: boolean;
   isLast: boolean;
   entering: ReturnType<typeof listItemEntering> | undefined;
-  onOpen: () => void;
-  onRemove?: () => void;
+  onOpen: (id: string) => void;
+  onRemove?: (id: string) => void;
 };
 
-function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove }: HistoryRowProps) {
+const HistoryRow = memo(function HistoryRow({
+  item,
+  isHost,
+  isFirst,
+  isLast,
+  entering,
+  onOpen: openById,
+  onRemove: removeById,
+}: HistoryRowProps) {
+  const onOpen = () => openById(item.id);
+  const onRemove = removeById ? () => removeById(item.id) : undefined;
   const c = useAppColors();
   const swipeRef = useRef<SwipeableMethods>(null);
   const removeLabel = 'Delete session';
@@ -1072,7 +1083,7 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
       </ReanimatedSwipeable>
     </Motion.View>
   );
-}
+});
 
 function MoneyColumn({ label, value, icon }: { label: string; value: string; icon: IconName }) {
   const c = useAppColors();

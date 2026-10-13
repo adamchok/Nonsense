@@ -53,7 +53,6 @@ import {
 const RECENT_RESULTS_COUNT = 3;
 const COMPACT_ROW_WIDTH = 480;
 const SHORT_CTA_WIDTH = 380;
-const PHONE_TOP_EXTRA = 16;
 const AVATAR_SMALL = 46;
 const AVATAR_LARGE = 56;
 
@@ -181,7 +180,6 @@ export default function HomeScreen() {
         layout.content,
         styles.content,
         layout.tabTop,
-        !isMd && { paddingTop: Number(layout.tabTop?.paddingTop ?? 0) + PHONE_TOP_EXTRA },
         isMd && styles.contentWide,
       ]}
       refreshControl={

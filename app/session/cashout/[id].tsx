@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pointer } from '@/lib/ui';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { formatSessionTitle } from '@/components/session/session-title';
@@ -152,7 +153,8 @@ function PlayerBuyInCaption({
 export default function CashOutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useAppColors();
-  const { gutter } = usePageLayout();
+  const { gutter, column } = usePageLayout();
+  const insets = useSafeAreaInsets();
   const { isMd: isWide } = useBreakpoint();
   const { playerProfile } = useAuth();
   const [friendAvatarMap, setFriendAvatarMap] = useState<ReadonlyMap<string, string | undefined>>(new Map());
@@ -664,7 +666,7 @@ export default function CashOutScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }]}
+      style={[styles.screen, { backgroundColor: c.bg, paddingHorizontal: gutter }, column]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 20}>
       {sessionInfo?.date ? (
@@ -806,7 +808,13 @@ export default function CashOutScreen() {
         renderItem={renderItem}
       />
 
-      <Animated.View style={[styles.confirmWrap, isWide && styles.confirmWrapWide, confirmPulseStyle]}>
+      <Animated.View
+        style={[
+          styles.confirmWrap,
+          isWide && styles.confirmWrapWide,
+          { marginBottom: (isWide ? 32 : 16) + insets.bottom },
+          confirmPulseStyle,
+        ]}>
         {hasMoreBelow ? (
           <LinearGradient
             colors={[`${c.bg}00`, c.bg]}

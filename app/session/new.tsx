@@ -47,7 +47,7 @@ type FormErrors = {
 
 export default function NewSessionScreen() {
   const c = useAppColors();
-  const { gutter } = usePageLayout();
+  const { gutter, column } = usePageLayout();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -299,6 +299,7 @@ export default function NewSessionScreen() {
               paddingHorizontal: gutter,
               paddingBottom: SCREEN_CONTENT_PADDING_BOTTOM + keyboardHeight + insets.bottom,
             },
+            column,
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag">

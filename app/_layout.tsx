@@ -1,3 +1,4 @@
+import { useAppColors } from '@/lib/app-theme';
 import { WebAppFrame, WebContentColumn } from '@/components/web/web-app-frame';
 import { WebSidebar } from '@/components/web/web-sidebar';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
@@ -46,6 +47,7 @@ function RootNavigator() {
   const pathname = usePathname();
   const hasSignedInHint = useSyncExternalStore(subscribeNoop, readSignedInHint, getServerHint);
   const { isMd } = useBreakpoint();
+  const c = useAppColors();
   const showSidebar = IS_WEB && isMd && isSignedIn && !isPublicOrAuthPath(pathname);
 
   useEffect(() => {
@@ -70,7 +72,7 @@ function RootNavigator() {
       <View style={styles.shell}>
         {showSidebar ? <WebSidebar /> : null}
         <View style={styles.main}>
-          <Stack screenLayout={webScreenLayout}>
+          <Stack screenLayout={webScreenLayout} screenOptions={{ contentStyle: { backgroundColor: c.bg } }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
             <Stack.Screen name="privacy" options={{ headerShown: false, title: 'Privacy Policy' }} />

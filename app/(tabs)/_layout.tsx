@@ -30,6 +30,7 @@ export default function TabLayout() {
     tabBarActiveTintColor: c.accentText,
     tabBarInactiveTintColor: c.textMuted,
     tabBarStyle: tabBarColors,
+    sceneStyle: { backgroundColor: c.bg },
     headerShown: false,
     tabBarButton: HapticTab,
     animation: reduceMotion ? 'none' : 'fade',
@@ -48,7 +49,7 @@ export default function TabLayout() {
       <Tabs
         screenOptions={{
           ...screenOptions,
-          tabBarStyle: { ...tabBarColors, paddingTop: 4, height: 53 + insets.bottom },
+          tabBarStyle: { ...tabBarColors, paddingTop: 8, height: 53 + insets.bottom },
         }}>
         {tabScreens}
       </Tabs>
