@@ -62,7 +62,7 @@ const PROFILE_INDEX = 3;
 function activeIndexFor(pathname: string): number {
   if (pathname === '/' || (pathname.startsWith('/session/') && !pathname.startsWith('/session/summary'))) return 0;
   if (pathname.startsWith('/history') || pathname.startsWith('/session/summary')) return 1;
-  if (pathname.startsWith('/friends') || pathname.startsWith('/group/')) return 2;
+  if (pathname.startsWith('/friends')) return 2;
   if (pathname.startsWith('/profile') || pathname.startsWith('/locations') || pathname.startsWith('/qr-code') ||
     pathname.startsWith('/change-password') ||
     pathname.startsWith('/delete-account')) {

@@ -601,6 +601,14 @@ function Closer({ c, isWide, signal, container }: SectionProps) {
 
 const HASH_SCROLL_MAX_FRAMES = 120;
 
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function scrollParent(el: HTMLElement): HTMLElement | null {
   for (let node = el.parentElement; node; node = node.parentElement) {
     if (/auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
@@ -626,7 +634,7 @@ export function LandingPage() {
     let tries = 0;
     const scrollToTarget = () => {
       const hash = window.location.hash;
-      const target = hash.length > 1 ? decodeURIComponent(hash.slice(1)) : '';
+      const target = hash.length > 1 ? safeDecode(hash.slice(1)) : '';
       const el = [...document.querySelectorAll<HTMLElement>(target ? `[id="${CSS.escape(target)}"]` : ':not(*)')].find(
         (candidate) => candidate.getBoundingClientRect().height > 0,
       );

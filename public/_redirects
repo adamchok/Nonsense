@@ -4,7 +4,6 @@
 /session/cashout/:id /session/cashout/[id] 200
 /session/summary/:id /session/summary/[id] 200
 /session/:id /session/[id] 200
-/group/new /group/new 200
 # Renamed routes (/welcome -> /sign-in, /settings -> /profile); keeps old links and bookmarks working.
 /welcome /sign-in 301
 /settings /profile 301
