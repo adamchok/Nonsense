@@ -21,7 +21,9 @@ export function faceSvg(value: string): string {
   const seed = value.slice(FACE_PREFIX.length);
   let svg = svgCache.get(seed);
   if (!svg) {
-    svg = createAvatar(notionists, { seed, scale: FACE_SCALE, translateY: FACE_SHIFT_Y }).toString();
+    svg = createAvatar(notionists, { seed, scale: FACE_SCALE, translateY: FACE_SHIFT_Y, clip: false })
+      .toString()
+      .replace(/<metadata[\s\S]*?<\/metadata>/, '');
     svgCache.set(seed, svg);
   }
   return svg;
