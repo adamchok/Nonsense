@@ -35,6 +35,8 @@ const MINUTE = 60_000;
 
 const ts = (ms) => admin.firestore.Timestamp.fromMillis(ms);
 const roundCents = (n) => Math.round(n * 100) / 100;
+let scale = 1;
+const money = (n) => roundCents(n * scale);
 const buyInFor = (profit) => (profit >= 0 ? 100 : Math.max(100, Math.ceil(-profit / 100) * 100));
 
 async function clearEmulators() {
@@ -62,7 +64,7 @@ async function createUsers(auth) {
   return ids;
 }
 
-function writeProfiles(batch, db, ids, now) {
+function writeProfiles(batch, db, ids, now, sinceDays) {
   for (const p of PLAYERS) {
     const uid = ids[p.key];
     batch.set(db.doc(`players/${uid}`), {
@@ -70,7 +72,7 @@ function writeProfiles(batch, db, ids, now) {
       anonymousUid: uid,
       refCode: p.refCode,
       avatarEmoji: p.avatar,
-      createdAt: ts(now - 120 * DAY),
+      createdAt: ts(now - sinceDays * DAY),
     });
     batch.set(db.doc(`refCodes/${p.refCode}`), { playerId: uid });
   }
@@ -80,22 +82,22 @@ function writeProfiles(batch, db, ids, now) {
       batch.set(db.doc(`players/${ids[a.key]}/friends/${ids[b.key]}`), {
         name: b.name,
         avatarEmoji: b.avatar,
-        addedAt: ts(now - 110 * DAY),
+        addedAt: ts(now - (sinceDays - 10) * DAY),
       });
     }
   }
   for (const name of LOCATIONS) {
     batch.set(db.collection(`players/${ids.alex}/saved_locations`).doc(), {
       name,
-      createdAt: ts(now - 100 * DAY),
+      createdAt: ts(now - (sinceDays - 20) * DAY),
     });
   }
 }
 
-function writeGroup(batch, db, ids, now) {
+function writeGroup(batch, db, ids, now, sinceDays) {
   const groupRef = db.collection('groups').doc();
   const members = PLAYERS.filter((p) => p.key !== 'alex');
-  const createdAt = ts(now - 105 * DAY);
+  const createdAt = ts(now - (sinceDays - 15) * DAY);
   batch.set(groupRef, { name: 'Friday Night', ownerId: ids.alex, memberCount: members.length, createdAt });
   for (const m of members) {
     batch.set(groupRef.collection('members').doc(ids[m.key]), {
@@ -122,6 +124,7 @@ const ARCHIVE_STAKES = [
   [2, 5],
 ];
 const WRITES_PER_SESSION = 13;
+const BASE_SINCE_DAYS = 120;
 const BATCH_LIMIT = 500;
 
 function sessionTable(index, alexProfit = ALEX_PROFITS[index]) {
@@ -152,16 +155,18 @@ function writeFinishedSession(batch, db, ids, index, now, archive = null) {
     date: ts(start),
     location: archive?.location ?? LOCATIONS[index % LOCATIONS.length],
     status: 'finished',
-    smallBlind: archive?.stakes[0] ?? 1,
-    bigBlind: archive?.stakes[1] ?? 2,
+    smallBlind: money(archive?.stakes[0] ?? 1),
+    bigBlind: money(archive?.stakes[1] ?? 2),
     amountUnit: 'cash',
     dollarsPerChip: null,
     participantIds: table.map((t) => ids[t.p.key]),
     finishedAt: ts(finish),
   });
-  table.forEach(({ p, profit }, i) => {
+  const scaled = table.map((t) => ({ ...t, profit: money(t.profit) }));
+  scaled[scaled.length - 1].profit = roundCents(-scaled.slice(0, -1).reduce((sum, t) => sum + t.profit, 0));
+  scaled.forEach(({ p, profit }, i) => {
     const uid = ids[p.key];
-    const totalBuyIn = buyInFor(profit);
+    const totalBuyIn = Math.max(money(buyInFor(profit / scale)), roundCents(-profit));
     const joinedAt = ts(start + i * MINUTE);
     batch.set(ref.collection('session_participants').doc(uid), { playerId: uid, playerName: p.name, joinedAt });
     batch.set(ref.collection('buy_ins').doc(), { playerId: uid, playerName: p.name, amount: totalBuyIn, createdAt: joinedAt });
@@ -183,8 +188,8 @@ function writeLiveSession(batch, db, ids, now) {
     date: ts(start),
     location: "Jordan's place",
     status: 'active',
-    smallBlind: 1,
-    bigBlind: 2,
+    smallBlind: money(1),
+    bigBlind: money(2),
     amountUnit: 'cash',
     dollarsPerChip: null,
     participantIds: PLAYERS.map((p) => ids[p.key]),
@@ -194,8 +199,19 @@ function writeLiveSession(batch, db, ids, now) {
     const uid = ids[p.key];
     const at = ts(start + i * 90_000);
     batch.set(ref.collection('session_participants').doc(uid), { playerId: uid, playerName: p.name, joinedAt: at });
-    batch.set(ref.collection('buy_ins').doc(), { playerId: uid, playerName: p.name, amount: buyIns[p.key], createdAt: at });
+    batch.set(ref.collection('buy_ins').doc(), { playerId: uid, playerName: p.name, amount: money(buyIns[p.key]), createdAt: at });
   });
+}
+
+function noise(k) {
+  const x = Math.sin(k * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function archiveProfit(k) {
+  const swing = (noise(k) + noise(k + 500) + noise(k + 1000)) / 3 - 0.5;
+  const bigNight = noise(k + 2000) > 0.9 ? (noise(k + 3000) > 0.45 ? 180 : -160) : 0;
+  return Math.round((swing * 380 + 12 + bigNight) / 2.5) * 2.5;
 }
 
 function archiveSession(k, now) {
@@ -204,7 +220,7 @@ function archiveSession(k, now) {
     start: oldestRecent - (k + 1) * 5 * DAY,
     location: ARCHIVE_LOCATIONS[k % ARCHIVE_LOCATIONS.length],
     stakes: ARCHIVE_STAKES[k % ARCHIVE_STAKES.length],
-    alexProfit: roundCents(((k * 73) % 340) - 160 + (k % 4) * 2.5),
+    alexProfit: archiveProfit(k),
   };
 }
 
@@ -219,7 +235,8 @@ async function writeArchive(db, ids, now, count) {
   }
 }
 
-export async function seed({ extra = 0 } = {}) {
+export async function seed({ extra = 0, amountScale = 1 } = {}) {
+  scale = amountScale;
   await clearEmulators();
   const app = admin.initializeApp({ projectId: PROJECT_ID }, `seed-${Date.now()}`);
   try {
@@ -227,13 +244,14 @@ export async function seed({ extra = 0 } = {}) {
     const ids = await createUsers(app.auth());
     const now = Date.now();
     const batch = db.batch();
-    writeProfiles(batch, db, ids, now);
-    writeGroup(batch, db, ids, now);
+    const sinceDays = extra > 0 ? Math.ceil((now - archiveSession(extra, now).start) / DAY) + 30 : BASE_SINCE_DAYS;
+    writeProfiles(batch, db, ids, now, sinceDays);
+    writeGroup(batch, db, ids, now, sinceDays);
     ALEX_PROFITS.forEach((_, i) => writeFinishedSession(batch, db, ids, i, now));
     writeLiveSession(batch, db, ids, now);
     await batch.commit();
     if (extra > 0) await writeArchive(db, ids, now, extra);
-    return { alexUid: ids.alex, liveSessionId: LIVE_SESSION_ID, email: DEMO_EMAIL, archiveSessions: extra };
+    return { alexUid: ids.alex, liveSessionId: LIVE_SESSION_ID, email: DEMO_EMAIL, archiveSessions: extra, scale };
   } finally {
     await app.delete();
   }
@@ -241,7 +259,11 @@ export async function seed({ extra = 0 } = {}) {
 
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
   const extraArg = process.argv.find((a) => a.startsWith('--extra='));
-  seed({ extra: extraArg ? Math.max(0, Number(extraArg.split('=')[1]) || 0) : 0 })
+  const scaleArg = process.argv.find((a) => a.startsWith('--scale='));
+  seed({
+    extra: extraArg ? Math.max(0, Number(extraArg.split('=')[1]) || 0) : 0,
+    amountScale: scaleArg ? Number(scaleArg.split('=')[1]) || 1 : 1,
+  })
     .then((out) => console.log(JSON.stringify(out)))
     .catch((err) => {
       console.error(err);
