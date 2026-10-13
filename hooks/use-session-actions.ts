@@ -15,7 +15,7 @@ import {
   updateSessionDollarsPerChip,
   updateSessionLocation,
 } from '@/lib/firestore';
-import { parseAmount } from '@/lib/parse-amount';
+import { parseValidAmount } from '@/lib/parse-amount';
 import { isValidBlinds, sessionBlindsAreSet, type SessionView } from '@/lib/session-view';
 import { userMessage } from '@/lib/user-message';
 
@@ -55,7 +55,7 @@ export function useSessionActions({
         onPress: async () => {
           try {
             setRemovingPlayerId(playerId);
-            await removePlayerBuyIns(id, playerId);
+            await removePlayerBuyIns(id, playerId, session?.hostId);
           } catch (e) {
             appAlert('Error', userMessage(e, 'Could not remove player.'));
           } finally {
@@ -68,8 +68,8 @@ export function useSessionActions({
 
   async function saveCashOut(target: CashOutTarget, amount: string) {
     if (!requireHost('cash out players') || !id) return;
-    const parsed = parseAmount(amount);
-    if (parsed == null || parsed < 0) return;
+    const parsed = parseValidAmount(amount, { allowZero: true });
+    if (parsed == null) return;
     try {
       await saveEarlyCashOut(id, {
         playerId: target.playerId,
@@ -142,8 +142,8 @@ export function useSessionActions({
 
   async function saveChipValue(value: string) {
     if (!requireHost('edit dollars per chip') || !id) return;
-    const dpc = parseAmount(value);
-    if (dpc == null || dpc <= 0) return;
+    const dpc = parseValidAmount(value);
+    if (dpc == null) return;
     try {
       await updateSessionDollarsPerChip(id, dpc);
       Keyboard.dismiss();
@@ -155,8 +155,8 @@ export function useSessionActions({
 
   async function saveBlinds(smallBlind: string, bigBlind: string) {
     if (!requireHost('edit blinds') || !id) return;
-    const sb = parseAmount(smallBlind);
-    const bb = parseAmount(bigBlind);
+    const sb = parseValidAmount(smallBlind);
+    const bb = parseValidAmount(bigBlind);
     if (sb == null || bb == null || !isValidBlinds(sb, bb)) return;
     try {
       await updateSessionBlinds(id, { smallBlind: sb, bigBlind: bb });
@@ -169,8 +169,8 @@ export function useSessionActions({
 
   async function saveEditBuyIn(target: EditBuyInTarget, amount: string) {
     if (!viewerIsHost || !id) return;
-    const parsed = parseAmount(amount);
-    if (parsed == null || parsed <= 0) return;
+    const parsed = parseValidAmount(amount);
+    if (parsed == null) return;
     try {
       await updatePlayerBuyInTotal(id, target.playerId, target.playerName, parsed);
       Keyboard.dismiss();

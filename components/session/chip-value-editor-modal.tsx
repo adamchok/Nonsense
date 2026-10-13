@@ -3,7 +3,7 @@ import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { useAppColors } from '@/lib/app-theme';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
+import { amountFieldError, sanitizeAmountInput } from '@/lib/parse-amount';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -22,14 +22,7 @@ export function ChipValueEditorModal({ visible, initialValue, onClose, onSubmit 
   const scrollRef = useRef<ScrollView>(null);
 
   async function save() {
-    const parsed = parseAmount(draft);
-    const nextError = !draft.trim()
-      ? 'Enter a chip value'
-      : parsed == null
-        ? 'Enter a number'
-        : parsed <= 0
-          ? 'Must be more than 0'
-          : null;
+    const nextError = amountFieldError(draft, { empty: 'Enter a chip value' });
     setError(nextError);
     if (nextError) return;
     setIsSaving(true);

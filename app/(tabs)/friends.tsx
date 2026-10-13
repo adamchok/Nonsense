@@ -29,6 +29,7 @@ import {
   subscribeIncomingFriendRequests,
   subscribeOutgoingFriendRequests,
 } from '@/lib/firestore';
+import { MAX_GROUP_NAME_INPUT_LENGTH } from '@/lib/firestore-coerce';
 import {
   acceptGuestLink,
   declineGuestLink,
@@ -1373,6 +1374,7 @@ export default function FriendsScreen() {
             placeholderTextColor={c.placeholder}
             autoCapitalize="words"
             autoComplete="off"
+            maxLength={MAX_GROUP_NAME_INPUT_LENGTH}
             autoFocus={!IS_WEB}
             editable={!renameGroupSaving}
             onSubmitEditing={handleConfirmRenameGroup}

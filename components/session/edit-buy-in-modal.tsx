@@ -6,7 +6,7 @@ import { useAppColors } from '@/lib/app-theme';
 import type { SessionAmountUnit } from '@/types';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
+import { amountFieldError, sanitizeAmountInput } from '@/lib/parse-amount';
 
 export type EditBuyInTarget = {
   playerId: string;
@@ -30,14 +30,7 @@ export function EditBuyInModal({ visible, target, unit, onClose, onSubmit }: Pro
 
   async function save() {
     if (!target) return;
-    const parsed = parseAmount(amount);
-    const error = !amount.trim()
-      ? 'Enter an amount'
-      : parsed == null
-        ? 'Enter a number'
-        : parsed <= 0
-          ? 'Must be more than 0'
-          : null;
+    const error = amountFieldError(amount, { empty: 'Enter an amount' });
     setAmountError(error);
     if (error) return;
     setIsSaving(true);

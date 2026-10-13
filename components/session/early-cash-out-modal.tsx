@@ -6,7 +6,7 @@ import { useAppColors } from '@/lib/app-theme';
 import type { SessionAmountUnit } from '@/types';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
+import { amountFieldError, sanitizeAmountInput } from '@/lib/parse-amount';
 
 export type CashOutTarget = {
   playerId: string;
@@ -31,14 +31,7 @@ export function EarlyCashOutModal({ visible, target, initialAmount, unit, onClos
 
   async function confirm() {
     if (!target || isSaving) return;
-    const parsed = parseAmount(amount);
-    const error = !amount.trim()
-      ? 'Enter an amount (0 if they lost it all)'
-      : parsed == null
-        ? 'Enter a number'
-        : parsed < 0
-          ? 'Must be 0 or more'
-          : null;
+    const error = amountFieldError(amount, { empty: 'Enter an amount (0 if they lost it all)', allowZero: true });
     setAmountError(error);
     if (error) return;
     setIsSaving(true);

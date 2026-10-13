@@ -14,6 +14,7 @@ import type {
 } from '@/types';
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
@@ -38,6 +39,29 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { normalizeAvatarEmoji } from '@/lib/avatar-emoji';
+import {
+  MAX_GROUP_NAME_LENGTH,
+  MAX_LOCATION_LENGTH,
+  MAX_SESSION_PLAYERS,
+  SESSION_PLAYER_LIMIT_MESSAGE,
+  canDecrementMemberCount,
+  clipText,
+  finiteNum,
+  groupFromMembershipData,
+  isOversizedSession,
+  mapDocsSafely,
+  numOrZero,
+  optStr,
+  sessionPlayerIds,
+  sessionSummaryFromDocData,
+  storedPlayerResult,
+  storedProfitEntries,
+  str,
+  tryMap,
+} from '@/lib/firestore-coerce';
+import { failedMembershipIds, leaveGroupInTransaction, membershipSyncError } from '@/lib/group-writes';
+import { AMOUNT_TOO_LARGE_MESSAGE, isAmountInRange } from '@/lib/parse-amount';
+import { participantAddError } from '@/lib/user-message';
 
 function toDate(value: unknown): Date {
   if (value instanceof Timestamp) {
@@ -47,15 +71,6 @@ function toDate(value: unknown): Date {
     return value;
   }
   return new Date();
-}
-
-function numOrZero(data: Record<string, unknown>, key: string, ctx: string): number {
-  const v = data[key];
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  console.warn(
-    `[Firestore] ${ctx}: numeric field "${key}" is ${v === undefined ? 'missing' : String(v)}; treating as 0`
-  );
-  return 0;
 }
 
 const SESSION_PARTICIPANTS_SUBCOLLECTION = 'session_participants';
@@ -94,9 +109,9 @@ export async function getPlayerProfile(uid: string): Promise<PlayerProfile | nul
   const data = snapshot.data();
   return {
     id: snapshot.id,
-    name: String(data.name ?? ''),
-    anonymousUid: String(data.anonymousUid ?? uid),
-    refCode: data.refCode ? String(data.refCode) : undefined,
+    name: str(data.name),
+    anonymousUid: optStr(data.anonymousUid) ?? uid,
+    refCode: optStr(data.refCode),
     avatarEmoji: normalizeAvatarEmoji(data.avatarEmoji),
   };
 }
@@ -112,8 +127,8 @@ export async function upsertPlayerProfile(uid: string, name: string, termsVersio
 
   let refCode: string | undefined;
   if (snapshot.exists()) {
-    const prevName = String(snapshot.data().name ?? '');
-    refCode = snapshot.data().refCode ? String(snapshot.data().refCode) : undefined;
+    const prevName = str(snapshot.data().name);
+    refCode = optStr(snapshot.data().refCode);
     await setDoc(ref, { name, anonymousUid: uid, ...termsFields(termsVersion) }, { merge: true });
     if (prevName !== name) {
       const propagateName = () =>
@@ -189,7 +204,8 @@ export async function ensureRefCode(uid: string): Promise<string> {
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error('Player not found');
   const data = snap.data();
-  if (data.refCode) return String(data.refCode);
+  const existingRefCode = optStr(data.refCode);
+  if (existingRefCode) return existingRefCode;
 
   const code = await reserveRefCode(uid);
   await updateDoc(ref, { refCode: code });
@@ -207,7 +223,7 @@ function mapFriendRequestDoc(d: { id: string; data: () => Record<string, unknown
   const data = d.data();
   return {
     playerId: d.id,
-    name: String(data.name ?? ''),
+    name: str(data.name),
     createdAt: toDate(data.createdAt),
     avatarEmoji: normalizeAvatarEmoji(data.avatarEmoji),
   };
@@ -292,7 +308,7 @@ export function subscribeIncomingFriendRequests(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      const requests = snapshot.docs.map((d) => mapFriendRequestDoc(d));
+      const requests = mapDocsSafely(snapshot.docs, colRef.path, mapFriendRequestDoc);
       onNext(requests.sort((a, b) => a.name.localeCompare(b.name)));
     },
     onError
@@ -308,7 +324,7 @@ export function subscribeOutgoingFriendRequests(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      const requests = snapshot.docs.map((d) => mapFriendRequestDoc(d));
+      const requests = mapDocsSafely(snapshot.docs, colRef.path, mapFriendRequestDoc);
       onNext(requests.sort((a, b) => a.name.localeCompare(b.name)));
     },
     onError
@@ -318,14 +334,14 @@ export function subscribeOutgoingFriendRequests(
 export async function fetchIncomingFriendRequests(uid: string): Promise<FriendRequestRecord[]> {
   const colRef = collection(getFirestoreDb(), 'players', uid, FRIEND_REQUESTS);
   const snapshot = await getDocs(colRef);
-  const requests = snapshot.docs.map((d) => mapFriendRequestDoc(d));
+  const requests = mapDocsSafely(snapshot.docs, colRef.path, mapFriendRequestDoc);
   return requests.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function fetchOutgoingFriendRequests(uid: string): Promise<FriendRequestRecord[]> {
   const colRef = collection(getFirestoreDb(), 'players', uid, FRIEND_REQUESTS_SENT);
   const snapshot = await getDocs(colRef);
-  const requests = snapshot.docs.map((d) => mapFriendRequestDoc(d));
+  const requests = mapDocsSafely(snapshot.docs, colRef.path, mapFriendRequestDoc);
   return requests.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -333,8 +349,8 @@ export async function lookupPlayerByRefCode(code: string): Promise<PlayerProfile
   const ref = doc(getFirestoreDb(), 'refCodes', code.toUpperCase());
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  const playerId = String(snap.data().playerId);
-  return getPlayerProfile(playerId);
+  const playerId = optStr(snap.data().playerId);
+  return playerId ? getPlayerProfile(playerId) : null;
 }
 
 async function commitFriendAccept(myUid: string, friendUid: string): Promise<void> {
@@ -403,14 +419,9 @@ async function propagateMyDisplayToFriends(
   if (hasName) firestorePatch.name = patch.name as string;
   if (hasAvatar) firestorePatch.avatarEmoji = patch.avatarEmoji ?? null;
 
-  const friendIds = friendsSnap.docs.map((d) => d.id);
-  for (let i = 0; i < friendIds.length; i += FRIEND_PROPAGATE_BATCH_SIZE) {
-    const batch = writeBatch(db);
-    for (const friendId of friendIds.slice(i, i + FRIEND_PROPAGATE_BATCH_SIZE)) {
-      batch.update(doc(db, 'players', friendId, 'friends', myUid), firestorePatch);
-    }
-    await batch.commit();
-  }
+  await Promise.allSettled(
+    friendsSnap.docs.map((d) => updateDoc(doc(db, 'players', d.id, 'friends', myUid), firestorePatch))
+  );
 }
 
 async function propagateAvatarToGroupMembers(myUid: string, avatarEmoji: string | null): Promise<void> {
@@ -441,8 +452,24 @@ async function propagateDisplayNameToGroupMembers(myUid: string, name: string): 
 
 export async function removeFriend(myUid: string, friendId: string): Promise<void> {
   const db = getFirestoreDb();
-  await deleteDoc(doc(db, 'players', myUid, 'friends', friendId));
-  await deleteDoc(doc(db, 'players', friendId, 'friends', myUid));
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'players', myUid, 'friends', friendId));
+  batch.delete(doc(db, 'players', friendId, 'friends', myUid));
+  batch.delete(doc(db, 'players', myUid, FRIEND_REQUESTS, friendId));
+  batch.delete(doc(db, 'players', friendId, FRIEND_REQUESTS_SENT, myUid));
+  batch.delete(doc(db, 'players', myUid, FRIEND_REQUESTS_SENT, friendId));
+  batch.delete(doc(db, 'players', friendId, FRIEND_REQUESTS, myUid));
+  await batch.commit();
+}
+
+function mapFriendDoc(d: QueryDocumentSnapshot): FriendRecord {
+  const data = d.data();
+  return {
+    playerId: d.id,
+    name: str(data.name),
+    addedAt: toDate(data.addedAt),
+    avatarEmoji: normalizeAvatarEmoji(data.avatarEmoji),
+  };
 }
 
 export function subscribeFriends(
@@ -454,12 +481,7 @@ export function subscribeFriends(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      const friends = snapshot.docs.map<FriendRecord>((d) => ({
-        playerId: d.id,
-        name: String(d.data().name ?? ''),
-        addedAt: toDate(d.data().addedAt),
-        avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
-      }));
+      const friends = mapDocsSafely(snapshot.docs, colRef.path, mapFriendDoc);
       onNext(friends.sort((a, b) => a.name.localeCompare(b.name)));
     },
     onError
@@ -469,12 +491,7 @@ export function subscribeFriends(
 export async function fetchFriendsList(uid: string): Promise<FriendRecord[]> {
   const colRef = collection(getFirestoreDb(), 'players', uid, 'friends');
   const snapshot = await getDocs(colRef);
-  const friends = snapshot.docs.map<FriendRecord>((d) => ({
-    playerId: d.id,
-    name: String(d.data().name ?? ''),
-    addedAt: toDate(d.data().addedAt),
-    avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
-  }));
+  const friends = mapDocsSafely(snapshot.docs, colRef.path, mapFriendDoc);
   return friends.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -510,23 +527,18 @@ export function invalidateSessionScanCache(): void {
   scanCache.clear();
 }
 
-type PlayerResultEntry = { playerName?: unknown; totalBuyIn?: unknown; cashOut?: unknown; profit?: unknown };
-
-function storedPlayerResults(data: Record<string, unknown>): Record<string, PlayerResultEntry> | null {
-  const map = data.playerResults;
-  return map && typeof map === 'object' && !Array.isArray(map) ? (map as Record<string, PlayerResultEntry>) : null;
-}
-
 async function sumProfitsAcrossSessions(uid: string): Promise<Map<string, number>> {
   const db = getFirestoreDb();
   const sessionDocs = await getAccessibleSessionDocs(uid);
   const profitById = new Map<string, number>();
   await Promise.all(
     sessionDocs.map(async (sDoc) => {
-      const stored = storedPlayerResults(sDoc.data());
+      const data = sDoc.data();
+      if (data.status !== 'finished' || isOversizedSession(data)) return;
+      const stored = tryMap(`sessions/${sDoc.id}`, () => storedProfitEntries(sDoc.id, data));
+      if (stored === undefined) return;
       if (stored) {
-        for (const [playerId, r] of Object.entries(stored)) {
-          const profit = numOrZero(r as Record<string, unknown>, 'profit', `sessions/${sDoc.id}.playerResults.${playerId}`);
+        for (const [playerId, profit] of stored) {
           profitById.set(playerId, (profitById.get(playerId) ?? 0) + profit);
         }
         return;
@@ -552,12 +564,15 @@ export async function getFriendLeaderboard(
     cachedScan(`profits:${uid}`, forceRefresh, () => sumProfitsAcrossSessions(uid)),
   ]);
 
-  const leaderboard = friendsSnap.docs.map((d) => ({
-    playerId: d.id,
-    name: String(d.data().name ?? ''),
-    avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
-    totalProfit: profitById.get(d.id) ?? 0,
-  }));
+  const leaderboard = mapDocsSafely(friendsSnap.docs, `players/${uid}/friends`, (d) => {
+    const friend = mapFriendDoc(d);
+    return {
+      playerId: friend.playerId,
+      name: friend.name,
+      avatarEmoji: friend.avatarEmoji,
+      totalProfit: profitById.get(d.id) ?? 0,
+    };
+  });
   if (myProfile) {
     leaderboard.push({
       playerId: uid,
@@ -597,30 +612,9 @@ export async function getGroupLeaderboard(
   return leaderboard.sort((a, b) => b.totalProfit - a.totalProfit);
 }
 
-function sessionBlindsFromDocData(data: Record<string, unknown>): {
-  smallBlind?: number;
-  bigBlind?: number;
-} {
-  const rawSb = data.smallBlind;
-  const rawBb = data.bigBlind;
-  if (rawSb == null || rawBb == null) return {};
-  const sb = typeof rawSb === 'number' ? rawSb : Number(rawSb);
-  const bb = typeof rawBb === 'number' ? rawBb : Number(rawBb);
-  if (!Number.isFinite(sb) || !Number.isFinite(bb) || sb <= 0 || bb < sb) return {};
-  return { smallBlind: sb, bigBlind: bb };
-}
+const BUY_IN_TOO_LARGE_MESSAGE = `Buy-in amounts ${AMOUNT_TOO_LARGE_MESSAGE.toLowerCase()}.`;
 
-function sessionAmountMetaFromDocData(data: Record<string, unknown>): {
-  amountUnit: SessionAmountUnit;
-  dollarsPerChip?: number;
-} {
-  const amountUnit: SessionAmountUnit = data.amountUnit === 'chips' ? 'chips' : 'cash';
-  if (amountUnit !== 'chips') return { amountUnit: 'cash' };
-  const raw = data.dollarsPerChip;
-  const n = typeof raw === 'number' ? raw : Number(raw);
-  const dollarsPerChip = Number.isFinite(n) && n > 0 ? n : undefined;
-  return { amountUnit: 'chips', dollarsPerChip };
-}
+type InitialBuyIn = { playerId: string; playerName: string; amount: number };
 
 export async function createSession(input: {
   hostId: string;
@@ -630,7 +624,8 @@ export async function createSession(input: {
   bigBlind?: number;
   amountUnit?: SessionAmountUnit;
   dollarsPerChip?: number;
-  initialBuyIns?: { playerId: string; playerName: string; amount: number }[];
+  groupId?: string;
+  initialBuyIns?: InitialBuyIn[];
 }): Promise<string> {
   const db = getFirestoreDb();
   const sessionsRef = collection(db, 'sessions');
@@ -665,51 +660,80 @@ export async function createSession(input: {
     if (!Number.isFinite(b.amount) || b.amount <= 0) {
       throw new Error('Buy-in amounts must be positive numbers.');
     }
+    if (!isAmountInRange(b.amount)) {
+      throw new Error(BUY_IN_TOO_LARGE_MESSAGE);
+    }
+  }
+  const playerIds = sessionPlayerIds(input.hostId, initialBuyIns.map((b) => b.playerId));
+  if (playerIds.length > MAX_SESSION_PLAYERS) {
+    throw new Error(SESSION_PLAYER_LIMIT_MESSAGE);
   }
 
-  const participantIds = [...new Set([input.hostId, ...initialBuyIns.map((b) => b.playerId)])];
+  const groupId = input.groupId?.trim();
   const batch = writeBatch(db);
   batch.set(sessionRef, {
     hostId: input.hostId,
     date: serverTimestamp(),
-    location: input.location?.trim() || null,
+    location: clipText(input.location?.trim() ?? '', MAX_LOCATION_LENGTH).trim() || null,
     status: 'active',
     smallBlind,
     bigBlind,
     amountUnit,
     dollarsPerChip,
-    participantIds,
+    participantIds: [input.hostId],
+    ...(groupId ? { groupId } : {}),
   });
 
-  const hostLabel = input.hostName?.trim() || input.hostId;
-  appendSessionParticipantWrites(batch, sessionRef.id, input.hostId, hostLabel, {
-    skipSessionUpdate: true,
-  });
-  for (const b of initialBuyIns) {
-    batch.set(doc(collection(db, 'sessions', sessionRef.id, 'buy_ins')), {
+  const writeInitialBuyIn = (target: ReturnType<typeof writeBatch>, b: InitialBuyIn) => {
+    target.set(doc(collection(db, 'sessions', sessionRef.id, 'buy_ins')), {
       playerId: b.playerId,
       playerName: b.playerName,
       amount: b.amount,
       createdAt: serverTimestamp(),
     });
+  };
+  const buyInsByPlayer = new Map<string, InitialBuyIn[]>();
+  for (const b of initialBuyIns) {
+    buyInsByPlayer.set(b.playerId, [...(buyInsByPlayer.get(b.playerId) ?? []), b]);
+  }
+
+  const hostLabel = input.hostName?.trim() || input.hostId;
+  appendSessionParticipantWrites(batch, sessionRef.id, input.hostId, hostLabel, {
+    skipSessionUpdate: true,
+  });
+  for (const b of buyInsByPlayer.get(input.hostId) ?? []) {
+    writeInitialBuyIn(batch, b);
     appendSessionParticipantWrites(batch, sessionRef.id, b.playerId, b.playerName, {
       skipSessionUpdate: true,
     });
   }
   await batch.commit();
 
+  try {
+    for (const playerId of playerIds.slice(1)) {
+      const buyIns = buyInsByPlayer.get(playerId) ?? [];
+      const playerName = buyIns[0]?.playerName ?? playerId;
+      const playerBatch = writeBatch(db);
+      buyIns.forEach((b) => writeInitialBuyIn(playerBatch, b));
+      appendSessionParticipantWrites(playerBatch, sessionRef.id, playerId, playerName);
+      await playerBatch.commit().catch((err: unknown) => {
+        throw participantAddError(err, playerName.trim() || playerId, Boolean(input.groupId));
+      });
+    }
+  } catch (err) {
+    await deleteSession(sessionRef.id).catch((cleanupErr) => {
+      console.error('[Firestore] createSession: could not remove partial session', cleanupErr);
+    });
+    throw err;
+  }
+
   return sessionRef.id;
 }
 
 function mapSessionDocToRecord(sessionId: string, data: Record<string, unknown>): SessionRecord {
-  const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
   return {
     id: sessionId,
-    hostId: String(data.hostId ?? ''),
-    location: data.location ? String(data.location) : undefined,
-    ...sessionBlindsFromDocData(data),
-    amountUnit,
-    ...(amountUnit === 'chips' && dollarsPerChip != null ? { dollarsPerChip } : {}),
+    ...sessionSummaryFromDocData(data),
     status: data.status === 'finished' ? 'finished' : 'active',
     date: toDate(data.date ?? data.createdAt),
     finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
@@ -748,9 +772,12 @@ export async function getRecentSessionsForPlayer(playerId: string): Promise<Sess
     sessionsById.set(snap.id, snap.data() as Record<string, unknown>);
   }
 
-  const records = [...sessionsById.entries()].map(([sessionId, data]) =>
-    mapSessionDocToRecord(sessionId, data)
-  );
+  const records: SessionRecord[] = [];
+  for (const [sessionId, data] of sessionsById) {
+    if (isOversizedSession(data)) continue;
+    const record = tryMap(`sessions/${sessionId}`, () => mapSessionDocToRecord(sessionId, data));
+    if (record) records.push(record);
+  }
   return records
     .sort((a, b) => b.date.getTime() - a.date.getTime())
     .slice(0, RECENT_SESSIONS_DISPLAY_LIMIT);
@@ -761,7 +788,7 @@ export async function updateSessionLocation(
   location: string | null
 ): Promise<void> {
   const ref = doc(getFirestoreDb(), 'sessions', sessionId);
-  const trimmed = location?.trim();
+  const trimmed = clipText(location?.trim() ?? '', MAX_LOCATION_LENGTH).trim();
   await updateDoc(ref, { location: trimmed ? trimmed : null });
 }
 
@@ -813,7 +840,7 @@ export async function getSavedLocations(uid: string): Promise<SavedLocation[]> {
   const snapshots = await getDocs(q);
   return snapshots.docs.map<SavedLocation>((d) => ({
     id: d.id,
-    name: String(d.data().name ?? ''),
+    name: str(d.data().name),
     createdAt: toDate(d.data().createdAt),
   }));
 }
@@ -854,24 +881,32 @@ export async function getSessionMeta(sessionId: string): Promise<{
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
   const data = snap.data() as Record<string, unknown>;
-  const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
   return {
     date: toDate(data.date ?? data.createdAt),
     finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
-    location: data.location ? String(data.location) : undefined,
-    hostId: data.hostId ? String(data.hostId) : undefined,
+    ...sessionSummaryFromDocData(data),
+    hostId: optStr(data.hostId),
     status: data.status === 'finished' ? 'finished' : 'active',
-    ...sessionBlindsFromDocData(data),
-    amountUnit,
-    ...(amountUnit === 'chips' && dollarsPerChip != null ? { dollarsPerChip } : {}),
   };
 }
 
 export async function addBuyIn(
   sessionId: string,
   input: { playerId: string; playerName: string; amount: number },
-  options?: { isExistingParticipant?: boolean; hasEarlyCashOut?: boolean }
+  options?: {
+    isExistingParticipant?: boolean;
+    hasEarlyCashOut?: boolean;
+    participantCount?: number;
+    isGroupSession?: boolean;
+  }
 ): Promise<string> {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new Error('Buy-in amounts must be positive numbers.');
+  }
+  if (!isAmountInRange(input.amount)) throw new Error(BUY_IN_TOO_LARGE_MESSAGE);
+  if (!options?.isExistingParticipant && (options?.participantCount ?? 0) >= MAX_SESSION_PLAYERS) {
+    throw new Error(SESSION_PLAYER_LIMIT_MESSAGE);
+  }
   const db = getFirestoreDb();
   const buyInRef = doc(collection(db, 'sessions', sessionId, 'buy_ins'));
   const batch = writeBatch(db);
@@ -887,7 +922,11 @@ export async function addBuyIn(
   if (options?.hasEarlyCashOut !== false) {
     batch.delete(doc(db, 'sessions', sessionId, 'early_cashouts', input.playerId));
   }
-  await batch.commit();
+  await batch.commit().catch((err: unknown) => {
+    throw options?.isExistingParticipant
+      ? err
+      : participantAddError(err, input.playerName.trim() || input.playerId, options?.isGroupSession);
+  });
   return buyInRef.id;
 }
 
@@ -932,20 +971,32 @@ export async function deleteSession(sessionId: string): Promise<void> {
   invalidateSessionScanCache();
 }
 
-export async function removePlayerBuyIns(sessionId: string, playerId: string): Promise<void> {
+export async function removePlayerBuyIns(sessionId: string, playerId: string, hostId?: string): Promise<void> {
   const db = getFirestoreDb();
   const q = query(
     collection(db, 'sessions', sessionId, 'buy_ins'),
     where('playerId', '==', playerId)
   );
-  const snap = await getDocs(q);
-  if (snap.empty) return;
+  const sessionRef = doc(db, 'sessions', sessionId);
+  const [snap, resolvedHostId] = await Promise.all([
+    getDocs(q),
+    hostId ?? getDoc(sessionRef).then((s) => (s.exists() ? str(s.data().hostId) : '')),
+  ]);
+  const isHost = resolvedHostId === playerId;
 
+  const extraWrites = isHost ? 1 : 3;
+  const chunkSize = 500 - extraWrites;
   const docs = snap.docs;
-  for (let i = 0; i < docs.length; i += 500) {
-    const chunk = docs.slice(i, i + 500);
+  for (let i = 0; i === 0 || i < docs.length; i += chunkSize) {
     const batch = writeBatch(db);
-    chunk.forEach((d) => batch.delete(d.ref));
+    docs.slice(i, i + chunkSize).forEach((d) => batch.delete(d.ref));
+    if (i === 0) {
+      if (!isHost) {
+        batch.update(sessionRef, { participantIds: arrayRemove(playerId) });
+        batch.delete(doc(db, 'sessions', sessionId, SESSION_PARTICIPANTS_SUBCOLLECTION, playerId));
+      }
+      batch.delete(doc(db, 'sessions', sessionId, 'early_cashouts', playerId));
+    }
     await batch.commit();
   }
 }
@@ -961,13 +1012,13 @@ export function subscribeBuyIns(
   return onSnapshot(
     q,
     (snapshot) => {
-      const buyIns = snapshot.docs.map<BuyIn>((d) => {
+      const buyIns = mapDocsSafely(snapshot.docs, colRef.path, (d): BuyIn => {
         const data = d.data({ serverTimestamps: 'estimate' });
         return {
           id: d.id,
           sessionId,
-          playerId: String(data.playerId ?? ''),
-          playerName: String(data.playerName ?? ''),
+          playerId: str(data.playerId),
+          playerName: str(data.playerName),
           amount: numOrZero(data, 'amount', `sessions/${sessionId}/buy_ins/${d.id}`),
           createdAt: toDate(data.createdAt),
         };
@@ -983,13 +1034,13 @@ export async function getBuyIns(sessionId: string): Promise<BuyIn[]> {
   const q = query(colRef, orderBy('createdAt', 'asc'));
   const snapshots = await getDocs(q);
 
-  return snapshots.docs.map<BuyIn>((d) => {
+  return mapDocsSafely(snapshots.docs, colRef.path, (d): BuyIn => {
     const data = d.data();
     return {
       id: d.id,
       sessionId,
-      playerId: String(data.playerId ?? ''),
-      playerName: String(data.playerName ?? ''),
+      playerId: str(data.playerId),
+      playerName: str(data.playerName),
       amount: numOrZero(data, 'amount', `sessions/${sessionId}/buy_ins/${d.id}`),
       createdAt: toDate(data.createdAt),
     };
@@ -1017,11 +1068,11 @@ export function subscribeEarlyCashOuts(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      const cashOuts = snapshot.docs.map<EarlyCashOut>((d) => {
+      const cashOuts = mapDocsSafely(snapshot.docs, colRef.path, (d): EarlyCashOut => {
         const data = d.data();
         return {
           playerId: d.id,
-          playerName: String(data.playerName ?? ''),
+          playerName: str(data.playerName),
           amount: numOrZero(data, 'amount', `sessions/${sessionId}/early_cashouts/${d.id}`),
           cashedOutAt: toDate(data.cashedOutAt),
         };
@@ -1035,11 +1086,11 @@ export function subscribeEarlyCashOuts(
 export async function getEarlyCashOuts(sessionId: string): Promise<EarlyCashOut[]> {
   const colRef = collection(getFirestoreDb(), 'sessions', sessionId, 'early_cashouts');
   const snapshots = await getDocs(colRef);
-  return snapshots.docs.map<EarlyCashOut>((d) => {
+  return mapDocsSafely(snapshots.docs, colRef.path, (d): EarlyCashOut => {
     const data = d.data();
     return {
       playerId: d.id,
-      playerName: String(data.playerName ?? ''),
+      playerName: str(data.playerName),
       amount: numOrZero(data, 'amount', `sessions/${sessionId}/early_cashouts/${d.id}`),
       cashedOutAt: toDate(data.cashedOutAt),
     };
@@ -1094,12 +1145,12 @@ export async function getResults(sessionId: string): Promise<SessionResult[]> {
   const colRef = collection(getFirestoreDb(), 'sessions', sessionId, 'results');
   const snapshots = await getDocs(colRef);
 
-  return snapshots.docs.map<SessionResult>((d) => {
+  return mapDocsSafely(snapshots.docs, colRef.path, (d): SessionResult => {
     const data = d.data();
     const ctx = `sessions/${sessionId}/results/${d.id}`;
     return {
       playerId: d.id,
-      playerName: String(data.playerName ?? ''),
+      playerName: str(data.playerName),
       totalBuyIn: numOrZero(data, 'totalBuyIn', ctx),
       cashOut: numOrZero(data, 'cashOut', ctx),
       profit: numOrZero(data, 'profit', ctx),
@@ -1110,16 +1161,19 @@ export async function getResults(sessionId: string): Promise<SessionResult[]> {
 const GROUPS_COLLECTION = 'groups';
 const GROUP_MEMBERSHIPS_SUB = 'group_memberships';
 
-export async function syncGroupMembershipDocs(groupId: string): Promise<void> {
+export async function syncGroupMembershipDocs(
+  groupId: string,
+  required?: { id: string; name: string }
+): Promise<void> {
   const db = getFirestoreDb();
   const groupRef = doc(db, GROUPS_COLLECTION, groupId);
   const groupSnap = await getDoc(groupRef);
   if (!groupSnap.exists()) return;
 
   const g = groupSnap.data() as Record<string, unknown>;
-  const name = String(g.name ?? '');
-  const memberCount = Number(g.memberCount ?? 0);
-  const ownerId = String(g.ownerId ?? '');
+  const name = str(g.name);
+  const memberCount = finiteNum(g.memberCount) ?? 0;
+  const ownerId = str(g.ownerId);
   const groupCreatedAt = g.createdAt ?? g.groupCreatedAt;
 
   const membersSnap = await getDocs(collection(db, GROUPS_COLLECTION, groupId, 'members'));
@@ -1139,28 +1193,35 @@ export async function syncGroupMembershipDocs(groupId: string): Promise<void> {
     payloadBase.groupCreatedAt = groupCreatedAt;
   }
 
-  for (let i = 0; i < idsList.length; i += FRIEND_PROPAGATE_BATCH_SIZE) {
-    const batch = writeBatch(db);
-    for (const pid of idsList.slice(i, i + FRIEND_PROPAGATE_BATCH_SIZE)) {
-      const mref = doc(db, 'players', pid, GROUP_MEMBERSHIPS_SUB, groupId);
-      const role = pid === ownerId ? 'owner' : 'member';
-      batch.set(
-        mref,
-        {
-          ...payloadBase,
-          role,
-        },
+  const outcomes = await Promise.allSettled(
+    idsList.map((pid) =>
+      setDoc(
+        doc(db, 'players', pid, GROUP_MEMBERSHIPS_SUB, groupId),
+        { ...payloadBase, role: pid === ownerId ? 'owner' : 'member' },
         { merge: true }
-      );
-    }
-    await batch.commit();
+      )
+    )
+  );
+  const failedIds = failedMembershipIds(idsList, outcomes);
+  if (failedIds.length > 0) {
+    console.warn(`[Firestore] syncGroupMembershipDocs: ${failedIds.length} of ${idsList.length} memberships not updated for groups/${groupId}`);
   }
+  const error = membershipSyncError(failedIds, ownerId, required);
+  if (error) throw error;
+}
+
+function validGroupName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Group name is required.');
+  if (trimmed.length > MAX_GROUP_NAME_LENGTH) {
+    throw new Error(`Group names can be up to ${MAX_GROUP_NAME_LENGTH} characters.`);
+  }
+  return trimmed;
 }
 
 export async function createGroup(uid: string, name: string): Promise<string> {
   const db = getFirestoreDb();
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error('Group name is required.');
+  const trimmed = validGroupName(name);
 
   const ownedSnap = await getDocs(query(collection(db, GROUPS_COLLECTION), where('ownerId', '==', uid)));
   if (ownedSnap.size >= 10) {
@@ -1190,15 +1251,12 @@ export async function createGroup(uid: string, name: string): Promise<string> {
 }
 
 export async function renameGroup(uid: string, groupId: string, name: string): Promise<void> {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    throw new Error('Group name is required.');
-  }
+  const trimmed = validGroupName(name);
   const db = getFirestoreDb();
   const groupRef = doc(db, GROUPS_COLLECTION, groupId);
   const snap = await getDoc(groupRef);
   if (!snap.exists()) throw new Error('Group not found');
-  if (String(snap.data().ownerId) !== uid) {
+  if (str(snap.data().ownerId) !== uid) {
     throw new Error('Only the group owner can rename the group.');
   }
   await updateDoc(groupRef, { name: trimmed });
@@ -1210,7 +1268,7 @@ export async function deleteGroup(uid: string, groupId: string): Promise<void> {
   const groupRef = doc(db, GROUPS_COLLECTION, groupId);
   const snap = await getDoc(groupRef);
   if (!snap.exists()) throw new Error('Group not found');
-  if (String(snap.data().ownerId) !== uid) {
+  if (str(snap.data().ownerId) !== uid) {
     throw new Error('Only the group owner can delete the group.');
   }
 
@@ -1252,38 +1310,25 @@ export function subscribeGroups(
   return onSnapshot(
     q,
     (snapshot) => {
-      const groups = snapshot.docs.map<PokerGroup>((d) => {
-        const data = d.data();
-        return {
-          id: d.id,
-          name: String(data.name ?? ''),
-          createdAt: toDate(data.groupCreatedAt ?? data.createdAt),
-          memberCount: Number(data.memberCount ?? 0),
-          ownerId: String(data.ownerId ?? ''),
-          myRole: data.role === 'owner' ? 'owner' : 'member',
-        };
-      });
-      onNext(groups);
+      onNext(mapDocsSafely(snapshot.docs, colRef.path, mapGroupMembershipDoc));
     },
     onError
   );
+}
+
+function mapGroupMembershipDoc(d: QueryDocumentSnapshot): PokerGroup {
+  const data = d.data();
+  return {
+    ...groupFromMembershipData(d.id, data),
+    createdAt: toDate(data.groupCreatedAt ?? data.createdAt),
+  };
 }
 
 export async function fetchGroupsList(uid: string): Promise<PokerGroup[]> {
   const colRef = collection(getFirestoreDb(), 'players', uid, GROUP_MEMBERSHIPS_SUB);
   const q = query(colRef, orderBy('groupCreatedAt', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map<PokerGroup>((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      name: String(data.name ?? ''),
-      createdAt: toDate(data.groupCreatedAt ?? data.createdAt),
-      memberCount: Number(data.memberCount ?? 0),
-      ownerId: String(data.ownerId ?? ''),
-      myRole: data.role === 'owner' ? 'owner' : 'member',
-    };
-  });
+  return mapDocsSafely(snapshot.docs, colRef.path, mapGroupMembershipDoc);
 }
 
 export async function addGroupMember(
@@ -1312,7 +1357,7 @@ export async function addGroupMember(
   await runTransaction(db, async (tx) => {
     const gSnap = await tx.get(groupRef);
     if (!gSnap.exists()) throw new Error('Group not found');
-    if (String(gSnap.data().ownerId) !== ownerUid) {
+    if (str(gSnap.data().ownerId) !== ownerUid) {
       throw new Error('Only the group owner can add members');
     }
 
@@ -1325,9 +1370,14 @@ export async function addGroupMember(
     if (!existing.exists()) {
       tx.update(groupRef, { memberCount: increment(1) });
     }
+  }).catch((err: unknown) => {
+    if (member.isRegistered && member.id !== ownerUid && isPermissionDenied(err)) {
+      throw new Error(`${member.name} isn't your friend, so they can't be added to this group.`, { cause: err });
+    }
+    throw err;
   });
 
-  await syncGroupMembershipDocs(groupId);
+  await syncGroupMembershipDocs(groupId, member.isRegistered ? { id: member.id, name: member.name } : undefined);
 }
 
 export async function removeGroupMember(
@@ -1339,25 +1389,23 @@ export async function removeGroupMember(
   const groupRef = doc(db, GROUPS_COLLECTION, groupId);
   const memberRef = doc(db, GROUPS_COLLECTION, groupId, 'members', memberId);
 
-  let wasRegistered = false;
-
   await runTransaction(db, async (tx) => {
     const gSnap = await tx.get(groupRef);
     if (!gSnap.exists()) throw new Error('Group not found');
-    if (String(gSnap.data().ownerId) !== ownerUid) {
+    if (str(gSnap.data().ownerId) !== ownerUid) {
       throw new Error('Only the group owner can remove members');
     }
 
     const existing = await tx.get(memberRef);
     if (!existing.exists()) return;
-    wasRegistered = Boolean(existing.data().isRegistered);
     tx.delete(memberRef);
-    tx.update(groupRef, { memberCount: increment(-1) });
+    if (existing.data().isRegistered) {
+      tx.delete(doc(db, 'players', memberId, GROUP_MEMBERSHIPS_SUB, groupId));
+    }
+    if (canDecrementMemberCount(gSnap.data().memberCount)) {
+      tx.update(groupRef, { memberCount: increment(-1) });
+    }
   });
-
-  if (wasRegistered) {
-    await deleteDoc(doc(db, 'players', memberId, GROUP_MEMBERSHIPS_SUB, groupId));
-  }
 
   await syncGroupMembershipDocs(groupId);
 }
@@ -1366,21 +1414,11 @@ export async function leaveGroup(uid: string, groupId: string): Promise<void> {
   const db = getFirestoreDb();
   const groupRef = doc(db, GROUPS_COLLECTION, groupId);
   const memberRef = doc(db, GROUPS_COLLECTION, groupId, 'members', uid);
+  const membershipRef = doc(db, 'players', uid, GROUP_MEMBERSHIPS_SUB, groupId);
 
-  await runTransaction(db, async (tx) => {
-    const gSnap = await tx.get(groupRef);
-    if (!gSnap.exists()) throw new Error('Group not found');
-    if (String(gSnap.data().ownerId) === uid) {
-      throw new Error('The group owner cannot leave. Delete the group instead.');
-    }
-    const existing = await tx.get(memberRef);
-    if (existing.exists()) {
-      tx.delete(memberRef);
-      tx.update(groupRef, { memberCount: increment(-1) });
-    }
-  });
-
-  await deleteDoc(doc(db, 'players', uid, GROUP_MEMBERSHIPS_SUB, groupId));
+  await runTransaction(db, (tx) =>
+    leaveGroupInTransaction(tx, { group: groupRef, member: memberRef, membership: membershipRef }, uid)
+  );
 }
 
 export async function getGroupMembers(viewerUid: string, groupId: string): Promise<GroupMember[]> {
@@ -1389,13 +1427,19 @@ export async function getGroupMembers(viewerUid: string, groupId: string): Promi
   if (!access.exists()) {
     throw new Error('Group not found or you are not a member.');
   }
-  const snap = await getDocs(collection(db, GROUPS_COLLECTION, groupId, 'members'));
-  return snap.docs.map<GroupMember>((d) => ({
+  const colRef = collection(db, GROUPS_COLLECTION, groupId, 'members');
+  const snap = await getDocs(colRef);
+  return mapDocsSafely(snap.docs, colRef.path, mapGroupMemberDoc);
+}
+
+function mapGroupMemberDoc(d: QueryDocumentSnapshot): GroupMember {
+  const data = d.data();
+  return {
     id: d.id,
-    name: String(d.data().name ?? ''),
-    isRegistered: Boolean(d.data().isRegistered),
-    avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
-  }));
+    name: str(data.name),
+    isRegistered: Boolean(data.isRegistered),
+    avatarEmoji: normalizeAvatarEmoji(data.avatarEmoji),
+  };
 }
 
 export function subscribeGroupMembers(
@@ -1409,12 +1453,7 @@ export function subscribeGroupMembers(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      const members = snapshot.docs.map<GroupMember>((d) => ({
-        id: d.id,
-        name: String(d.data().name ?? ''),
-        isRegistered: Boolean(d.data().isRegistered),
-        avatarEmoji: normalizeAvatarEmoji(d.data().avatarEmoji),
-      }));
+      const members = mapDocsSafely(snapshot.docs, colRef.path, mapGroupMemberDoc);
       onNext(members.sort((a, b) => a.name.localeCompare(b.name)));
     },
     onError
@@ -1437,33 +1476,23 @@ async function sessionHistoryEntriesFromDocs(
   await Promise.all(
     sessionDocs.map(async (sessionDoc) => {
       const data = sessionDoc.data() as Record<string, unknown>;
-      const stored = storedPlayerResults(data);
-      let r: Record<string, unknown>;
-      if (stored) {
-        const entry = stored[playerId];
-        if (!entry) return;
-        r = entry as Record<string, unknown>;
-      } else {
-        const resultSnap = await getDoc(doc(db, 'sessions', sessionDoc.id, 'results', playerId));
-        if (!resultSnap.exists()) return;
-        r = resultSnap.data();
-      }
+      if (isOversizedSession(data)) return;
+      const stored = storedPlayerResult(data, playerId);
+      if (stored === null) return;
+      const result = stored ?? (await getDoc(doc(db, 'sessions', sessionDoc.id, 'results', playerId))).data();
+      if (!result) return;
       const resultCtx = `sessions/${sessionDoc.id}/results/${playerId}`;
-      const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
-      records.push({
+      const entry = tryMap(`sessions/${sessionDoc.id}`, (): SessionHistoryEntry => ({
         id: sessionDoc.id,
-        hostId: String(data.hostId ?? ''),
-        location: data.location ? String(data.location) : undefined,
-        ...sessionBlindsFromDocData(data),
-        amountUnit,
-        ...(amountUnit === 'chips' && dollarsPerChip != null ? { dollarsPerChip } : {}),
+        ...sessionSummaryFromDocData(data),
         status: 'finished',
         date: toDate(data.date ?? data.createdAt),
         finishedAt: data.finishedAt ? toDate(data.finishedAt) : undefined,
-        totalBuyIn: numOrZero(r, 'totalBuyIn', resultCtx),
-        cashOut: numOrZero(r, 'cashOut', resultCtx),
-        profit: numOrZero(r, 'profit', resultCtx),
-      });
+        totalBuyIn: numOrZero(result, 'totalBuyIn', resultCtx),
+        cashOut: numOrZero(result, 'cashOut', resultCtx),
+        profit: numOrZero(result, 'profit', resultCtx),
+      }));
+      if (entry) records.push(entry);
     })
   );
 

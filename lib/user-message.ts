@@ -16,3 +16,17 @@ export function userMessage(e: unknown, fallback: string): string {
   }
   return e instanceof Error && e.message ? e.message : fallback;
 }
+
+export class ParticipantNotAllowedError extends Error {
+  constructor(name: string, options?: { cause?: unknown; isGroupSession?: boolean }) {
+    const reason = options?.isGroupSession ? "isn't your friend or in this group" : "isn't your friend";
+    super(`${name} ${reason}, so they can't be added.`, { cause: options?.cause });
+    this.name = 'ParticipantNotAllowedError';
+  }
+}
+
+export function participantAddError(e: unknown, name: string, isGroupSession = false): unknown {
+  return isFirebaseError(e) && e.code === 'permission-denied'
+    ? new ParticipantNotAllowedError(name, { cause: e, isGroupSession })
+    : e;
+}

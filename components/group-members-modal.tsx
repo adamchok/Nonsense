@@ -12,6 +12,7 @@ import {
   subscribeGroupMembers,
   subscribeGroups,
 } from '@/lib/firestore';
+import { MAX_PLAYER_NAME_LENGTH } from '@/lib/firestore-coerce';
 import { cancelGuestLink, subscribeOutgoingGuestLinks, type GuestLink } from '@/lib/guest-links';
 import type { FriendRecord, GroupMember, PokerGroup } from '@/types';
 import { Icon } from '@/components/icon';
@@ -237,6 +238,7 @@ export function GroupMembersModal({ groupId: id, onClose }: Props) {
                       setGuestError(null);
                     }}
                     placeholder="Name"
+                    maxLength={MAX_PLAYER_NAME_LENGTH}
                     accessibilityLabel="Guest name"
                     placeholderTextColor={c.placeholder}
                     style={[

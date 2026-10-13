@@ -1,6 +1,7 @@
 import { ModalShell } from '@/components/session/modal-shell';
 import { formStyles } from '@/components/session/session-form-styles';
 import { useAppColors } from '@/lib/app-theme';
+import { MAX_LOCATION_LENGTH } from '@/lib/firestore-coerce';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import { useRef, useState } from 'react';
 import { ScrollView, TextInput } from 'react-native';
@@ -43,6 +44,7 @@ export function LocationEditorModal({ visible, initialLocation, onClose, onSubmi
           value={draft}
           onChangeText={setDraft}
           placeholder="Location"
+          maxLength={MAX_LOCATION_LENGTH}
           accessibilityLabel="Location"
           autoFocus
           returnKeyType="done"

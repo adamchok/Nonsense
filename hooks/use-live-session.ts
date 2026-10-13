@@ -3,6 +3,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 
 import { getFirestoreDb } from '@/lib/firebase';
 import { subscribeBuyIns, subscribeEarlyCashOuts, subscribeFriends } from '@/lib/firestore';
+import { tryMap } from '@/lib/firestore-coerce';
 import { sessionBlindsAreSet, sessionViewFromData, type LedgerPlayer, type SessionView } from '@/lib/session-view';
 import type { BuyIn, EarlyCashOut, FriendRecord, PlayerProfile } from '@/types';
 
@@ -44,7 +45,13 @@ export function useLiveSession(id: string | undefined, playerProfile: PlayerProf
           setSession(null);
           return;
         }
-        setSession(sessionViewFromData(snapshot.data() as Record<string, unknown>));
+        const view = tryMap(`sessions/${id}`, () => sessionViewFromData(snapshot.data()));
+        if (!view) {
+          setError('This session could not be loaded.');
+          setSession(null);
+          return;
+        }
+        setSession(view);
         setError(null);
       },
       (e) => setError(e.message)

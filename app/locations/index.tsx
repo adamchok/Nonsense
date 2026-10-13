@@ -2,6 +2,7 @@ import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { addSavedLocation, getSavedLocations, removeSavedLocation } from '@/lib/firestore';
+import { MAX_LOCATION_LENGTH } from '@/lib/firestore-coerce';
 import type { SavedLocation } from '@/types';
 import { Icon } from '@/components/icon';
 import { Animated, PressableScale, fadeIn, fadeOut, layoutTransition, listItemEntering } from '@/components/motion';
@@ -103,6 +104,7 @@ export default function SavedLocationsScreen() {
           <TextInput
             value={newLocation}
             onChangeText={setNewLocation}
+            maxLength={MAX_LOCATION_LENGTH}
             accessibilityLabel="New location name"
             placeholder="e.g. Adam's place"
             placeholderTextColor={c.placeholder}

@@ -7,9 +7,10 @@ import type { LiveSession } from '@/hooks/use-live-session';
 import { appAlert } from '@/lib/app-alert';
 import { getFirestoreDb } from '@/lib/firebase';
 import { addBuyIn } from '@/lib/firestore';
-import { parseAmount } from '@/lib/parse-amount';
+import { MAX_SESSION_PLAYERS, SESSION_PLAYER_LIMIT_MESSAGE } from '@/lib/firestore-coerce';
+import { parseValidAmount } from '@/lib/parse-amount';
 import type { PlayerProfile } from '@/types';
-import { userMessage } from '@/lib/user-message';
+import { ParticipantNotAllowedError, userMessage } from '@/lib/user-message';
 
 export type BuyInDraft = {
   playerName: string;
@@ -50,6 +51,13 @@ export function useAddBuyIn(
   onQueued: (queued: QueuedBuyIn, draft: BuyInDraft) => void
 ) {
   const [pendingBuyIns, setPendingBuyIns] = useState(0);
+  const participantIds = live.session?.participantIds ?? [];
+
+  function rejectIfSessionFull(playerId: string): boolean {
+    if (participantIds.includes(playerId) || participantIds.length < MAX_SESSION_PLAYERS) return false;
+    appAlert('Session is full', SESSION_PLAYER_LIMIT_MESSAGE);
+    return true;
+  }
 
   function commitBuyIn(draft: BuyInDraft, playerId: string, name: string, parsedAmount: number) {
     if (!id) return;
@@ -58,16 +66,18 @@ export function useAddBuyIn(
       id,
       { playerId, playerName: name, amount: parsedAmount },
       {
-        isExistingParticipant: Boolean(live.session?.participantIds.includes(playerId)),
+        isExistingParticipant: participantIds.includes(playerId),
         hasEarlyCashOut: live.earlyCashOutMap.has(playerId),
+        participantCount: participantIds.length,
+        isGroupSession: Boolean(live.session?.groupId),
       }
     )
       .catch((e): null => {
         appAlert(
           'Buy-in not saved',
-          `${name}'s buy-in of ${parsedAmount} failed: ${
-            userMessage(e, 'unknown error')
-          }. Add it again.`
+          e instanceof ParticipantNotAllowedError
+            ? e.message
+            : `${name}'s buy-in of ${parsedAmount} failed: ${userMessage(e, 'unknown error')}. Add it again.`
         );
         return null;
       })
@@ -84,14 +94,15 @@ export function useAddBuyIn(
       return false;
     }
     const name = draft.playerName.trim();
-    const parsed = parseAmount(draft.amount);
-    if (!id || !name || parsed == null || parsed <= 0) return false;
+    const parsed = parseValidAmount(draft.amount);
+    if (!id || !name || parsed == null) return false;
 
     const resolvedId = resolvePlayerId(draft, playerProfile);
     if (live.earlyCashOutMap.has(resolvedId) && !draft.isBuyBack) {
       appAlert(`${name} already cashed out`, 'Tap their row and choose Buy Back In to add chips for them.');
       return false;
     }
+    if (rejectIfSessionFull(resolvedId)) return false;
     const typedNameCollision =
       !draft.pickedPlayerId &&
       Boolean(live.playerTotals[resolvedId]) &&
@@ -113,7 +124,12 @@ export function useAddBuyIn(
             {
               text: 'New player',
               onPress: () => {
-                commitBuyIn(draft, firstFreeGuestId(resolvedId, live.playerTotals), name, parsed);
+                const newId = firstFreeGuestId(resolvedId, live.playerTotals);
+                if (rejectIfSessionFull(newId)) {
+                  resolve(false);
+                  return;
+                }
+                commitBuyIn(draft, newId, name, parsed);
                 resolve(true);
               },
             },

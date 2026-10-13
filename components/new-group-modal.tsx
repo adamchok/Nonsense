@@ -6,6 +6,7 @@ import { appAlert } from '@/lib/app-alert';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createGroup } from '@/lib/firestore';
+import { MAX_GROUP_NAME_INPUT_LENGTH } from '@/lib/firestore-coerce';
 import { userMessage } from '@/lib/user-message';
 import { useId, useState } from 'react';
 import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -64,7 +65,7 @@ export function NewGroupModal({ onClose, ownedCount, onCreated }: Props) {
           accessibilityLabel="Group name"
           autoFocus={Platform.OS !== 'web'}
           autoCapitalize="words"
-          maxLength={40}
+          maxLength={MAX_GROUP_NAME_INPUT_LENGTH}
           returnKeyType="done"
           onSubmitEditing={() => void create()}
           placeholderTextColor={c.placeholder}

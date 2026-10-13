@@ -8,12 +8,13 @@ import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import type { BuyInDraft } from '@/hooks/use-add-buy-in';
 import { useAppColors } from '@/lib/app-theme';
 import { formatSessionAmountValue } from '@/lib/currency-format';
+import { MAX_PLAYER_NAME_LENGTH } from '@/lib/firestore-coerce';
 import { scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
 import type { LedgerPlayer } from '@/lib/session-view';
 import type { FriendRecord, PlayerProfile, SessionAmountUnit } from '@/types';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
+import { amountFieldError, sanitizeAmountInput } from '@/lib/parse-amount';
 
 type Props = {
   visible: boolean;
@@ -138,6 +139,7 @@ export function BuyInModal({
                 <TextInput
                   value={draft.playerName}
                   onChangeText={(text) => setName(text, null)}
+                  maxLength={MAX_PLAYER_NAME_LENGTH}
                   editable={!draft.isBuyBack}
                   autoFocus={!draft.pickedPlayerId && !draft.playerName}
                   returnKeyType="next"
@@ -202,10 +204,7 @@ export function BuyInModal({
 }
 
 function buyInAmountError(amount: string): string | null {
-  if (!amount.trim()) return 'Enter an amount';
-  const parsed = parseAmount(amount);
-  if (parsed == null) return 'Enter a number';
-  return parsed > 0 ? null : 'Must be more than 0';
+  return amountFieldError(amount, { empty: 'Enter an amount' });
 }
 
 const styles = StyleSheet.create({

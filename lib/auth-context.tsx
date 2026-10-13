@@ -162,6 +162,7 @@ function mapGoogleError(err: unknown, { isErrorWithCode, statusCodes }: GoogleSi
 }
 
 const IS_WEB = Platform.OS === 'web';
+const DELETE_ACCOUNT_TIMEOUT_MS = 330_000;
 
 export const SIGNED_IN_HINT_KEY = '@nonsense_signed_in';
 
@@ -380,7 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (IS_WEB) await reauthenticateWithPopupProvider(current, newGoogleProvider());
       else await reauthenticateWithCredential(current, await getGoogleCredential());
     }
-    await httpsCallable(getFirebaseFunctions(), 'deleteAccount')();
+    await httpsCallable(getFirebaseFunctions(), 'deleteAccount', { timeout: DELETE_ACCOUNT_TIMEOUT_MS })();
     await signOut(auth);
   }, []);
 

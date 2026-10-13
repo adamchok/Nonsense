@@ -34,7 +34,7 @@ import {
   formatTightCompactNumber,
 } from '@/lib/currency-format';
 import { fetchFriendsList, getBuyIns, getEarlyCashOuts, getSessionMeta, settleSession } from '@/lib/firestore';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
+import { amountFieldError, parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import type { SessionAmountUnit, SessionResult } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -77,9 +77,7 @@ function splitCents(totalCents: number, n: number): number[] {
 }
 
 function cashOutError(input: string): string | null {
-  const val = parseAmount(input);
-  if (val == null) return input.trim() ? 'Enter a number' : 'Enter a cash-out';
-  return val < 0 ? 'Must be 0 or more' : null;
+  return amountFieldError(input, { empty: 'Enter a cash-out', allowZero: true });
 }
 
 const MAX_ANIMATED_ROWS = 10;

@@ -4,7 +4,7 @@ import { formStyles } from '@/components/session/session-form-styles';
 import { SessionAmountInputRow } from '@/components/session-amount-ui';
 import { useAppColors } from '@/lib/app-theme';
 import { scrollModalFieldToEnd, scrollModalFieldToTop } from '@/lib/modal-keyboard-scroll';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
+import { amountFieldError, parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import type { SessionAmountUnit } from '@/types';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -156,10 +156,7 @@ function BlindField({
 }
 
 function blindError(value: string, which: 'small' | 'big'): string | null {
-  if (!value.trim()) return `Enter the ${which} blind`;
-  const parsed = parseAmount(value);
-  if (parsed == null) return 'Enter a number';
-  return parsed > 0 ? null : 'Must be more than 0';
+  return amountFieldError(value, { empty: `Enter the ${which} blind` });
 }
 
 const styles = StyleSheet.create({

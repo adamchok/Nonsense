@@ -15,6 +15,7 @@ import {
   type Firestore,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
+import { str } from './firestore-coerce.ts';
 
 export type GuestLinkStatus = 'pending' | 'accepted' | 'failed';
 
@@ -77,12 +78,12 @@ export function parseGuestLink(id: string, data: DocumentData): GuestLink {
   const sessions = parseLinkSessions(data.sessions);
   return {
     id,
-    ownerId: String(data.ownerId ?? ''),
-    ownerName: String(data.ownerName ?? ''),
-    guestId: String(data.guestId ?? ''),
-    guestName: String(data.guestName ?? ''),
-    targetId: String(data.targetId ?? ''),
-    targetName: String(data.targetName ?? ''),
+    ownerId: str(data.ownerId),
+    ownerName: str(data.ownerName),
+    guestId: str(data.guestId),
+    guestName: str(data.guestName),
+    targetId: str(data.targetId),
+    targetName: str(data.targetName),
     status: parseStatus(data.status),
     sessionCount: Object.keys(sessions).length,
     net: sumSessions(sessions),

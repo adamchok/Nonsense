@@ -8,7 +8,8 @@ import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { createSession, getGroupMembers, getSavedLocations, subscribeGroups } from '@/lib/firestore';
-import { parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
+import { MAX_LOCATION_LENGTH, MAX_SESSION_PLAYERS, SESSION_PLAYER_LIMIT_MESSAGE, sessionPlayerIds } from '@/lib/firestore-coerce';
+import { AMOUNT_TOO_LARGE_MESSAGE, isAmountInRange, parseAmount, sanitizeAmountInput } from '@/lib/parse-amount';
 import type { GroupMember, PokerGroup, SavedLocation, SessionAmountUnit } from '@/types';
 import { Icon } from '@/components/icon';
 import { router } from 'expo-router';
@@ -207,6 +208,8 @@ export default function NewSessionScreen() {
       const dpc = parseAmount(dollarsPerChipStr.trim());
       if (dpc == null || dpc <= 0) {
         nextErrors.dollarsPerChip = 'Enter what one chip is worth';
+      } else if (!isAmountInRange(dpc)) {
+        nextErrors.dollarsPerChip = AMOUNT_TOO_LARGE_MESSAGE;
       } else {
         dollarsPerChip = dpc;
       }
@@ -216,9 +219,13 @@ export default function NewSessionScreen() {
     const bb = parseAmount(bigBlindStr.trim());
     if (sb == null || sb <= 0) {
       nextErrors.smallBlind = 'Enter the small blind';
+    } else if (!isAmountInRange(sb)) {
+      nextErrors.smallBlind = AMOUNT_TOO_LARGE_MESSAGE;
     }
     if (bb == null || bb <= 0) {
       nextErrors.bigBlind = 'Enter the big blind';
+    } else if (!isAmountInRange(bb)) {
+      nextErrors.bigBlind = AMOUNT_TOO_LARGE_MESSAGE;
     } else if (sb != null && sb > 0 && bb < sb) {
       nextErrors.bigBlind = 'Big blind must be at least the small blind';
     }
@@ -229,6 +236,8 @@ export default function NewSessionScreen() {
         nextErrors.groupBuyIn = isChipsMode
           ? 'Enter the chips each player buys in for'
           : 'Enter the buy-in per player';
+      } else if (!isAmountInRange(parsed)) {
+        nextErrors.groupBuyIn = AMOUNT_TOO_LARGE_MESSAGE;
       } else {
         for (const member of membersForCreate) {
           initialBuyIns.push({ playerId: member.id, playerName: member.name, amount: parsed });
@@ -240,6 +249,8 @@ export default function NewSessionScreen() {
       const parsed = parseAmount(buyInAmount);
       if (parsed == null || parsed <= 0) {
         nextErrors.buyIn = isChipsMode ? 'Enter your chip buy-in' : 'Enter your buy-in';
+      } else if (!isAmountInRange(parsed)) {
+        nextErrors.buyIn = AMOUNT_TOO_LARGE_MESSAGE;
       } else {
         initialBuyIns.push({
           playerId: playerProfile.id,
@@ -259,6 +270,12 @@ export default function NewSessionScreen() {
       return;
     }
 
+    const playerCount = sessionPlayerIds(playerProfile.id, initialBuyIns.map((b) => b.playerId)).length;
+    if (playerCount > MAX_SESSION_PLAYERS) {
+      appAlert('Too many players', SESSION_PLAYER_LIMIT_MESSAGE);
+      return;
+    }
+
     const selectedLocation =
       hasSavedLocations && locationMode === 'saved'
         ? (getSelectedSavedLocationName() ?? '')
@@ -274,6 +291,7 @@ export default function NewSessionScreen() {
         bigBlind: bb,
         amountUnit,
         ...(isChipsMode && dollarsPerChip != null ? { dollarsPerChip } : {}),
+        ...(shouldAddGroupMembers && selectedGroup ? { groupId: selectedGroup.id } : {}),
         initialBuyIns,
       });
 
@@ -575,6 +593,7 @@ export default function NewSessionScreen() {
                 <TextInput
                   value={otherLocation}
                   onChangeText={setOtherLocation}
+                  maxLength={MAX_LOCATION_LENGTH}
                   accessibilityLabel="Session location"
                   placeholder="Location (e.g. Adam's place)"
                   onFocus={scrollLowerFormIntoView}
