@@ -44,6 +44,7 @@
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
     "expo-updates": "~57.0.26",
+    "expo-video": "~57.0.5",
     "firebase": "^12.11.0",
     "phosphor-react-native": "^3.0.6",
     "react": "19.2.3",
