@@ -22,7 +22,9 @@ export const migrateAcceptedGuestLink = onDocumentUpdated(
   }
 );
 
-export const deleteAccount = onCall({ region: 'asia-southeast1' }, async (request) => {
+const DELETE_ACCOUNT_OPTIONS = { region: 'asia-southeast1', memory: '512MiB', timeoutSeconds: 300 };
+
+export const deleteAccount = onCall(DELETE_ACCOUNT_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in to delete your account.');
   const token = request.auth.token;
@@ -32,7 +34,7 @@ export const deleteAccount = onCall({ region: 'asia-southeast1' }, async (reques
   }
 
   try {
-    await deleteAccountData(getFirestore(), uid);
+    await deleteAccountData(getFirestore(), uid, logger);
   } catch (err) {
     if (err instanceof HostingLiveSessionError) {
       throw new HttpsError('failed-precondition', err.message, { reason: 'live-session' });

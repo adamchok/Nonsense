@@ -303,3 +303,69 @@ test('runGuestLinkMigration reports success and marking a missing link failed is
   await markGuestLinkFailed(db, linkId);
   assert.equal((await db.doc(`guest_links/${linkId}`).get()).exists, false);
 });
+
+test('nothing moves to a target who deleted their account before the migration ran', async () => {
+  const guest = nextId('guest');
+  const id = await seedGuestSession(guest);
+  const linkId = await seedLink(guest, { [id]: 150.5 });
+  const groupId = nextId('group');
+  await db.doc(`groups/${groupId}`).set({ name: 'Gone', ownerId: OWNER, memberCount: 2, createdAt: SETTLED_AT });
+  await db.doc(`groups/${groupId}/members/${guest}`).set({ name: 'Bryan', isRegistered: false, avatarEmoji: null });
+  const targetProfile = (await db.doc(`players/${TARGET}`).get()).data();
+  await db.doc(`players/${TARGET}`).delete();
+  try {
+    assert.deepEqual(await migrateGuestLink(db, linkId), { found: true, sessions: 0, skipped: 1, groups: 0 });
+    await assertGuestUntouched(id, guest);
+    assert.equal((await db.doc(`groups/${groupId}/members/${guest}`).get()).exists, true);
+    assert.equal((await db.doc(`groups/${groupId}/members/${TARGET}`).get()).exists, false);
+    assert.equal((await db.doc(`players/${TARGET}/group_memberships/${groupId}`).get()).exists, false);
+  } finally {
+    await db.doc(`players/${TARGET}`).set(targetProfile);
+  }
+});
+
+function afterFirstTransaction(target, act) {
+  let transactions = 0;
+  return new Proxy(target, {
+    get(t, prop) {
+      if (prop === 'runTransaction') {
+        return async (...args) => {
+          const out = await t.runTransaction(...args);
+          transactions += 1;
+          if (transactions === 1) await act(t);
+          return out;
+        };
+      }
+      const value = t[prop];
+      return typeof value === 'function' ? value.bind(t) : value;
+    },
+  });
+}
+
+test('a link deleted part way through stops the remaining sessions and groups from moving', async () => {
+  const guest = nextId('guest');
+  const first = await seedGuestSession(guest);
+  const second = await seedGuestSession(guest);
+  const linkId = await seedLink(guest, { [first]: 150.5, [second]: 150.5 });
+  const groupId = nextId('group');
+  await db.doc(`groups/${groupId}`).set({ name: 'Late', ownerId: OWNER, memberCount: 1, createdAt: SETTLED_AT });
+  await db.doc(`groups/${groupId}/members/${guest}`).set({ name: 'Bryan', isRegistered: false, avatarEmoji: null });
+  const deleting = afterFirstTransaction(db, (t) => t.doc(`guest_links/${linkId}`).delete());
+
+  assert.deepEqual(await migrateGuestLink(deleting, linkId), { found: true, sessions: 1, skipped: 1, groups: 0 });
+  await assertMigrated(first, guest);
+  await assertGuestUntouched(second, guest);
+  assert.equal((await db.doc(`groups/${groupId}/members/${guest}`).get()).exists, true);
+  assert.equal((await db.doc(`groups/${groupId}/members/${TARGET}`).get()).exists, false);
+});
+
+test('a link no longer accepted part way through stops the migration', async () => {
+  const guest = nextId('guest');
+  const first = await seedGuestSession(guest);
+  const second = await seedGuestSession(guest);
+  const linkId = await seedLink(guest, { [first]: 150.5, [second]: 150.5 });
+  const failing = afterFirstTransaction(db, (t) => t.doc(`guest_links/${linkId}`).update({ status: 'failed' }));
+
+  assert.deepEqual(await migrateGuestLink(failing, linkId), { found: true, sessions: 1, skipped: 1, groups: 0 });
+  await assertGuestUntouched(second, guest);
+});

@@ -66,17 +66,27 @@ function movedPlayerResults(session, link, result, targetResult, moved) {
   return target ? { ...rest, [link.targetId]: resultSummary(target) } : rest;
 }
 
+async function linkStillAccepted(tx, linkRef) {
+  const snap = await tx.get(linkRef);
+  return snap.exists && snap.get('status') === 'accepted';
+}
+
 function stageMove(tx, from, to, patch) {
   if (!from.exists) return;
   if (!to.exists) tx.set(to.ref, { ...from.data(), ...patch });
   tx.delete(from.ref);
 }
 
-async function migrateSession(db, sessionId, expectedProfit, link) {
+async function migrateSession(db, linkRef, sessionId, expectedProfit, link) {
   const sessionRef = db.collection('sessions').doc(sessionId);
+  const targetRef = db.collection('players').doc(link.targetId);
   return db.runTransaction(async (tx) => {
-    const session = await tx.get(sessionRef);
-    if (!sessionMigratable(session, link)) return false;
+    const [session, target, linked] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(targetRef),
+      linkStillAccepted(tx, linkRef),
+    ]);
+    if (!linked || !target.exists || !sessionMigratable(session, link)) return false;
     const sub = (name, id) => sessionRef.collection(name).doc(id);
     const [result, targetResult, cashOut, targetCashOut, participant, targetParticipant, buyIns] = await Promise.all([
       tx.get(sub('results', link.guestId)),
@@ -116,10 +126,15 @@ function membershipPayload(group, memberCount) {
   };
 }
 
-async function migrateGroup(db, groupRef, link, avatarEmoji) {
+async function migrateGroup(db, linkRef, groupRef, link, avatarEmoji) {
+  const targetRef = db.collection('players').doc(link.targetId);
   return db.runTransaction(async (tx) => {
-    const group = await tx.get(groupRef);
-    if (!group.exists || group.get('ownerId') !== link.ownerId) return false;
+    const [group, target, linked] = await Promise.all([
+      tx.get(groupRef),
+      tx.get(targetRef),
+      linkStillAccepted(tx, linkRef),
+    ]);
+    if (!linked || !target.exists || !group.exists || group.get('ownerId') !== link.ownerId) return false;
     const members = await tx.get(groupRef.collection('members'));
     const guest = members.docs.find((d) => d.id === link.guestId);
     if (!guest) return false;
@@ -169,7 +184,7 @@ export async function migrateGuestLink(db, linkId) {
   let sessions = 0;
   let skipped = 0;
   for (const [sessionId, profit] of Object.entries(link.sessions)) {
-    if (await migrateSession(db, sessionId, frozenProfit(profit), link)) sessions += 1;
+    if (await migrateSession(db, linkRef, sessionId, frozenProfit(profit), link)) sessions += 1;
     else skipped += 1;
   }
 
@@ -177,7 +192,7 @@ export async function migrateGuestLink(db, linkId) {
   const groupsSnap = await db.collection('groups').where('ownerId', '==', link.ownerId).get();
   let groups = 0;
   for (const g of groupsSnap.docs) {
-    if (await migrateGroup(db, g.ref, link, avatarEmoji)) groups += 1;
+    if (await migrateGroup(db, linkRef, g.ref, link, avatarEmoji)) groups += 1;
   }
 
   await linkRef.delete();
