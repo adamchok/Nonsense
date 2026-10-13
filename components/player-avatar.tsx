@@ -1,10 +1,11 @@
-import { FACE_DISC, faceSvg, isFaceAvatar } from '@/lib/avatar-face';
+import { FaceArt } from '@/components/face-art';
+import { FACE_DISC, isFaceAvatar } from '@/lib/avatar-face';
+import { memo } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
-import { SvgXml } from 'react-native-svg';
 
 const DEFAULT_AVATAR = '🙂';
 
-export function PlayerAvatar({
+export const PlayerAvatar = memo(function PlayerAvatar({
   value,
   size,
   style,
@@ -19,7 +20,7 @@ export function PlayerAvatar({
       <View
         importantForAccessibility="no-hide-descendants"
         style={[styles.disc, { width: size, height: size, borderRadius: size / 2 }]}>
-        <SvgXml xml={faceSvg(avatar)} width={size} height={size} />
+        <FaceArt value={avatar} size={size} />
       </View>
     );
   }
@@ -31,7 +32,7 @@ export function PlayerAvatar({
       {avatar}
     </Text>
   );
-}
+});
 
 const styles = StyleSheet.create({
   disc: { backgroundColor: FACE_DISC, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
