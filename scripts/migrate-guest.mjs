@@ -5,14 +5,15 @@ import { parseArgs } from 'node:util';
 
 const USAGE = `Move a guest's history onto a real account.
 
-  node scripts/migrate-guest.mjs --owner <yourUid> --guest <guestId> (--to <uid> | --code <friendCode>) [--apply]
+  node scripts/migrate-guest.mjs (--project <id> | --emulator) --owner <yourUid> --guest <guestId> (--to <uid> | --code <friendCode>) [--apply]
 
+  --project   Firebase project id. Required unless --emulator is given; must match the key's project_id.
   --owner     Your account id. Only sessions you hosted or played in, and groups you own, are touched.
   --guest     The guest's id, e.g. "bryan" (the guest name, lowercased, spaces -> _).
   --to        The guest's new account id.
   --code      Or their friend code (looked up in refCodes).
   --key       Service-account JSON (default: ./service-account.json). Ignored with --emulator.
-  --emulator  Use the local Firestore emulator (project demo-nonsense).
+  --emulator  Use the local Firestore emulator (project --project, default demo-nonsense; must start with demo-).
   --apply     Write the changes. Without it the script only prints what it would do.`;
 
 const { values: args } = parseArgs({
@@ -21,6 +22,7 @@ const { values: args } = parseArgs({
     guest: { type: 'string' },
     to: { type: 'string' },
     code: { type: 'string' },
+    project: { type: 'string' },
     key: { type: 'string', default: 'service-account.json' },
     emulator: { type: 'boolean', default: false },
     apply: { type: 'boolean', default: false },
@@ -28,17 +30,25 @@ const { values: args } = parseArgs({
   },
 });
 
-if (args.help || !args.owner || !args.guest || (!args.to && !args.code)) {
+if (args.help || !args.owner || !args.guest || (!args.to && !args.code) || (!args.emulator && !args.project)) {
   console.log(USAGE);
   process.exit(args.help ? 0 : 1);
 }
 
 if (args.emulator) {
-  process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
-  initializeApp({ projectId: 'demo-nonsense' });
+  if (!(args.project ?? 'demo-nonsense').startsWith('demo-')) {
+    console.error('--emulator only runs against a demo- project id.');
+    process.exit(1);
+  }
+  process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
+  initializeApp({ projectId: args.project ?? 'demo-nonsense' });
 } else {
   const key = JSON.parse(readFileSync(args.key, 'utf8'));
-  initializeApp({ credential: cert(key), projectId: key.project_id });
+  if (key.project_id !== args.project) {
+    console.error(`${args.key} is for project ${key.project_id}, not --project ${args.project}.`);
+    process.exit(1);
+  }
+  initializeApp({ credential: cert(key), projectId: args.project });
 }
 
 const db = getFirestore();
