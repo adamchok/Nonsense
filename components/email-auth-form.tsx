@@ -1,14 +1,10 @@
 import { ConsentCheckbox } from '@/components/consent-checkbox';
 import { FieldError, errorBorder, invalidProps } from '@/components/field-error';
 import { PasswordField } from '@/components/password-field';
-import { Animated, PressableScale, fadeIn } from '@/components/motion';
+import { PressableScale } from '@/components/motion';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import {
-  authErrorInfo,
-  emailInputError,
-  passwordInputError,
-} from '@/lib/auth-errors';
+import { authErrorInfo, emailInputError, passwordInputError } from '@/lib/auth-errors';
 import { useId, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -19,7 +15,8 @@ type Props = {
   onModeChange?: (mode: EmailAuthMode) => void;
   onSubmit: (email: string, password: string) => Promise<void>;
   busy?: boolean;
-  showForgot?: boolean;
+  onForgotPassword?: (email: string) => void;
+  initialEmail?: string;
   requireConsent?: boolean;
 };
 
@@ -28,25 +25,24 @@ export function EmailAuthForm({
   onModeChange,
   onSubmit,
   busy = false,
-  showForgot = false,
+  onForgotPassword,
+  initialEmail = '',
   requireConsent = true,
 }: Props) {
   const c = useAppColors();
-  const { sendPasswordReset, termsAccepted, setTermsAccepted } = useAuth();
+  const { termsAccepted, setTermsAccepted } = useAuth();
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const idBase = useId();
   const emailErrorId = `${idBase}-email-error`;
   const passwordErrorId = `${idBase}-password-error`;
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
-  const [resetNote, setResetNote] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSendingReset, setIsSendingReset] = useState(false);
   const [prevMode, setPrevMode] = useState(mode);
 
   if (prevMode !== mode) {
@@ -54,12 +50,11 @@ export function EmailAuthForm({
     setEmailError(null);
     setPasswordError(null);
     setFormError(null);
-    setResetNote(null);
     setConsentError(null);
   }
 
   const isCreate = mode === 'create';
-  const isBusy = busy || isSubmitting || isSendingReset;
+  const isBusy = busy || isSubmitting;
   const needsConsent = isCreate && requireConsent;
 
   function focusInvalid(field: 'email' | 'password') {
@@ -67,14 +62,9 @@ export function EmailAuthForm({
     (field === 'email' ? emailRef : passwordRef).current?.focus();
   }
 
-  function clearMessages() {
-    setFormError(null);
-    setResetNote(null);
-  }
-
   async function handleSubmit() {
     if (isBusy) return;
-    clearMessages();
+    setFormError(null);
     const nextEmailError = emailInputError(email);
     const nextPasswordError = passwordInputError(password, mode);
     const nextConsentError = needsConsent && !termsAccepted ? CONSENT_REQUIRED : null;
@@ -104,39 +94,6 @@ export function EmailAuthForm({
     }
   }
 
-  async function handleForgot() {
-    if (isBusy) return;
-    clearMessages();
-    setPasswordError(null);
-    const nextEmailError = emailInputError(email);
-    setEmailError(nextEmailError);
-    if (nextEmailError) {
-      focusInvalid('email');
-      return;
-    }
-
-    const trimmed = email.trim();
-    const sentNote = `If an account exists for ${trimmed}, we've sent a reset link.`;
-    setIsSendingReset(true);
-    try {
-      await sendPasswordReset(trimmed);
-      setResetNote(sentNote);
-    } catch (error) {
-      const code = (error as { code?: unknown } | null)?.code;
-      if (code === 'auth/user-not-found') {
-        setResetNote(sentNote);
-        return;
-      }
-      const info = authErrorInfo(error);
-      if (info.field === 'email') {
-        setEmailError(info.message);
-        focusInvalid('email');
-      } else setFormError(info.message);
-    } finally {
-      setIsSendingReset(false);
-    }
-  }
-
   const inputStyle = [styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }];
   const submitLabel = isCreate ? 'Create account' : 'Sign in';
 
@@ -150,7 +107,7 @@ export function EmailAuthForm({
           onChangeText={(t) => {
             setEmail(t);
             setEmailError(null);
-            clearMessages();
+            setFormError(null);
           }}
           accessibilityLabel="Email"
           placeholder="you@example.com"
@@ -177,7 +134,7 @@ export function EmailAuthForm({
         onChangeText={(t) => {
           setPassword(t);
           setPasswordError(null);
-          clearMessages();
+          setFormError(null);
         }}
         kind={isCreate ? 'new' : 'current'}
         placeholder={isCreate ? 'Create a password' : 'Your password'}
@@ -188,31 +145,17 @@ export function EmailAuthForm({
         returnKeyType="go"
         onSubmitEditing={handleSubmit}
         footer={
-          <>
-            {showForgot && !isCreate ? (
-              <PressableScale
-                onPress={handleForgot}
-                disabled={isBusy}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: isBusy, busy: isSendingReset }}
-                {...({ dataSet: { textButton: 'true' } } as object)}
-                style={styles.forgotButton}>
-                {isSendingReset ? (
-                  <ActivityIndicator size="small" color={c.accentText} />
-                ) : (
-                  <Text style={[styles.forgotLabel, { color: c.accentText }]}>Forgot password?</Text>
-                )}
-              </PressableScale>
-            ) : null}
-            {resetNote ? (
-              <Animated.View
-                entering={fadeIn}
-                style={[styles.note, { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}
-                accessibilityLiveRegion="polite">
-                <Text style={[styles.noteText, { color: c.text }]}>{resetNote}</Text>
-              </Animated.View>
-            ) : null}
-          </>
+          onForgotPassword && !isCreate ? (
+            <PressableScale
+              onPress={() => onForgotPassword(email.trim())}
+              disabled={isBusy}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isBusy }}
+              {...({ dataSet: { textButton: 'true' } } as object)}
+              style={styles.forgotButton}>
+              <Text style={[styles.forgotLabel, { color: c.accentText }]}>Forgot password?</Text>
+            </PressableScale>
+          ) : null
         }
       />
 
@@ -268,22 +211,12 @@ export function EmailAuthForm({
 
 export const CONSENT_REQUIRED = 'Tick the box to accept the Terms of Service and Privacy Policy.';
 
-
 const styles = StyleSheet.create({
   root: { gap: 14 },
   label: { fontSize: 13, lineHeight: 18, fontWeight: '500', marginBottom: 6 },
-  input: {
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
+  input: { minHeight: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   forgotButton: { alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 4, marginTop: 4 },
   forgotLabel: { fontSize: 13, fontWeight: '600' },
-  note: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6 },
-  noteText: { fontSize: 13, lineHeight: 18 },
   primary: {
     minHeight: 48,
     borderRadius: 14,

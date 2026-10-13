@@ -21,7 +21,7 @@ export const unstable_settings = {
   anchor: 'index',
 };
 
-const FULL_WIDTH_ROUTES = new Set(['(tabs)', 'index', 'privacy', 'privacy-ms', 'terms', 'contact']);
+const FULL_WIDTH_ROUTES = new Set(['(tabs)', '(auth)', 'index', 'privacy', 'privacy-ms', 'terms', 'contact']);
 const PUBLIC_WEB_PATHS = new Set(['/privacy', '/privacy-ms', '/terms', '/contact']);
 
 const webScreenLayout =

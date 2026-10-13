@@ -1,6 +1,7 @@
 import { ConsentCheckbox } from '@/components/consent-checkbox';
 import { CONSENT_REQUIRED, EmailAuthForm, type EmailAuthMode } from '@/components/email-auth-form';
 import { FieldError } from '@/components/field-error';
+import { ForgotPasswordForm } from '@/components/forgot-password-form';
 import { GoogleButton } from '@/components/google-button';
 import { Animated, PressableScale, fadeIn } from '@/components/motion';
 import { AccountLinkError } from '@/lib/account-link';
@@ -16,8 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const cardEntering = FadeInDown.duration(360).reduceMotion(ReduceMotion.System);
 
-const GUEST_DATA_CAVEAT =
-  "This device's guest games stay on the old guest profile and won't move to that account.";
+const GUEST_DATA_CAVEAT = "This device's guest games stay on the old guest profile and won't move to that account.";
 
 function googleErrorMessage(error: unknown): string | null {
   if (error instanceof AccountLinkError) return error.code === 'cancelled' ? null : error.message;
@@ -44,6 +44,8 @@ export default function SecureAccountScreen() {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [isGoogleInUse, setIsGoogleInUse] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState<string | null>(null);
+  const [lastEmail, setLastEmail] = useState('');
 
   if (!isReady) {
     return (
@@ -114,96 +116,111 @@ export default function SecureAccountScreen() {
           styles.scrollContent,
           { paddingTop: Math.max(insets.top, 20) + 8, paddingBottom: Math.max(insets.bottom, 20) + 16 },
         ]}>
-        <Animated.View entering={cardEntering} style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-          <View style={styles.header}>
-            <Text style={[text.modalTitle, { color: c.text }]} accessibilityRole="header">
-              Secure your account
-            </Text>
-            <Text style={[styles.body, { color: c.textMuted }]}>
-              Your games are only saved on this device right now. Add a sign-in so you never lose them and can use
-              Nonsense on other devices.
-            </Text>
-          </View>
-
-          <ConsentCheckbox
-            checked={termsAccepted}
-            onChange={(next) => {
-              setTermsAccepted(next);
-              if (next) setConsentError(null);
-            }}
-            error={consentError}
-            disabled={isGoogleBusy}
-          />
-
-          <View>
-            <GoogleButton
-              label="Continue with Google"
-              onPress={() => runGoogle('link')}
-              busy={googleBusy === 'link'}
-              disabled={isGoogleBusy}
+        <Animated.View
+          entering={cardEntering}
+          style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+          {resetEmail !== null ? (
+            <ForgotPasswordForm
+              initialEmail={resetEmail}
+              onBack={(email) => {
+                setLastEmail(email);
+                setResetEmail(null);
+              }}
             />
-            {isGoogleInUse ? (
-              <Animated.View
-                entering={fadeIn}
-                style={[styles.notice, { backgroundColor: c.cardAlt, borderColor: c.border }]}
-                accessibilityLiveRegion="polite">
-                <Text style={[styles.noticeTitle, { color: c.text }]}>
-                  That Google account already has a Nonsense profile.
+          ) : (
+            <>
+              <View style={styles.header}>
+                <Text style={[text.modalTitle, { color: c.text }]} accessibilityRole="header">
+                  Secure your account
                 </Text>
-                <PressableScale
-                  onPress={() => runGoogle('signin')}
+                <Text style={[styles.body, { color: c.textMuted }]}>
+                  Your games are only saved on this device right now. Add a sign-in so you never lose them and can use
+                  Nonsense on other devices.
+                </Text>
+              </View>
+
+              <ConsentCheckbox
+                checked={termsAccepted}
+                onChange={(next) => {
+                  setTermsAccepted(next);
+                  if (next) setConsentError(null);
+                }}
+                error={consentError}
+                disabled={isGoogleBusy}
+              />
+
+              <View>
+                <GoogleButton
+                  label="Continue with Google"
+                  onPress={() => runGoogle('link')}
+                  busy={googleBusy === 'link'}
                   disabled={isGoogleBusy}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isGoogleBusy, busy: googleBusy === 'signin' }}
-                  style={({ pressed }) => [
-                    styles.secondary,
-                    { borderColor: c.accentBorder },
-                    isGoogleBusy && styles.disabled,
-                    pressed && !isGoogleBusy && styles.pressed,
-                  ]}>
-                  {googleBusy === 'signin' ? (
-                    <ActivityIndicator color={c.accentText} />
-                  ) : (
-                    <Text style={[styles.secondaryLabel, { color: c.accentText }]}>
-                      Sign in to that account instead
+                />
+                {isGoogleInUse ? (
+                  <Animated.View
+                    entering={fadeIn}
+                    style={[styles.notice, { backgroundColor: c.cardAlt, borderColor: c.border }]}
+                    accessibilityLiveRegion="polite">
+                    <Text style={[styles.noticeTitle, { color: c.text }]}>
+                      That Google account already has a Nonsense profile.
                     </Text>
-                  )}
-                </PressableScale>
-                <Text style={[styles.caveat, { color: c.textMuted }]}>{GUEST_DATA_CAVEAT}</Text>
-              </Animated.View>
-            ) : null}
-            <FieldError message={googleError} />
-          </View>
+                    <PressableScale
+                      onPress={() => runGoogle('signin')}
+                      disabled={isGoogleBusy}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: isGoogleBusy, busy: googleBusy === 'signin' }}
+                      style={({ pressed }) => [
+                        styles.secondary,
+                        { borderColor: c.accentBorder },
+                        isGoogleBusy && styles.disabled,
+                        pressed && !isGoogleBusy && styles.pressed,
+                      ]}>
+                      {googleBusy === 'signin' ? (
+                        <ActivityIndicator color={c.accentText} />
+                      ) : (
+                        <Text style={[styles.secondaryLabel, { color: c.accentText }]}>
+                          Sign in to that account instead
+                        </Text>
+                      )}
+                    </PressableScale>
+                    <Text style={[styles.caveat, { color: c.textMuted }]}>{GUEST_DATA_CAVEAT}</Text>
+                  </Animated.View>
+                ) : null}
+                <FieldError message={googleError} />
+              </View>
 
-          <View style={styles.dividerRow} importantForAccessibility="no-hide-descendants">
-            <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
-            <Text style={[styles.dividerText, { color: c.textMuted }]}>or use email</Text>
-            <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
-          </View>
+              <View style={styles.dividerRow} importantForAccessibility="no-hide-descendants">
+                <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
+                <Text style={[styles.dividerText, { color: c.textMuted }]}>or use email</Text>
+                <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
+              </View>
 
-          {isSignInMode ? (
-            <Text style={[styles.caveat, { color: c.textMuted }]}>
-              Signing in to an existing account switches this device to it. {GUEST_DATA_CAVEAT}
-            </Text>
-          ) : null}
+              {isSignInMode ? (
+                <Text style={[styles.caveat, { color: c.textMuted }]}>
+                  Signing in to an existing account switches this device to it. {GUEST_DATA_CAVEAT}
+                </Text>
+              ) : null}
 
-          <EmailAuthForm
-            mode={emailMode}
-            onSubmit={handleEmailSubmit}
-            busy={isGoogleBusy}
-            showForgot={isSignInMode}
-            requireConsent={false}
-          />
+              <EmailAuthForm
+                mode={emailMode}
+                onSubmit={handleEmailSubmit}
+                busy={isGoogleBusy}
+                onForgotPassword={isSignInMode ? setResetEmail : undefined}
+                initialEmail={lastEmail}
+                requireConsent={false}
+              />
 
-          <PressableScale
-            onPress={() => setEmailMode(isSignInMode ? 'create' : 'signin')}
-            accessibilityRole="button"
-            {...({ dataSet: { textButton: 'true' } } as object)}
-            style={styles.linkButton}>
-            <Text style={[styles.linkLabel, { color: c.accentText }]}>
-              {isSignInMode ? 'Create a new sign-in instead' : 'Sign in with email instead'}
-            </Text>
-          </PressableScale>
+              <PressableScale
+                onPress={() => setEmailMode(isSignInMode ? 'create' : 'signin')}
+                accessibilityRole="button"
+                {...({ dataSet: { textButton: 'true' } } as object)}
+                style={styles.linkButton}>
+                <Text style={[styles.linkLabel, { color: c.accentText }]}>
+                  {isSignInMode ? 'Create a new sign-in instead' : 'Sign in with email instead'}
+                </Text>
+              </PressableScale>
+            </>
+          )}
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
