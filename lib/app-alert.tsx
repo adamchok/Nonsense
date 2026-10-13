@@ -110,9 +110,11 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
   const c = useAppColors();
   const [payload, setPayload] = useState<AlertPayload | null>(null);
   const [open, setOpen] = useState(false);
+  const [showCount, setShowCount] = useState(0);
 
   const show = useCallback((next: AlertPayload) => {
     setPayload(next);
+    setShowCount((n) => n + 1);
     setOpen(true);
   }, []);
 
@@ -156,6 +158,7 @@ export function AppAlertProvider({ children }: { children: ReactNode }) {
     <>
       {children}
       <ModalShell
+        key={showCount}
         visible={open}
         onClose={() => (cancelBtn ? onButtonPress(cancelBtn) : close())}
         title={payload?.title ?? ''}
