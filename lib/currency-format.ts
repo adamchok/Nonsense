@@ -16,11 +16,19 @@ export function formatCompactCurrency(amount: number): string {
   return `$${Number(k.toFixed(2)).toString()}K`;
 }
 
+const COMPACT_BLINDS_MIN = 10_000;
+const SHORT_CURRENCY_MIN = 100_000;
+
+export function formatCurrencyShort(amount: number): string {
+  return Math.abs(amount) >= SHORT_CURRENCY_MIN ? formatCompactCurrency(amount) : formatCurrency(amount);
+}
+
 export function formatBlinds(small?: number, big?: number): string | null {
   if (small == null || big == null) return null;
   if (!Number.isFinite(small) || !Number.isFinite(big) || small <= 0 || big < small) {
     return null;
   }
+  if (big >= COMPACT_BLINDS_MIN) return `${formatCompactCurrency(small)}/${formatCompactCurrency(big)}`;
   const cents = !Number.isInteger(small) || !Number.isInteger(big);
   const fmt = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -84,15 +92,17 @@ export function formatSignedCompactCurrency(amount: number): string {
   return `${sign}${formatCompactCurrency(amount)}`;
 }
 
+const WHOLE_DOLLAR_MIN = 1000;
+const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const CURRENCY_WHOLE = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
 export function formatCurrency(amount: number): string {
   if (!Number.isFinite(amount)) return INVALID_AMOUNT_PLACEHOLDER;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
+  const isWholeAndLarge = Number.isInteger(amount) && Math.abs(amount) >= WHOLE_DOLLAR_MIN;
+  return (isWholeAndLarge ? CURRENCY_WHOLE : CURRENCY).format(amount);
 }
 
-export type SessionAmountValueStyle = 'ledger' | 'compact' | 'fixed2';
+export type SessionAmountValueStyle = 'ledger' | 'compact' | 'short';
 
 export function formatSessionAmountValue(
   value: number,
@@ -104,7 +114,7 @@ export function formatSessionAmountValue(
     return valueStyle === 'compact' ? formatChipsCompact(value) : formatChipsLedger(value);
   }
   if (valueStyle === 'compact') return formatCompactCurrency(value);
-  if (valueStyle === 'fixed2') return `$${value.toFixed(2)}`;
+  if (valueStyle === 'short') return formatCurrencyShort(value);
   return formatCurrency(value);
 }
 

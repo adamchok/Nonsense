@@ -27,6 +27,7 @@ import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatChipsLedger,
+  formatCurrency,
   formatSessionAmountValue,
   formatSignedCurrency,
   formatTightCompactNumber,
@@ -132,7 +133,7 @@ function PlayerBuyInCaption({
           unit="chips"
           color={mutedColor}
           iconSize={18}
-          valueStyle="fixed2"
+          valueStyle="short"
           textStyle={[styles.playerBuyIn, { color: mutedColor }]}
         />
       </View>
@@ -142,7 +143,7 @@ function PlayerBuyInCaption({
     <View style={styles.playerBuyInRow}>
       <Icon name="money-in" size={12} color={mutedColor} style={styles.buyInIcon} />
       <Text style={[styles.playerBuyIn, { color: mutedColor }]}>
-        Buy-in: {formatSessionAmountValue(totalBuyIn, 'cash', 'fixed2')}
+        Buy-in: {formatSessionAmountValue(totalBuyIn, 'cash', 'short')}
       </Text>
     </View>
   );
@@ -405,14 +406,14 @@ export default function CashOutScreen() {
         color: c.warning,
         text: isChipsMode
           ? `${formatChipsLedger(remaining)} chips left to distribute across players.`
-          : `$${remaining.toFixed(2)} left to distribute across players.`,
+          : `${formatCurrency(remaining)} left to distribute across players.`,
       };
     }
     return {
       color: c.loss,
       text: isChipsMode
         ? `${formatChipsLedger(Math.abs(remaining))} chips over-distributed. Reduce some stacks.`
-        : `$${Math.abs(remaining).toFixed(2)} over-distributed. Reduce some cash-outs.`,
+        : `${formatCurrency(Math.abs(remaining))} over-distributed. Reduce some cash-outs.`,
     };
   }
 
@@ -442,7 +443,7 @@ export default function CashOutScreen() {
       return;
     }
 
-    const formatAmount = (v: number) => (isChipsMode ? `${formatChipsLedger(v)} chips` : `$${v.toFixed(2)}`);
+    const formatAmount = (v: number) => (isChipsMode ? `${formatChipsLedger(v)} chips` : formatCurrency(v));
     const summaryLines = players.map((p) => {
       const cashOut = parseAmount(p.cashOutInput) ?? 0;
       const profit = cashOut - p.totalBuyIn;
@@ -518,7 +519,7 @@ export default function CashOutScreen() {
                 </Text>
                 {item.locked && (
                   <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
-                    <Text style={[styles.earlyBadgeText, { color: '#fff' }]}>EARLY CASH OUT</Text>
+                    <Text style={[styles.earlyBadgeText, { color: '#fff' }]}>Early cash-out</Text>
                   </View>
                 )}
               </View>
@@ -557,7 +558,7 @@ export default function CashOutScreen() {
                   placeholderTextColor={c.placeholder}
                   keyboardType="decimal-pad"
                   accessibilityLabel={`Cash-out amount for ${item.playerName}`}
-                  accessibilityHint={`Bought in ${isChipsMode ? `${formatChipsLedger(item.totalBuyIn)} chips` : `$${item.totalBuyIn.toFixed(2)}`}, currently ${profit >= 0 ? 'up' : 'down'} ${isChipsMode ? `${formatChipsLedger(Math.abs(profit))} chips` : `$${Math.abs(profit).toFixed(2)}`}`}
+                  accessibilityHint={`Bought in ${isChipsMode ? `${formatChipsLedger(item.totalBuyIn)} chips` : formatCurrency(item.totalBuyIn)}, currently ${profit >= 0 ? 'up' : 'down'} ${isChipsMode ? `${formatChipsLedger(Math.abs(profit))} chips` : formatCurrency(Math.abs(profit))}`}
                   style={[styles.cashOutInput, { color: c.text }, item.locked && { color: c.textMuted }]}
                   selectTextOnFocus
                   editable={!item.locked}
@@ -699,7 +700,7 @@ export default function CashOutScreen() {
               unit={amountUnit}
               color={c.text}
               iconSize={18}
-              valueStyle="fixed2"
+              valueStyle="short"
               textStyle={[styles.trackerValue, isWide && styles.trackerValueWide, { color: c.text }]}
               rowStyle={styles.trackerValueRow}
             />
@@ -716,7 +717,7 @@ export default function CashOutScreen() {
               unit={amountUnit}
               color={c.text}
               iconSize={18}
-              valueStyle="fixed2"
+              valueStyle="short"
               textStyle={[styles.trackerValue, isWide && styles.trackerValueWide, { color: c.text }]}
               rowStyle={styles.trackerValueRow}
             />
@@ -739,7 +740,7 @@ export default function CashOutScreen() {
                 unit={amountUnit}
                 color={statusColor}
                 iconSize={18}
-                valueStyle="fixed2"
+                valueStyle="short"
                 textStyle={[styles.trackerValue, isWide && styles.trackerValueWide, { color: statusColor }]}
                 rowStyle={styles.trackerValueRow}
               />
@@ -822,7 +823,7 @@ export default function CashOutScreen() {
           disabled={!balanced || saving}>
           {saving ? null : <Icon name="check" size={18} color={c.onAccent} weight="bold" />}
           <Text style={[styles.buttonLabel, { color: c.onAccent }]}>
-            {saving ? 'Saving…' : 'Confirm & View Summary'}
+            {saving ? 'Saving…' : 'Confirm & view summary'}
           </Text>
         </PressableScale>
       </Animated.View>
