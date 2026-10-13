@@ -79,6 +79,7 @@ const PIECES = 100;
 const NEAR_SPEED = 46;
 const FAR_SPEED = 30;
 const HEIGHT_STEP = 200;
+const WIDTH_PER_PIECE = 14;
 
 type Drop = {
   kind: 'card' | 'chip';
@@ -153,29 +154,39 @@ function compileFalls(height: number) {
   );
 }
 
-export function CardRain({ dark }: { dark: boolean }) {
+function DropPiece({ d }: { d: Drop }) {
+  return d.kind === 'card' ? (
+    <PlayingCard rank={d.rank} suit={d.suit} width={d.size} />
+  ) : (
+    <PokerChip size={d.size} color={d.chipColor} />
+  );
+}
+
+export function CardRain({ dark, strength = 1 }: { dark: boolean; strength?: number }) {
   const reduceMotion = useReducedMotion();
   const [height, setHeight] = useState(0);
-  const falls = useMemo(() => (height > 0 ? compileFalls(height) : null), [height]);
-  const near = dark ? 0.1 : 0.18;
-  const far = dark ? 0.06 : 0.11;
+  const [count, setCount] = useState(0);
+  const falls = useMemo(() => (height > 0 && !reduceMotion ? compileFalls(height) : null), [height, reduceMotion]);
+  const layerOpacity = (dark ? 0.1 : 0.18) * strength;
+  const pieces = DROPS.slice(0, count)
+    .map((d, i) => ({ d, i }))
+    .sort((a, b) => Number(b.d.far) - Number(a.d.far));
   return (
     <View
       aria-hidden
-      style={[styles.rain, pointer.none]}
-      onLayout={(e) => setHeight(Math.ceil(e.nativeEvent.layout.height / HEIGHT_STEP) * HEIGHT_STEP)}>
-      {DROPS.map((d, i) => {
-        const fall =
-          reduceMotion || !falls
-            ? { top: `${d.phase * 96}%` as const, transform: [{ rotate: `${d.spin / 4}deg` }] }
-            : falls[`drop${i}`];
+      style={[styles.rain, pointer.none, { opacity: layerOpacity }]}
+      onLayout={(e) => {
+        const { width: w, height: h } = e.nativeEvent.layout;
+        setHeight(Math.ceil(h / HEIGHT_STEP) * HEIGHT_STEP);
+        setCount(Math.min(PIECES, Math.round(w / WIDTH_PER_PIECE)));
+      }}>
+      {pieces.map(({ d, i }) => {
+        const fall = falls
+          ? falls[`drop${i}`]
+          : { top: `${d.phase * 96}%` as const, transform: [{ rotate: `${d.spin / 4}deg` }] };
         return (
-          <View key={i} style={[styles.drop, { left: `${d.left}%`, opacity: d.far ? far : near }, fall]}>
-            {d.kind === 'card' ? (
-              <PlayingCard rank={d.rank} suit={d.suit} width={d.size} />
-            ) : (
-              <PokerChip size={d.size} color={d.chipColor} />
-            )}
+          <View key={i} style={[styles.drop, { left: `${d.left}%` as const }, fall]}>
+            <DropPiece d={d} />
           </View>
         );
       })}
