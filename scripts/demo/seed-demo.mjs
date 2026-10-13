@@ -150,6 +150,12 @@ function writeFinishedSession(batch, db, ids, index, now, archive = null) {
   const start = archive?.start ?? day;
   const finish = start + (4 * 60 + ((index * 17) % 50)) * MINUTE;
   const ref = db.collection('sessions').doc();
+  const scaled = table.map((t) => ({ ...t, profit: money(t.profit) }));
+  scaled[scaled.length - 1].profit = roundCents(-scaled.slice(0, -1).reduce((sum, t) => sum + t.profit, 0));
+  const rows = scaled.map(({ p, profit }) => {
+    const totalBuyIn = Math.max(money(buyInFor(profit / scale)), roundCents(-profit));
+    return { p, uid: ids[p.key], result: { playerName: p.name, totalBuyIn, cashOut: roundCents(totalBuyIn + profit), profit } };
+  });
   batch.set(ref, {
     hostId: ids.alex,
     date: ts(start),
@@ -161,22 +167,13 @@ function writeFinishedSession(batch, db, ids, index, now, archive = null) {
     dollarsPerChip: null,
     participantIds: table.map((t) => ids[t.p.key]),
     finishedAt: ts(finish),
+    playerResults: Object.fromEntries(rows.map(({ uid, result }) => [uid, result])),
   });
-  const scaled = table.map((t) => ({ ...t, profit: money(t.profit) }));
-  scaled[scaled.length - 1].profit = roundCents(-scaled.slice(0, -1).reduce((sum, t) => sum + t.profit, 0));
-  scaled.forEach(({ p, profit }, i) => {
-    const uid = ids[p.key];
-    const totalBuyIn = Math.max(money(buyInFor(profit / scale)), roundCents(-profit));
+  rows.forEach(({ p, uid, result }, i) => {
     const joinedAt = ts(start + i * MINUTE);
     batch.set(ref.collection('session_participants').doc(uid), { playerId: uid, playerName: p.name, joinedAt });
-    batch.set(ref.collection('buy_ins').doc(), { playerId: uid, playerName: p.name, amount: totalBuyIn, createdAt: joinedAt });
-    batch.set(ref.collection('results').doc(uid), {
-      playerName: p.name,
-      totalBuyIn,
-      cashOut: roundCents(totalBuyIn + profit),
-      profit,
-      settledAt: ts(finish),
-    });
+    batch.set(ref.collection('buy_ins').doc(), { playerId: uid, playerName: p.name, amount: result.totalBuyIn, createdAt: joinedAt });
+    batch.set(ref.collection('results').doc(uid), { ...result, settledAt: ts(finish) });
   });
 }
 

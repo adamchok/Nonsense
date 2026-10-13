@@ -162,6 +162,63 @@ test('host can write results and finish the session in one batch', async () => {
   await assertSucceeds(settleBatch(dbAs(env, HOST), id).commit());
 });
 
+const PLAYER_RESULTS = {
+  [PLAYER]: { playerName: 'Player', totalBuyIn: 5000, cashOut: 8000, profit: 3000 },
+  [OTHER_PLAYER]: { playerName: 'Other', totalBuyIn: 5000, cashOut: 2000, profit: -3000 },
+};
+
+test('host can settle with playerResults on the session in the same batch', async () => {
+  const id = sid();
+  await seedSession(env, id);
+  const db = dbAs(env, HOST);
+  const batch = settleBatch(db, id);
+  batch.update(doc(db, 'sessions', id), { playerResults: PLAYER_RESULTS });
+  await assertSucceeds(batch.commit());
+});
+
+test('host can add playerResults to an already finished session', async () => {
+  const id = sid();
+  await seedSession(env, id, { status: 'finished' });
+  await assertSucceeds(
+    updateDoc(doc(dbAs(env, HOST), 'sessions', id), { playerResults: PLAYER_RESULTS })
+  );
+});
+
+test('a non-host cannot set playerResults', async () => {
+  const id = sid();
+  await seedSession(env, id, { status: 'finished' });
+  await assertFails(
+    updateDoc(doc(dbAs(env, PLAYER), 'sessions', id), { playerResults: PLAYER_RESULTS })
+  );
+  await assertFails(
+    updateDoc(doc(dbAs(env, STRANGER), 'sessions', id), { playerResults: PLAYER_RESULTS })
+  );
+});
+
+test('playerResults must be a map', async () => {
+  const id = sid();
+  await seedSession(env, id);
+  const ref = doc(dbAs(env, HOST), 'sessions', id);
+  await assertFails(updateDoc(ref, { playerResults: [PLAYER] }));
+  await assertFails(updateDoc(ref, { playerResults: 'x' }));
+  await assertFails(updateDoc(ref, { playerResults: null }));
+  const db = dbAs(env, HOST);
+  const batch = settleBatch(db, id);
+  batch.update(doc(db, 'sessions', id), { playerResults: 42 });
+  await assertFails(batch.commit());
+});
+
+test('a session cannot be created with a non-map playerResults', async () => {
+  await assertFails(
+    setDoc(doc(dbAs(env, HOST), 'sessions', sid()), {
+      hostId: HOST,
+      status: 'active',
+      participantIds: [HOST],
+      playerResults: 'x',
+    })
+  );
+});
+
 test('a participant cannot settle the session or write their own result', async () => {
   const id = sid();
   await seedSession(env, id);

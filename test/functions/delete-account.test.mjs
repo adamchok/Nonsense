@@ -27,9 +27,17 @@ async function clearEmulator() {
   assert.ok(res.ok, `could not clear emulator: ${res.status}`);
 }
 
-async function seedSession(id, { hostId, status = 'finished', players }) {
+const summary = (p) => ({ playerName: p.name, totalBuyIn: 50, cashOut: 50 + p.profit, profit: p.profit });
+
+async function seedSession(id, { hostId, status = 'finished', players, legacy = false }) {
   const ref = db.doc(`sessions/${id}`);
-  await ref.set({ hostId, status, date: new Date(), participantIds: players.map((p) => p.id) });
+  await ref.set({
+    hostId,
+    status,
+    date: new Date(),
+    participantIds: players.map((p) => p.id),
+    ...(legacy ? {} : { playerResults: Object.fromEntries(players.map((p) => [p.id, summary(p)])) }),
+  });
   for (const p of players) {
     await ref.collection('session_participants').doc(p.id).set({ playerId: p.id, playerName: p.name });
     await ref.collection('buy_ins').add({ playerId: p.id, playerName: p.name, amount: 50 });
@@ -70,6 +78,7 @@ async function seedWorld() {
   await seedSession('solo', { hostId: USER, players: [alex, guest] });
   await seedSession('shared', { hostId: USER, players: [alex, sam] });
   await seedSession('joined', { hostId: FRIEND, players: [sam, alex] });
+  await seedSession('legacy', { hostId: FRIEND, players: [sam, alex], legacy: true });
 }
 
 const exists = async (path) => (await db.doc(path).get()).exists;
@@ -132,7 +141,14 @@ test('deletes sessions only the user and guests played, anonymises shared ones',
     assert.ok(names.includes('Sam'), 'other players keep their names');
     const result = await db.doc(`sessions/${id}/results/${USER}`).get();
     assert.equal(result.get('profit'), 30, 'amounts are unchanged');
+    const playerResults = (await db.doc(`sessions/${id}`).get()).get('playerResults');
+    assert.deepEqual(playerResults[USER], { playerName: DELETED_PLAYER_NAME, totalBuyIn: 50, cashOut: 80, profit: 30 });
+    assert.equal(playerResults[FRIEND].playerName, 'Sam');
   }
+
+  const legacy = await db.doc('sessions/legacy').get();
+  assert.equal(legacy.get('playerResults'), undefined, 'sessions without the map do not gain one');
+  assert.ok((await namesIn('legacy')).includes(DELETED_PLAYER_NAME));
 });
 
 test('refuses while the user hosts a live session and deletes nothing', async () => {

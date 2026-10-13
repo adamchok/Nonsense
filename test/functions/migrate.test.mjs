@@ -46,10 +46,22 @@ const nextId = (prefix) => {
   return `${prefix}_${counter}`;
 };
 
-async function seedGuestSession(guestId, { hostId = OWNER, status = 'finished', buyIns = 2, profit = 150.5 } = {}) {
+const guestSummary = (profit, playerName = 'Bryan') => ({ playerName, totalBuyIn: 100, cashOut: 100 + profit, profit });
+const OTHER_SUMMARY = { playerName: 'Other', totalBuyIn: 100, cashOut: 0, profit: -100 };
+
+async function seedGuestSession(
+  guestId,
+  { hostId = OWNER, status = 'finished', buyIns = 2, profit = 150.5, legacy = false } = {}
+) {
   const id = nextId('session');
   const ref = db.doc(`sessions/${id}`);
-  await ref.set({ hostId, status, date: new Date(), participantIds: [hostId, guestId, OTHER] });
+  await ref.set({
+    hostId,
+    status,
+    date: new Date(),
+    participantIds: [hostId, guestId, OTHER],
+    ...(legacy ? {} : { playerResults: { [guestId]: guestSummary(profit), [OTHER]: OTHER_SUMMARY } }),
+  });
   for (const pid of [hostId, guestId, OTHER]) {
     await ref.collection('session_participants').doc(pid).set({ playerId: pid, playerName: pid, joinedAt: new Date() });
   }
@@ -97,7 +109,13 @@ async function seedLink(guestId, sessions, status = 'accepted', extra = {}) {
 
 async function assertGuestUntouched(sessionId, guestId) {
   const ref = db.doc(`sessions/${sessionId}`);
-  assert.ok((await ref.get()).get('participantIds').includes(guestId));
+  const session = await ref.get();
+  assert.ok(session.get('participantIds').includes(guestId));
+  const playerResults = session.get('playerResults');
+  if (playerResults) {
+    assert.ok(playerResults[guestId]);
+    assert.equal(playerResults[TARGET], undefined);
+  }
   assert.equal((await ref.collection('results').doc(guestId).get()).exists, true);
   assert.equal((await ref.collection('results').doc(TARGET).get()).exists, false);
   const buyIns = await ref.collection('buy_ins').where('playerId', '==', guestId).get();
@@ -106,7 +124,12 @@ async function assertGuestUntouched(sessionId, guestId) {
 
 async function assertMigrated(sessionId, guestId, { buyIns = 2, profit = 150.5 } = {}) {
   const ref = db.doc(`sessions/${sessionId}`);
-  assert.deepEqual((await ref.get()).get('participantIds'), [OWNER, TARGET, OTHER]);
+  const session = await ref.get();
+  assert.deepEqual(session.get('participantIds'), [OWNER, TARGET, OTHER]);
+  assert.deepEqual(session.get('playerResults'), {
+    [TARGET]: guestSummary(profit, 'Bryan Real'),
+    [OTHER]: OTHER_SUMMARY,
+  });
   const result = (await ref.collection('results').doc(TARGET).get()).data();
   assert.deepEqual(result, {
     playerName: 'Bryan Real',
@@ -202,7 +225,23 @@ test('copies do not overwrite target docs that already exist', async () => {
   await migrateGuestLink(db, linkId);
   assert.equal((await db.doc(`sessions/${id}/results/${TARGET}`).get()).get('playerName'), 'Keep');
   assert.equal((await db.doc(`sessions/${id}/results/${guest}`).get()).exists, false);
-  assert.deepEqual((await db.doc(`sessions/${id}`).get()).get('participantIds'), [OWNER, TARGET, OTHER]);
+  const session = await db.doc(`sessions/${id}`).get();
+  assert.deepEqual(session.get('participantIds'), [OWNER, TARGET, OTHER]);
+  assert.deepEqual(session.get('playerResults'), {
+    [TARGET]: { playerName: 'Keep', profit: 1 },
+    [OTHER]: OTHER_SUMMARY,
+  });
+});
+
+test('a legacy session without playerResults is migrated without gaining a partial map', async () => {
+  const guest = nextId('guest');
+  const id = await seedGuestSession(guest, { legacy: true });
+  const linkId = await seedLink(guest, { [id]: 150.5 });
+  assert.deepEqual(await migrateGuestLink(db, linkId), { found: true, sessions: 1, skipped: 0, groups: 0 });
+  const session = await db.doc(`sessions/${id}`).get();
+  assert.deepEqual(session.get('participantIds'), [OWNER, TARGET, OTHER]);
+  assert.equal(session.get('playerResults'), undefined);
+  assert.equal((await db.doc(`sessions/${id}/results/${TARGET}`).get()).get('profit'), 150.5);
 });
 
 test('sessions outside the frozen map, with a different profit, hosted by others or active are left alone', async () => {

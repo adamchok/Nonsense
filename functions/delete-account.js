@@ -1,4 +1,4 @@
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue } from 'firebase-admin/firestore';
 
 export const DELETED_PLAYER_NAME = 'Deleted player';
 
@@ -28,7 +28,13 @@ async function otherRegisteredPlayers(db, session, uid) {
   return snaps.filter((s) => s.exists).map((s) => s.id);
 }
 
-async function anonymiseInSession(db, sessionRef, uid) {
+function hasPlayerResult(session, uid) {
+  const map = session.get('playerResults');
+  return Boolean(map && typeof map === 'object' && !Array.isArray(map) && map[uid]);
+}
+
+async function anonymiseInSession(db, session, uid) {
+  const sessionRef = session.ref;
   const named = ['results', 'early_cashouts', 'session_participants'].map((sub) => sessionRef.collection(sub).doc(uid));
   const [buyIns, ...snaps] = await Promise.all([
     sessionRef.collection('buy_ins').where('playerId', '==', uid).get(),
@@ -38,6 +44,9 @@ async function anonymiseInSession(db, sessionRef, uid) {
     ...snaps.filter((s) => s.exists).map((s) => (batch) => batch.update(s.ref, { playerName: DELETED_PLAYER_NAME })),
     ...buyIns.docs.map((d) => (batch) => batch.update(d.ref, { playerName: DELETED_PLAYER_NAME })),
   ];
+  if (hasPlayerResult(session, uid)) {
+    ops.unshift((batch) => batch.update(sessionRef, new FieldPath('playerResults', uid, 'playerName'), DELETED_PLAYER_NAME));
+  }
   await commitInBatches(db, ops);
 }
 
@@ -53,11 +62,11 @@ async function removeFromSessions(db, uid) {
     if ((await otherRegisteredPlayers(db, session, uid)).length === 0) {
       await db.recursiveDelete(session.ref);
     } else {
-      await anonymiseInSession(db, session.ref, uid);
+      await anonymiseInSession(db, session, uid);
     }
   }
   for (const session of joined.docs) {
-    if (session.get('hostId') !== uid) await anonymiseInSession(db, session.ref, uid);
+    if (session.get('hostId') !== uid) await anonymiseInSession(db, session, uid);
   }
 }
 

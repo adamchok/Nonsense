@@ -50,6 +50,22 @@ function sessionMigratable(session, link) {
   );
 }
 
+const RESULT_SUMMARY_FIELDS = ['playerName', 'totalBuyIn', 'cashOut', 'profit'];
+
+function resultSummary(data) {
+  return Object.fromEntries(RESULT_SUMMARY_FIELDS.filter((k) => data[k] !== undefined).map((k) => [k, data[k]]));
+}
+
+function movedPlayerResults(session, link, result, targetResult, moved) {
+  const current = session.get('playerResults');
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return null;
+  const rest = Object.fromEntries(
+    Object.entries(current).filter(([id]) => id !== link.guestId && id !== link.targetId)
+  );
+  const target = targetResult.exists ? targetResult.data() : result.exists ? { ...result.data(), ...moved } : null;
+  return target ? { ...rest, [link.targetId]: resultSummary(target) } : rest;
+}
+
 function stageMove(tx, from, to, patch) {
   if (!from.exists) return;
   if (!to.exists) tx.set(to.ref, { ...from.data(), ...patch });
@@ -81,7 +97,11 @@ async function migrateSession(db, sessionId, expectedProfit, link) {
       tx.update(b.ref, { playerId: link.targetId, playerName: link.targetName });
     }
     const ids = session.get('participantIds');
-    tx.update(sessionRef, { participantIds: ids.map((id) => (id === link.guestId ? link.targetId : id)) });
+    const playerResults = movedPlayerResults(session, link, result, targetResult, moved);
+    tx.update(sessionRef, {
+      participantIds: ids.map((id) => (id === link.guestId ? link.targetId : id)),
+      ...(playerResults ? { playerResults } : {}),
+    });
     return true;
   });
 }

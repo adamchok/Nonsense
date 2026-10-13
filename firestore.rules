@@ -61,7 +61,8 @@ service cloud.firestore {
         && (d.get('smallBlind', null) == null
           || (validAmount(d.smallBlind) && validAmount(d.bigBlind) && d.bigBlind >= d.smallBlind))
         && (d.get('dollarsPerChip', null) == null || validAmount(d.dollarsPerChip))
-        && d.get('participantIds', []) is list;
+        && d.get('participantIds', []) is list
+        && d.get('playerResults', {}) is map;
     }
 
     function friendDocMatchesProfile(describedId) {

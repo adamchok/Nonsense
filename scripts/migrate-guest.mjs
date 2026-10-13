@@ -91,7 +91,13 @@ for (const session of mine) {
   }
   const batch = db.batch();
   const ref = session.ref;
-  batch.update(ref, { participantIds: ids.map((id) => (id === guest ? target : id)) });
+  const sessionPatch = { participantIds: ids.map((id) => (id === guest ? target : id)) };
+  const playerResults = session.get('playerResults');
+  if (playerResults && typeof playerResults === 'object' && !Array.isArray(playerResults) && playerResults[guest]) {
+    const { [guest]: guestResult, ...rest } = playerResults;
+    sessionPatch.playerResults = { ...rest, [target]: { ...guestResult, playerName: targetName } };
+  }
+  batch.update(ref, sessionPatch);
 
   const moved = [];
   if (

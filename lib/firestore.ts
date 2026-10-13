@@ -510,12 +510,27 @@ export function invalidateSessionScanCache(): void {
   scanCache.clear();
 }
 
+type PlayerResultEntry = { playerName?: unknown; totalBuyIn?: unknown; cashOut?: unknown; profit?: unknown };
+
+function storedPlayerResults(data: Record<string, unknown>): Record<string, PlayerResultEntry> | null {
+  const map = data.playerResults;
+  return map && typeof map === 'object' && !Array.isArray(map) ? (map as Record<string, PlayerResultEntry>) : null;
+}
+
 async function sumProfitsAcrossSessions(uid: string): Promise<Map<string, number>> {
   const db = getFirestoreDb();
   const sessionDocs = await getAccessibleSessionDocs(uid);
   const profitById = new Map<string, number>();
   await Promise.all(
     sessionDocs.map(async (sDoc) => {
+      const stored = storedPlayerResults(sDoc.data());
+      if (stored) {
+        for (const [playerId, r] of Object.entries(stored)) {
+          const profit = numOrZero(r as Record<string, unknown>, 'profit', `sessions/${sDoc.id}.playerResults.${playerId}`);
+          profitById.set(playerId, (profitById.get(playerId) ?? 0) + profit);
+        }
+        return;
+      }
       const resultsSnap = await getDocs(collection(db, 'sessions', sDoc.id, 'results'));
       for (const r of resultsSnap.docs) {
         const profit = numOrZero(r.data(), 'profit', `sessions/${sDoc.id}/results/${r.id}`);
@@ -1055,18 +1070,21 @@ export async function settleSession(
 ): Promise<void> {
   const db = getFirestoreDb();
   const batch = writeBatch(db);
+  const playerResults: Record<string, { playerName: string; totalBuyIn: number; cashOut: number; profit: number }> = {};
   for (const r of results) {
-    batch.set(doc(db, 'sessions', sessionId, 'results', r.playerId), {
+    const entry = {
       playerName: r.playerName,
       totalBuyIn: toCents(r.totalBuyIn),
       cashOut: toCents(r.cashOut),
       profit: toCents(r.profit),
-      settledAt: serverTimestamp(),
-    });
+    };
+    playerResults[r.playerId] = entry;
+    batch.set(doc(db, 'sessions', sessionId, 'results', r.playerId), { ...entry, settledAt: serverTimestamp() });
   }
   batch.update(doc(db, 'sessions', sessionId), {
     status: 'finished',
     finishedAt: serverTimestamp(),
+    playerResults,
   });
   await batch.commit();
   invalidateSessionScanCache();
@@ -1418,12 +1436,18 @@ async function sessionHistoryEntriesFromDocs(
 
   await Promise.all(
     sessionDocs.map(async (sessionDoc) => {
-      const resultRef = doc(db, 'sessions', sessionDoc.id, 'results', playerId);
-      const resultSnap = await getDoc(resultRef);
-      if (!resultSnap.exists()) return;
-
       const data = sessionDoc.data() as Record<string, unknown>;
-      const r = resultSnap.data();
+      const stored = storedPlayerResults(data);
+      let r: Record<string, unknown>;
+      if (stored) {
+        const entry = stored[playerId];
+        if (!entry) return;
+        r = entry as Record<string, unknown>;
+      } else {
+        const resultSnap = await getDoc(doc(db, 'sessions', sessionDoc.id, 'results', playerId));
+        if (!resultSnap.exists()) return;
+        r = resultSnap.data();
+      }
       const resultCtx = `sessions/${sessionDoc.id}/results/${playerId}`;
       const { amountUnit, dollarsPerChip } = sessionAmountMetaFromDocData(data);
       records.push({
@@ -1566,10 +1590,11 @@ export function getCachedSessionHistory(uid: string, forceRefresh = false): Prom
   return cachedScan(`history:${uid}`, forceRefresh, () => getFullSessionHistoryForPlayer(uid));
 }
 
-export async function getPlayerAppStatistics(
-  uid: string,
-  forceRefresh = false
-): Promise<PlayerAppStatistics> {
+export function getPlayerAppStatistics(uid: string, forceRefresh = false): Promise<PlayerAppStatistics> {
+  return cachedScan(`stats:${uid}`, forceRefresh, () => computePlayerAppStatistics(uid, forceRefresh));
+}
+
+async function computePlayerAppStatistics(uid: string, forceRefresh: boolean): Promise<PlayerAppStatistics> {
   const db = getFirestoreDb();
   const [history, friendsSnap, groupsSnap, savedLocs] = await Promise.all([
     getCachedSessionHistory(uid, forceRefresh),
