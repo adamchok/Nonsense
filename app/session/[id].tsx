@@ -26,11 +26,10 @@ import { appAlert } from '@/lib/app-alert';
 import { getAvatarEmoji } from '@/lib/avatar';
 import { formatSessionAmountValue } from '@/lib/currency-format';
 import type { LedgerPlayer } from '@/lib/session-view';
-import { Icon } from '@/components/icon';
 import { PressableScale } from '@/components/motion';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Keyboard, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 
 type ActiveModal =
@@ -151,32 +150,13 @@ export default function ActiveSessionScreen() {
 
   const showLedgerDollars = live.ledgerCanToggleDollars && ledgerShowDollars;
 
-  const headerRight = canAct
-    ? () => (
-        <PressableScale
-          pressedScale={0.9}
-          onPress={actions.confirmDeleteSession}
-          disabled={actions.isDeletingSession}
-          style={[styles.headerIconBtn, Platform.OS === 'web' && { marginRight: layout.gutter - 10 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Delete session"
-          accessibilityState={{ disabled: actions.isDeletingSession, busy: actions.isDeletingSession }}>
-          {actions.isDeletingSession ? (
-            <ActivityIndicator size="small" color={c.lossLight} />
-          ) : (
-            <Icon name="delete-outline" size={24} color={c.lossLight} />
-          )}
-        </PressableScale>
-      )
-    : undefined;
-
   const screenTitle = session?.date ? formatSessionTitle(session.date, session.location) : 'Live session';
   const sessionDate = session?.date;
   const headerTitle = sessionDate
     ? () => (
         <SessionTitle
           date={sessionDate}
-          location={session?.location}
+          location={live.showSessionMetaCards ? null : session?.location}
           textStyle={[styles.headerTitle, { color: c.text }]}
         />
       )
@@ -193,7 +173,7 @@ export default function ActiveSessionScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerRight, title: screenTitle, headerTitle }} />
+      <Stack.Screen options={{ title: screenTitle, headerTitle }} />
       <ScrollView
         style={[styles.screen, { backgroundColor: c.bg }]}
         contentContainerStyle={layout.content}
@@ -267,7 +247,9 @@ export default function ActiveSessionScreen() {
         <SessionFooterActions
           canManage={canAct}
           isFinished={session?.status === 'finished'}
+          isDeleting={actions.isDeletingSession}
           onEndSession={actions.endSession}
+          onDelete={actions.confirmDeleteSession}
           onViewSummary={() => router.push(`./summary/${id}`)}
         />
       </ScrollView>
@@ -362,13 +344,6 @@ const styles = StyleSheet.create({
   },
   ledger: {
     gap: 8,
-  },
-  headerIconBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
   },
   errorRow: {
     flexDirection: 'row',

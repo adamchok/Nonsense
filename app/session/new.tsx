@@ -308,11 +308,8 @@ export default function NewSessionScreen() {
               style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <View style={styles.amountModeHeader}>
                 <Icon name="tune" size={20} color={c.textMuted} style={styles.icons} />
-                <Text style={[styles.amountModeTitle, { color: c.text }]}>Amounts</Text>
+                <Text style={[styles.amountModeTitle, { color: c.text }]}>Game</Text>
               </View>
-              <Text style={[styles.groupSectionHint, { color: c.textMuted }]}>
-                Cash: track dollars. Chips: track chip stacks; set how much each chip is worth.
-              </Text>
               <SegmentedTabs
                 variant="radio"
                 tabs={AMOUNT_UNIT_TABS}
@@ -353,22 +350,10 @@ export default function NewSessionScreen() {
                   </Text>
                 </Animated.View>
               ) : null}
-            </Animated.View>
-
-            <Animated.View
-              entering={listItemEntering(1)}
-              layout={layoutTransition}
-              style={[styles.amountModeCard, { backgroundColor: c.card, borderColor: c.border }]}>
-            <View style={styles.amountModeHeader}>
-              <Icon name="payments" size={20} color={c.textMuted} style={styles.icons} />
-              <Text style={[styles.amountModeTitle, { color: c.text }]}>
-                Blinds{isChipsMode ? ' (chips)' : ''}
-              </Text>
-            </View>
             <View style={styles.blindsRow}>
               <View style={styles.blindField}>
                 <View style={styles.labelWithRequired}>
-                  <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Small</Text>
+                  <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Small blind</Text>
                   <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                 </View>
                 <View>
@@ -380,7 +365,7 @@ export default function NewSessionScreen() {
                       clearError('smallBlind');
                     }}
                     accessibilityLabel="Small blind"
-                    placeholder="0"
+                    placeholder={isChipsMode ? '0' : '0.00'}
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
                     {...invalidProps(errors.smallBlind)}
@@ -396,7 +381,7 @@ export default function NewSessionScreen() {
               </View>
               <View style={styles.blindField}>
                 <View style={styles.labelWithRequired}>
-                  <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Big</Text>
+                  <Text style={[styles.blindFieldLabel, { color: c.textHint }]}>Big blind</Text>
                   <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
                 </View>
                 <View>
@@ -408,7 +393,7 @@ export default function NewSessionScreen() {
                       clearError('bigBlind');
                     }}
                     accessibilityLabel="Big blind"
-                    placeholder="0"
+                    placeholder={isChipsMode ? '0' : '0.00'}
                     placeholderTextColor={c.placeholder}
                     keyboardType="decimal-pad"
                     {...invalidProps(errors.bigBlind)}
@@ -520,9 +505,6 @@ export default function NewSessionScreen() {
                     <View style={styles.joinTextRow}>
                       <Icon name="person" size={20} color={c.textMuted} style={styles.icons} />
                       <Text style={[styles.joinTitle, { color: c.text }]}>Join as player</Text>
-                      {joinSelf ? (
-                        <Text style={[styles.requiredMark, { color: c.loss }]}>*</Text>
-                      ) : null}
                     </View>
                   </View>
                   <AppSwitch
@@ -615,13 +597,13 @@ export default function NewSessionScreen() {
               onPress={onCreate}
               disabled={isSaving}
               accessibilityRole="button"
-              accessibilityLabel="Start Session"
+              accessibilityLabel="Start session"
               accessibilityState={{ disabled: isSaving, busy: isSaving }}
               style={[styles.button, { backgroundColor: c.accent }, isSaving && styles.disabled]}>
                 {isSaving ? (
                   <ActivityIndicator size="small" color={c.onAccent} />
                 ) : (
-                  <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Start Session</Text>
+                  <Text style={[styles.buttonLabel, { color: c.onAccent }]}>Start session</Text>
                 )}
             </PressableScale>
             </Animated.View>

@@ -1,16 +1,19 @@
 import { EmptyState } from '@/components/empty-state';
+import { ModalShell } from '@/components/session/modal-shell';
 import { MetaLine } from '@/components/meta-line';
 import { Icon, type IconName } from '@/components/icon';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
-import { formatDateDMY } from '@/lib/date-format';
+import { formatDate } from '@/lib/date-format';
 import { text } from '@/lib/ui';
-import type { PlayerAppStatistics } from '@/lib/firestore';
-import { Fragment } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
+import { userMessage } from '@/lib/user-message';
+import { Fragment, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-const MAX_SAVED_LOCATIONS = 10;
+const SHEET_MAX_HEIGHT = 640;
+const SHEET_HEIGHT_SHARE = 0.85;
 
 function formatPlayTime(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000);
@@ -26,7 +29,7 @@ function signedColor(c: AppColors, n: number | null): string {
 }
 
 const signedOrDash = (n: number | null) => (n === null ? '—' : formatSignedCurrency(n));
-const dateOrDash = (d: Date | null) => (d ? formatDateDMY(d) : '—');
+const dateOrDash = (d: Date | null) => (d ? formatDate(d) : '—');
 
 type Row = { label: string; value: string | null };
 
@@ -35,12 +38,6 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
   const hasSessions = s.finishedSessions > 0;
   const winRate = hasSessions ? Math.round((s.winningSessions / s.finishedSessions) * 100) : 0;
   const roi = s.totalBuyIn > 0 ? (s.totalProfit / s.totalBuyIn) * 100 : null;
-
-  const social: Row[] = [
-    { label: 'Friends', value: String(s.friendCount) },
-    { label: 'Groups', value: String(s.groupCount) },
-    { label: 'Saved locations', value: `${s.savedLocationCount} / ${MAX_SAVED_LOCATIONS}` },
-  ];
 
   if (!hasSessions) {
     return (
@@ -51,7 +48,6 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
           title="No finished sessions yet"
           message="Cash out a session and your results will show up here."
         />
-        <Section title="Social" icon="people" rows={social} c={c} />
       </View>
     );
   }
@@ -116,18 +112,9 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
           { label: 'First', value: dateOrDash(s.firstSessionDate) },
           { label: 'Latest', value: dateOrDash(s.lastSessionDate) },
           { label: 'Hosted / joined', value: `${s.sessionsAsHost} / ${s.sessionsAsParticipant}` },
+          { label: 'Places played', value: String(s.uniqueSessionLocations) },
         ]}
       />
-      <Section
-        title="Places"
-        icon="location-on"
-        c={c}
-        rows={[
-          { label: 'Unique locations', value: String(s.uniqueSessionLocations) },
-          { label: 'Sessions with a location', value: String(s.sessionsWithLocation) },
-        ]}
-      />
-      <Section title="Social" icon="people" rows={social} c={c} />
 
       <Text style={[styles.footnote, { color: c.textMuted }]}>
         Avg per hour and time played only count sessions with a recorded end time.
@@ -139,7 +126,7 @@ export function StatsBody({ stats: s }: { stats: PlayerAppStatistics }) {
 const TILE_LABELS = ['Avg per session', 'Avg per hour', 'Best', 'Worst', 'Return on buy-in', 'Time played'];
 const SKELETON_SECTIONS: { title: string; icon: IconName; labels: string[] }[] = [
   { title: 'Money', icon: 'account-balance-wallet', labels: ['Total buy-in', 'Total cash-out'] },
-  { title: 'Sessions', icon: 'history', labels: ['First', 'Latest', 'Hosted / joined'] },
+  { title: 'Sessions', icon: 'history', labels: ['First', 'Latest', 'Hosted / joined', 'Places played'] },
 ];
 
 export function StatsSkeleton() {
@@ -179,6 +166,55 @@ export function StatsSkeleton() {
         />
       ))}
     </SkeletonGroup>
+  );
+}
+
+export function StatsSheet({ playerId, visible, onClose }: { playerId: string | null; visible: boolean; onClose: () => void }) {
+  const { height } = useWindowDimensions();
+  const [stats, setStats] = useState<PlayerAppStatistics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const request = visible ? playerId : null;
+  const [prevRequest, setPrevRequest] = useState(request);
+  if (prevRequest !== request) {
+    setPrevRequest(request);
+    if (request) {
+      setStats(null);
+      setError(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!request) return;
+    let cancelled = false;
+    getPlayerAppStatistics(request)
+      .then((data) => {
+        if (!cancelled) setStats(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(userMessage(e, 'Failed to load statistics.'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [request]);
+
+  const c = useAppColors();
+  return (
+    <ModalShell
+      visible={visible}
+      onClose={onClose}
+      title="Lifetime statistics"
+      titleIcon={{ name: 'bar-chart', color: c.textMuted }}
+      avoidKeyboard={false}
+      cardStyle={{ maxHeight: Math.min(SHEET_MAX_HEIGHT, height * SHEET_HEIGHT_SHARE) }}>
+      {error ? (
+        <Text style={[styles.error, { color: c.loss }]} accessibilityRole="alert">
+          {error}
+        </Text>
+      ) : (
+        <ScrollView style={styles.sheetScroll}>{stats ? <StatsBody stats={stats} /> : <StatsSkeleton />}</ScrollView>
+      )}
+    </ModalShell>
   );
 }
 
@@ -268,7 +304,7 @@ const styles = StyleSheet.create({
   winLegendText: { ...text.caption, fontVariant: ['tabular-nums'] },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: {
-    flexBasis: '31%',
+    flexBasis: '47%',
     flexGrow: 1,
     borderRadius: 12,
     borderWidth: 1,
@@ -291,4 +327,6 @@ const styles = StyleSheet.create({
   skelLegendText: { marginVertical: 3 },
   skelTileValue: { marginVertical: 3 },
   footnote: { ...text.caption, textAlign: 'center' },
+  sheetScroll: { flexShrink: 1 },
+  error: { ...text.caption, paddingVertical: 12 },
 });

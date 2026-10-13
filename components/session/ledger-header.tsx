@@ -17,7 +17,7 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
     <View style={styles.header}>
       <View style={styles.title}>
         <Text style={[type.section, { color: c.textMuted }]} numberOfLines={1} accessibilityRole="header">
-          Buy-In Ledger ({count})
+          Buy-in ledger ({count})
         </Text>
         {pendingCount > 0 ? (
           <View style={styles.syncRow} accessibilityLiveRegion="polite">
@@ -28,22 +28,9 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
           </View>
         ) : null}
         {showTapHint ? (
-          Platform.OS === 'web' ? (
-            <View
-              style={styles.hintRow}
-              accessible
-              accessibilityLabel="Click a player to add a rebuy. Use the more button for more options.">
-              <Text style={[styles.hint, { color: c.textMuted }]}>Click a player to add a rebuy. Use</Text>
-              <View style={[styles.hintDots, { borderColor: c.border }]}>
-                <Icon name="more-vert" size={10} color={c.textSecondary} weight="bold" />
-              </View>
-              <Text style={[styles.hint, { color: c.textMuted }]}>for more options.</Text>
-            </View>
-          ) : (
-            <Text style={[styles.hint, { color: c.textMuted }]}>
-              Tap a player to add a rebuy. Long-press to correct their total.
-            </Text>
-          )
+          <Text style={[styles.hint, { color: c.textMuted }]}>
+            {Platform.OS === 'web' ? 'Click' : 'Tap'} a player to add a rebuy.
+          </Text>
         ) : null}
       </View>
       {dollarsToggle ? (
@@ -74,20 +61,6 @@ export function LedgerHeader({ count, showTapHint, pendingCount, dollarsToggle }
 }
 
 const styles = StyleSheet.create({
-  hintRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 5,
-  },
-  hintDots: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

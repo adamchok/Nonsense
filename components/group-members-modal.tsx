@@ -297,8 +297,7 @@ export function GroupMembersModal({ groupId: id, onClose }: Props) {
                       <View style={styles.memberText}>
                         <View style={styles.memberNameRow}>
                           <Text style={[styles.memberName, { color: c.text }]} numberOfLines={1}>
-                            {member.id === playerProfile?.id ? (playerProfile?.name ?? member.name) : member.name}
-                            {member.id === playerProfile?.id ? ' (You)' : ''}
+                            {member.id === playerProfile?.id ? 'You' : member.name}
                           </Text>
                           {!member.isRegistered && (
                             <View style={[styles.guestBadge, { backgroundColor: c.chipBg }]}>

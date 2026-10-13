@@ -156,7 +156,7 @@ export const PlayerLedgerRow = memo(function PlayerLedgerRow({
             <View style={styles.badges}>
               {isHostRow ? (
                 <View style={[styles.badge, { backgroundColor: c.badge.host }]}>
-                  <Text style={[type.micro, styles.badgeText]}>HOST</Text>
+                  <Text style={[type.micro, styles.badgeText]}>Host</Text>
                 </View>
               ) : null}
               {isCashedOut ? (

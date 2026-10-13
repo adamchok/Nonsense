@@ -91,7 +91,7 @@ export function BuyInModal({
   }
 
   const inputColors = { borderColor: c.inputBorder, backgroundColor: c.inputBg };
-  const title = draft.isBuyBack ? `Buy back in: ${draft.playerName}` : 'Add Buy-In';
+  const title = draft.isBuyBack ? `Buy back in: ${draft.playerName}` : 'Add buy-in';
 
   return (
     <ModalShell
@@ -112,7 +112,16 @@ export function BuyInModal({
         contentContainerStyle={formStyles.fieldsScrollContent}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled>
-        <View style={[styles.addSection, { borderColor: c.border, backgroundColor: c.cardAlt }]}>
+        <View style={styles.addSection}>
+          {draft.isBuyBack ? null : (
+            <PlayerPicker
+              activePlayers={activePlayers}
+              friendsNotInSession={friendsNotInSession}
+              selfId={playerProfile?.id}
+              pickedPlayerId={draft.pickedPlayerId}
+              onPick={pick}
+            />
+          )}
           {playerProfile && !selfInSession && !draft.isBuyBack && (
             <PressableScale
               pressedScale={0.95}
@@ -134,7 +143,7 @@ export function BuyInModal({
                   returnKeyType="next"
                   onSubmitEditing={() => amountInputRef.current?.focus()}
                   submitBehavior="submit"
-                  placeholder="Player name"
+                  placeholder={draft.pickedPlayerId ? 'Player name' : 'Or type a new name'}
                   placeholderTextColor={c.placeholder}
                   accessibilityLabel="Player name"
                   onFocus={() => scrollModalFieldToTop(scrollRef)}
@@ -171,7 +180,7 @@ export function BuyInModal({
           {quickAmounts.length > 0 ? (
             <View style={styles.quickAmounts}>
               {quickAmounts.map((v) => {
-                const label = formatSessionAmountValue(v, unit, 'ledger');
+                const label = formatSessionAmountValue(v, unit, 'ledger').replace(/\.00$/, '');
                 return (
                   <PressableScale
                     pressedScale={0.95}
@@ -186,15 +195,6 @@ export function BuyInModal({
               })}
             </View>
           ) : null}
-          {draft.isBuyBack ? null : (
-            <PlayerPicker
-              activePlayers={activePlayers}
-              friendsNotInSession={friendsNotInSession}
-              selfId={playerProfile?.id}
-              pickedPlayerId={draft.pickedPlayerId}
-              onPick={pick}
-            />
-          )}
         </View>
       </ScrollView>
     </ModalShell>
@@ -218,9 +218,6 @@ const styles = StyleSheet.create({
   },
   addSection: {
     gap: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 12,
   },
   quickAddButton: {
     borderRadius: 9,

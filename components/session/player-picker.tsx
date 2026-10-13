@@ -43,8 +43,7 @@ export function PlayerPicker({ activePlayers, friendsNotInSession, selfId, picke
                   onPress={() => onPick(p.playerId, p.name)}>
                   {picked ? <Icon name="check" size={14} color={c.accentText} /> : null}
                   <Text style={[styles.chipText, { color: picked ? c.accentText : c.chipText }]}>
-                    {p.name}
-                    {isMe ? ' (You)' : ''}
+                    {isMe ? 'You' : p.name}
                   </Text>
                 </PressableScale>
               );

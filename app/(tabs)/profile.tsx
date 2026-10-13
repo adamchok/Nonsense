@@ -6,49 +6,41 @@ import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { pressBg, text } from '@/lib/ui';
 import { useAuth } from '@/lib/auth-context';
-import { getPlayerAppStatistics, type PlayerAppStatistics } from '@/lib/firestore';
 import { useThemePreference } from '@/lib/theme-context';
 import { Icon, type IconName } from '@/components/icon';
 import { GoogleLogo } from '@/components/google-button';
 import { EnvelopeSimpleIcon } from 'phosphor-react-native/src/icons/EnvelopeSimple';
-import { StatsBody, StatsSkeleton } from '@/components/stats-body';
+import { SegmentedTabs, type SegmentedTab } from '@/components/segmented-tabs';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { userMessage } from '@/lib/user-message';
 import { EditNameModal } from '@/components/edit-name-modal';
-import { Animated as Motion, PressableScale, webSafe } from '@/components/motion';
-import { LayoutAnimationConfig, ReduceMotion, ZoomIn, FadeIn } from 'react-native-reanimated';
+import { PressableScale } from '@/components/motion';
 
-const checkEntering = webSafe(
-  ZoomIn.springify()
-    .damping(16)
-    .stiffness(320)
-    .mass(0.6)
-    .withInitialValues({ transform: [{ scale: 0.4 }] })
-    .reduceMotion(ReduceMotion.System),
-  FadeIn.duration(150).reduceMotion(ReduceMotion.System),
-);
 
 const FACE_BATCH = 30;
 const FACE_TILE = 56;
 
-const STATS_SHEET_MAX = 560;
+type ThemeKey = 'system' | 'light' | 'dark';
+const THEME_TABS: readonly SegmentedTab<ThemeKey>[] = [
+  { key: 'system', label: 'System', icon: 'phone-iphone' },
+  { key: 'light', label: 'Light', icon: 'wb-sunny' },
+  { key: 'dark', label: 'Dark', icon: 'nights-stay' },
+];
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, email, hasPassword, signOutUser } =
+  const { playerProfile, saveAvatarEmoji, saveDisplayName, isLinked, linkedEmail, email, hasPassword, signOutUser } =
     useAuth();
   const c = useAppColors();
   const layout = usePageLayout(40);
-  const { height: windowHeight } = useWindowDimensions();
   const { preference, setPreference } = useThemePreference();
   const t = settingsTheme(c);
   const signInMethodLabel = isLinked ? 'Signed in with Google' : 'Signed in with email';
@@ -59,46 +51,12 @@ export default function SettingsScreen() {
   const pickerFaces = [
     ...(currentFace ? [currentFace] : []),
     ...faceSeeds.map(faceValue).filter((f) => f !== currentFace),
-  ];
+  ].slice(0, FACE_BATCH);
   const [showNameEditor, setShowNameEditor] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [pendingAvatarEmoji, setPendingAvatarEmoji] = useState<string | null>(null);
-  const [showStatsModal, setShowStatsModal] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [statsError, setStatsError] = useState<string | null>(null);
-  const [stats, setStats] = useState<PlayerAppStatistics | null>(null);
 
-  const statsRequestUser = showStatsModal ? user : null;
-  const [prevStatsRequestUser, setPrevStatsRequestUser] = useState(statsRequestUser);
-  if (prevStatsRequestUser !== statsRequestUser) {
-    setPrevStatsRequestUser(statsRequestUser);
-    if (statsRequestUser) {
-      setStatsLoading(true);
-      setStatsError(null);
-    }
-  }
-
-  useEffect(() => {
-    if (!showStatsModal || !user) return;
-    let cancelled = false;
-    void getPlayerAppStatistics(user.uid)
-      .then((data) => {
-        if (!cancelled) setStats(data);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setStatsError(userMessage(e, 'Failed to load statistics.'));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setStatsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [showStatsModal, user]);
-
-  function onSelectTheme(p: 'system' | 'light' | 'dark') {
+  function onSelectTheme(p: ThemeKey) {
     void setPreference(p).catch(() => {
       appAlert('Theme not saved', 'The theme changed for this session but could not be saved to device storage.');
     });
@@ -205,36 +163,19 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={[styles.cardLabel, { color: t.muted }]} accessibilityRole="header">
-          Sessions
-        </Text>
-        <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
-          <NavRow icon="bar-chart" label="Statistics" onPress={() => setShowStatsModal(true)} t={t} />
-          <NavRow
-            icon="location-on"
-            label="Saved locations"
-            onPress={() => router.push('../locations')}
-            t={t}
-            showDivider
-          />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.cardLabel, { color: t.muted }]} accessibilityRole="header">
           Account
         </Text>
         <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
+          <NavRow icon="location-on" label="Saved locations" onPress={() => router.push('../locations')} t={t} />
           {hasPassword ? (
-            <NavRow icon="lock" label="Change password" onPress={() => router.push('/change-password')} t={t} />
+            <NavRow
+              icon="lock"
+              label="Change password"
+              onPress={() => router.push('/change-password')}
+              t={t}
+              showDivider
+            />
           ) : null}
-          <NavRow
-            icon="delete-outline"
-            label="Delete account"
-            onPress={() => router.push('/delete-account')}
-            t={t}
-            showDivider={hasPassword}
-            isDanger
-          />
         </View>
       </View>
 
@@ -242,33 +183,7 @@ export default function SettingsScreen() {
         <Text style={[styles.cardLabel, { color: t.muted }]} accessibilityRole="header">
           Appearance
         </Text>
-        <LayoutAnimationConfig skipEntering>
-          <View style={[styles.listCard, { backgroundColor: t.card, borderColor: t.border }]}>
-            <ThemeOption
-              icon="phone-iphone"
-              label="System"
-              selected={preference === 'system'}
-              onPress={() => onSelectTheme('system')}
-              t={t}
-            />
-            <ThemeOption
-              icon="wb-sunny"
-              label="Light"
-              selected={preference === 'light'}
-              onPress={() => onSelectTheme('light')}
-              t={t}
-              showDivider
-            />
-            <ThemeOption
-              icon="nights-stay"
-              label="Dark"
-              selected={preference === 'dark'}
-              onPress={() => onSelectTheme('dark')}
-              t={t}
-              showDivider
-            />
-          </View>
-        </LayoutAnimationConfig>
+        <SegmentedTabs tabs={THEME_TABS} value={preference} onChange={onSelectTheme} variant="radio" />
       </View>
 
       <PressableScale
@@ -280,29 +195,14 @@ export default function SettingsScreen() {
         <Text style={[styles.signOutLabel, { color: c.loss }]}>Sign out</Text>
       </PressableScale>
 
-      <ModalShell
-        visible={showStatsModal}
-        onClose={() => setShowStatsModal(false)}
-        title="Your statistics"
-        titleIcon={{ name: 'bar-chart', color: t.muted }}
-        avoidKeyboard={false}
-        cardStyle={{ maxHeight: Math.min(STATS_SHEET_MAX, windowHeight * 0.6) }}>
-        {!user ? (
-          <Text style={[styles.statsFootnote, { color: t.muted }]}>Sign in to see statistics.</Text>
-        ) : statsLoading ? (
-          <ScrollView style={styles.modalScroll}>
-            <StatsSkeleton />
-          </ScrollView>
-        ) : statsError ? (
-          <Text style={[styles.statsError, { color: c.loss }]} accessibilityRole="alert">
-            {statsError}
-          </Text>
-        ) : stats ? (
-          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.statsScrollContent}>
-            <StatsBody stats={stats} />
-          </ScrollView>
-        ) : null}
-      </ModalShell>
+      <PressableScale
+        style={styles.deleteAccountBtn}
+        onPress={() => router.push('/delete-account')}
+        accessibilityRole="button"
+        accessibilityLabel="Delete account">
+        <Text style={[styles.deleteAccountLabel, { color: t.muted }]}>Delete account</Text>
+      </PressableScale>
+
 
       {showNameEditor ? (
         <EditNameModal
@@ -323,10 +223,11 @@ export default function SettingsScreen() {
             pressedScale={0.94}
             onPress={() => setFaceSeeds(randomFaceSeeds(FACE_BATCH))}
             disabled={savingAvatar}
+            hitSlop={6}
             accessibilityRole="button"
             accessibilityLabel="Shuffle avatars"
             style={[styles.shuffleBtn, { borderColor: t.border, backgroundColor: t.chipBg }]}>
-            <Icon name="refresh" size={16} color={t.accentText} />
+            <Icon name="refresh" size={14} color={t.accentText} />
             <Text style={[styles.shuffleText, { color: t.text }]}>Shuffle</Text>
           </PressableScale>
         }>
@@ -394,52 +295,6 @@ function NavRow({
       </View>
       <Text style={[styles.themeLabel, styles.themeText, { color: tint }]}>{label}</Text>
       <Icon name="chevron-right" size={18} color={t.muted} />
-    </PressableScale>
-  );
-}
-
-function ThemeOption({
-  icon,
-  label,
-  selected,
-  onPress,
-  t,
-  showDivider,
-}: {
-  icon: IconName;
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-  t: SettingsTheme;
-  showDivider?: boolean;
-}) {
-  const c = useAppColors();
-  return (
-    <PressableScale
-      pressedScale={0.985}
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${label} theme`}
-      style={(state) => [
-        styles.themeRow,
-        showDivider && styles.rowDivider,
-        { borderColor: t.border },
-        pressBg(c, state, selected ? t.selectedBg : t.card),
-      ]}>
-      <View style={[styles.themeIconWrap, { backgroundColor: selected ? `${t.accent}33` : t.chipBg }]}>
-        <Icon name={icon} size={18} color={selected ? t.accentText : t.text} />
-      </View>
-      <Text style={[styles.themeLabel, styles.themeText, { color: t.text }]}>{label}</Text>
-      {selected ? (
-        <Motion.View entering={checkEntering}>
-          <Icon name="check-circle" size={22} color={t.accentText} />
-        </Motion.View>
-      ) : (
-        <View style={[styles.radioOuter, { borderColor: t.border }]}>
-          <View style={styles.radioInner} />
-        </View>
-      )}
     </PressableScale>
   );
 }
@@ -573,6 +428,16 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   displayName: text.title,
+  deleteAccountBtn: {
+    alignSelf: 'center',
+    minHeight: 44,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  deleteAccountLabel: {
+    ...text.label,
+    textDecorationLine: 'underline',
+  },
   signOutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -603,18 +468,6 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   themeLabel: text.rowTitle,
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioInner: {
-    width: 0,
-    height: 0,
-  },
   emojiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -633,25 +486,14 @@ const styles = StyleSheet.create({
   shuffleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    minHeight: 40,
-    paddingHorizontal: 14,
+    gap: 5,
+    height: 32,
+    paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
   },
-  shuffleText: { fontSize: 14, fontWeight: '600' },
-  statsScrollContent: {
-    gap: 2,
-  },
+  shuffleText: { fontSize: 13, fontWeight: '600' },
   modalScroll: {
     flexShrink: 1,
-  },
-  statsError: {
-    ...text.caption,
-    paddingVertical: 12,
-  },
-  statsFootnote: {
-    ...text.caption,
-    marginTop: 10,
   },
 });

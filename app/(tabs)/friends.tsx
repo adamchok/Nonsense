@@ -10,7 +10,7 @@ import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
 import { formatSignedCurrency } from '@/lib/currency-format';
-import { formatDateDMY } from '@/lib/date-format';
+import { formatDate } from '@/lib/date-format';
 import {
   acceptFriendRequest,
   cancelOutgoingFriendRequest,
@@ -115,8 +115,10 @@ function sortItemWebProps(checked: boolean): object {
   return IS_WEB ? { role: 'menuitemradio', 'aria-checked': checked, tabIndex: -1 } : {};
 }
 
+const SEARCH_MIN_ITEMS = 8;
+
 const FRIENDS_TABS: readonly SegmentedTab<'friends' | 'groups' | 'leaderboard'>[] = [
-  { key: 'friends', label: 'Friends', icon: 'people' },
+  { key: 'friends', label: 'People', icon: 'people' },
   { key: 'groups', label: 'Groups', icon: 'groups' },
   { key: 'leaderboard', label: 'Leaderboard', icon: 'leaderboard' },
 ];
@@ -628,14 +630,16 @@ export default function FriendsScreen() {
               </PressableScale>
             </View>
           </View>
-          <SearchInput
-            accessibilityLabel="Search friends by name"
-            placeholder="Search friend name"
-            value={friendSearchQuery}
-            onChangeText={setFriendSearchQuery}
-            autoCapitalize="words"
-            autoCorrect={false}
-          />
+          {friends.length >= SEARCH_MIN_ITEMS || friendSearchQuery ? (
+            <SearchInput
+              accessibilityLabel="Search friends by name"
+              placeholder="Search friend name"
+              value={friendSearchQuery}
+              onChangeText={setFriendSearchQuery}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+          ) : null}
 
           {incomingRequests.length > 0 ? (
             <View style={styles.requestBlock}>
@@ -889,7 +893,7 @@ export default function FriendsScreen() {
                     <View style={styles.friendTextBlock}>
                       <Text style={[styles.friendName, { color: c.textSecondary }]}>{item.name}</Text>
                       <Text style={[styles.friendMeta, { color: c.textHint }]}>
-                        Since {formatDateDMY(item.addedAt)}
+                        Since {formatDate(item.addedAt)}
                       </Text>
                     </View>
                   </View>
@@ -898,9 +902,9 @@ export default function FriendsScreen() {
                     hitSlop={4}
                     style={styles.rowIconBtn}
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove ${item.name} from friends`}
+                    accessibilityLabel={`Options for ${item.name}`}
                     onPress={() => handleRemoveFriend(item.playerId, item.name)}>
-                    <Icon name="close" size={20} color={c.textHint} />
+                    <Icon name="more-vert" size={20} color={c.textHint} />
                   </PressableScale>
                 </Motion.View>
               ))}
@@ -932,14 +936,16 @@ export default function FriendsScreen() {
               </PressableScale>
             </View>
           </View>
-          <SearchInput
-            accessibilityLabel="Search groups by name"
-            placeholder="Search group name"
-            value={groupSearchQuery}
-            onChangeText={setGroupSearchQuery}
-            autoCapitalize="words"
-            autoCorrect={false}
-          />
+          {groups.length >= SEARCH_MIN_ITEMS || groupSearchQuery ? (
+            <SearchInput
+              accessibilityLabel="Search groups by name"
+              placeholder="Search group name"
+              value={groupSearchQuery}
+              onChangeText={setGroupSearchQuery}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+          ) : null}
 
           {!groupsLoaded ? (
             <GroupCardsSkeleton gap={layout.sectionGap} />
@@ -987,45 +993,19 @@ export default function FriendsScreen() {
                               <Icon name="person" size={13} color={c.textHint} importantForAccessibility="no" />
                               <Text style={[styles.groupCount, { color: c.textHint }]}>{group.memberCount ?? 0}</Text>
                             </View>,
-                            `Since ${formatDateDMY(group.createdAt)}`,
+                            `Since ${formatDate(group.createdAt)}`,
                           ]}
                         />
                       </View>
                     </View>
                   </Pressable>
                     <View style={styles.groupHeaderRight}>
-                      {isGroupOwner ? (
-                        <>
-                          <PressableScale
-                            pressedScale={0.9}
-                            hitSlop={4}
-                            style={styles.groupIconBtn}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Rename group ${group.name}`}
-                            onPress={() => openRenameGroupModal(group)}>
-                            <Icon name="edit" size={20} color={c.textHint} />
-                          </PressableScale>
-                          <PressableScale
-                            pressedScale={0.9}
-                            hitSlop={4}
-                            style={styles.groupIconBtn}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Delete group ${group.name}`}
-                            onPress={() => handleDeleteGroup(group.id, group.name)}>
-                            <Icon name="delete-outline" size={20} color={c.textHint} />
-                          </PressableScale>
-                        </>
-                      ) : (
-                        <PressableScale
-                          pressedScale={0.9}
-                          hitSlop={4}
-                          style={styles.groupIconBtn}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Leave group ${group.name}`}
-                          onPress={() => handleLeaveGroup(group.id, group.name)}>
-                          <Icon name="logout" size={20} color={c.textHint} />
-                        </PressableScale>
-                      )}
+                      <Icon
+                        name={isExpanded ? 'expand-less' : 'expand-more'}
+                        size={20}
+                        color={c.textHint}
+                        importantForAccessibility="no"
+                      />
                     </View>
                   </View>
 
@@ -1049,10 +1029,7 @@ export default function FriendsScreen() {
                               <View style={styles.memberInfo}>
                                 <GroupMemberAvatar member={member} viewerProfile={playerProfile} />
                                 <Text style={[styles.memberName, { color: c.textSecondary }]}>
-                                  {member.id === playerProfile?.id
-                                    ? (playerProfile?.name ?? member.name)
-                                    : member.name}
-                                  {member.id === playerProfile?.id ? ' (You)' : ''}
+                                  {member.id === playerProfile?.id ? 'You' : member.name}
                                 </Text>
                                 {!member.isRegistered ? (
                                   <View
@@ -1087,7 +1064,7 @@ export default function FriendsScreen() {
                           accessibilityLabel={isGroupOwner ? 'Manage members' : 'View members'}>
                           <Icon name={isGroupOwner ? 'edit' : 'people'} size={16} color={c.accentText} />
                           <Text style={[styles.manageBtnLabel, { color: c.accentText }]}>
-                            {layout.isMd ? (isGroupOwner ? 'Manage Members' : 'View Members') : 'Members'}
+                            {layout.isMd ? (isGroupOwner ? 'Manage members' : 'View members') : 'Members'}
                           </Text>
                         </PressableScale>
 
@@ -1105,6 +1082,28 @@ export default function FriendsScreen() {
                           accessibilityLabel={`${group.name} leaderboard`}>
                           <Icon name="leaderboard" size={16} color={c.textSecondary} />
                           <Text style={[styles.manageBtnLabel, { color: c.textSecondary }]}>Leaderboard</Text>
+                        </PressableScale>
+                      </View>
+                      <View style={styles.groupLinksRow}>
+                        {isGroupOwner ? (
+                          <PressableScale
+                            style={styles.groupLink}
+                            onPress={() => openRenameGroupModal(group)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Rename group ${group.name}`}>
+                            <Text style={[styles.groupLinkLabel, { color: c.textSecondary }]}>Rename</Text>
+                          </PressableScale>
+                        ) : null}
+                        <PressableScale
+                          style={styles.groupLink}
+                          onPress={() =>
+                            isGroupOwner ? handleDeleteGroup(group.id, group.name) : handleLeaveGroup(group.id, group.name)
+                          }
+                          accessibilityRole="button"
+                          accessibilityLabel={`${isGroupOwner ? 'Delete' : 'Leave'} group ${group.name}`}>
+                          <Text style={[styles.groupLinkLabel, { color: c.loss }]}>
+                            {isGroupOwner ? 'Delete group' : 'Leave group'}
+                          </Text>
                         </PressableScale>
                       </View>
                     </View>
@@ -1871,6 +1870,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   manageBtnLabel: text.button,
+  groupLinksRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  groupLink: {
+    minHeight: 44,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+  },
+  groupLinkLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   groupActionsRow: {
     flexDirection: 'row',
     gap: 8,

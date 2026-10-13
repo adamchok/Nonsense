@@ -1,18 +1,16 @@
-export function formatDateDMY(d: Date): string {
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+export function formatDate(d: Date): string {
+  return DATE.format(d);
 }
 
-export function formatDateTimeDMY(d: Date): string {
-  const date = formatDateDMY(d);
+export function formatDateTime(d: Date): string {
+  const date = formatDate(d);
   const rawHours = d.getHours();
   const suffix = rawHours >= 12 ? 'PM' : 'AM';
   const hours12 = rawHours % 12 || 12;
-  const h = String(hours12).padStart(2, '0');
   const min = String(d.getMinutes()).padStart(2, '0');
-  return `${date} ${h}:${min} ${suffix}`;
+  return `${date}, ${hours12}:${min} ${suffix}`;
 }
 
 export function formatDuration(ms: number): string {

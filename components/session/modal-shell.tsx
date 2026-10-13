@@ -161,53 +161,55 @@ export function ModalShell({
         </View>
       </View>
       {children}
-      <View style={[styles.actions, isSheet && styles.actionsSheet]}>
-        <PressableScale
-          style={(state) => [
-            styles.cancelBtn,
-            isSheet && styles.flexBtn,
-            { borderColor: c.border },
-            pressBg(c, state, c.chipBg),
-            secondary?.disabled && styles.disabled,
-          ]}
-          onPress={secondary?.onPress ?? onClose}
-          disabled={secondary?.disabled}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: Boolean(secondary?.disabled) }}
-          accessibilityLabel={secondary?.label ?? cancelText}>
-          <View style={styles.primaryContent}>
-            {secondary?.icon ? <Icon name={secondary.icon} size={18} color={c.text} /> : null}
-            <Text style={[styles.cancelLabel, { color: c.text }]}>{secondary?.label ?? cancelText}</Text>
-          </View>
-        </PressableScale>
-        {primary ? (
+      {primary || secondary ? (
+        <View style={[styles.actions, isSheet && styles.actionsSheet]}>
           <PressableScale
-            style={[
-              styles.primaryBtn,
+            style={(state) => [
+              styles.cancelBtn,
               isSheet && styles.flexBtn,
-              { backgroundColor: primary.destructive ? DANGER_FILL : c.accent },
-              primaryDisabled && styles.disabled,
+              { borderColor: c.border },
+              pressBg(c, state, c.chipBg),
+              secondary?.disabled && styles.disabled,
             ]}
-            onPress={primary.onPress}
-            disabled={primaryDisabled}
+            onPress={secondary?.onPress ?? onClose}
+            disabled={secondary?.disabled}
             accessibilityRole="button"
-            accessibilityLabel={primary.busy ? (primary.busyLabel ?? `${primary.label}, saving`) : primary.label}
-            accessibilityState={{ disabled: primaryDisabled, busy: Boolean(primary.busy) }}>
-            {primary.busy ? (
-              <ActivityIndicator size="small" color={primary.destructive ? '#fff' : c.onAccent} />
-            ) : (
-              <View style={styles.primaryContent}>
-                {primary.icon ? (
-                  <Icon name={primary.icon} size={18} color={primary.destructive ? '#fff' : c.onAccent} weight="bold" />
-                ) : null}
-                <Text style={[styles.primaryLabel, { color: primary.destructive ? '#fff' : c.onAccent }]}>
-                  {primary.label}
-                </Text>
-              </View>
-            )}
+            accessibilityState={{ disabled: Boolean(secondary?.disabled) }}
+            accessibilityLabel={secondary?.label ?? cancelText}>
+            <View style={styles.primaryContent}>
+              {secondary?.icon ? <Icon name={secondary.icon} size={18} color={c.text} /> : null}
+              <Text style={[styles.cancelLabel, { color: c.text }]}>{secondary?.label ?? cancelText}</Text>
+            </View>
           </PressableScale>
-        ) : null}
-      </View>
+          {primary ? (
+            <PressableScale
+              style={[
+                styles.primaryBtn,
+                isSheet && styles.flexBtn,
+                { backgroundColor: primary.destructive ? DANGER_FILL : c.accent },
+                primaryDisabled && styles.disabled,
+              ]}
+              onPress={primary.onPress}
+              disabled={primaryDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={primary.busy ? (primary.busyLabel ?? `${primary.label}, saving`) : primary.label}
+              accessibilityState={{ disabled: primaryDisabled, busy: Boolean(primary.busy) }}>
+              {primary.busy ? (
+                <ActivityIndicator size="small" color={primary.destructive ? '#fff' : c.onAccent} />
+              ) : (
+                <View style={styles.primaryContent}>
+                  {primary.icon ? (
+                    <Icon name={primary.icon} size={18} color={primary.destructive ? '#fff' : c.onAccent} weight="bold" />
+                  ) : null}
+                  <Text style={[styles.primaryLabel, { color: primary.destructive ? '#fff' : c.onAccent }]}>
+                    {primary.label}
+                  </Text>
+                </View>
+              )}
+            </PressableScale>
+          ) : null}
+        </View>
+      ) : null}
     </Animated.View>
   );
 

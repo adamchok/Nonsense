@@ -82,15 +82,15 @@ function RootNavigator() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen
                 name="session/new"
-                options={{ title: 'New Session', presentation: 'modal', headerBackTitle: 'Back' }}
+                options={{ title: 'New session', presentation: 'modal', headerBackTitle: 'Back' }}
               />
-              <Stack.Screen name="session/[id]" options={{ title: 'Active Session' }} />
+              <Stack.Screen name="session/[id]" options={{ title: 'Live session' }} />
               <Stack.Screen name="session/cashout/[id]" options={{ title: 'Cash out' }} />
               <Stack.Screen
                 name="session/summary/[id]"
                 options={{ title: 'Session summary', headerBackTitle: 'Back' }}
               />
-              <Stack.Screen name="locations/index" options={{ title: 'Saved Locations', headerBackTitle: 'Back' }} />
+              <Stack.Screen name="locations/index" options={{ title: 'Saved locations', headerBackTitle: 'Back' }} />
               <Stack.Screen name="qr-code" options={{ title: 'QR code', headerBackTitle: 'Back' }} />
               <Stack.Screen name="change-password" options={{ title: 'Change password', headerBackTitle: 'Back' }} />
             </Stack.Protected>

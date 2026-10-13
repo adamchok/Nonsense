@@ -1,5 +1,5 @@
 import { formatBlinds, formatBlindsChips } from '@/lib/currency-format';
-import { formatDateTimeDMY } from '@/lib/date-format';
+import { formatDateTime } from '@/lib/date-format';
 import type { SessionAmountUnit } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 
@@ -70,7 +70,7 @@ export function sessionBlindsAreSet(session: SessionView | null): boolean {
 
 export function formatCashOutTimestamp(d: Date): string {
   try {
-    return formatDateTimeDMY(d);
+    return formatDateTime(d);
   } catch {
     return '—';
   }

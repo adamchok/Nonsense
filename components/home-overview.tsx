@@ -1,5 +1,4 @@
 import { Icon, type IconName } from '@/components/icon';
-import { PLChart } from '@/components/pl-chart';
 import { PlayerAvatar } from '@/components/player-avatar';
 import { SessionTitle } from '@/components/meta-line';
 import { PressableScale } from '@/components/motion';
@@ -7,65 +6,16 @@ import { formatSessionTime, formatSessionTitle } from '@/components/session/sess
 import { Skeleton } from '@/components/skeleton';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatCurrency, formatSignedCurrency } from '@/lib/currency-format';
-import type { PlayerAppStatistics, SessionHistoryEntry } from '@/lib/firestore';
-import { radius, space } from '@/lib/spacing';
+import type { SessionHistoryEntry } from '@/lib/firestore';
+import { space } from '@/lib/spacing';
 import { pressBg, text as type, ui } from '@/lib/ui';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 const signColor = (c: AppColors, n: number) => (n > 0 ? c.profit : n < 0 ? c.loss : c.text);
 
-type Stat = { label: string; icon: IconName; value: string; color?: string };
-
-function statsFor(s: PlayerAppStatistics, c: AppColors): Stat[] {
-  const winRate = Math.round((s.winningSessions / s.finishedSessions) * 100);
-  const best = s.bestSessionProfit ?? 0;
-  return [
-    { label: 'Net result', icon: 'trend-up', value: formatSignedCurrency(s.totalProfit), color: signColor(c, s.totalProfit) },
-    { label: 'Sessions', icon: 'calendar', value: String(s.finishedSessions) },
-    { label: 'Win rate', icon: 'percent', value: `${winRate}%` },
-    { label: 'Best session', icon: 'crown-outline', value: formatSignedCurrency(best), color: signColor(c, best) },
-  ];
-}
-
-export function HomeStats({ stats, wide }: { stats: PlayerAppStatistics | null | undefined; wide: boolean }) {
-  const c = useAppColors();
-  if (stats === null || (stats && stats.finishedSessions === 0)) return null;
-  const tiles = stats ? statsFor(stats, c) : null;
-  return (
-    <View style={styles.statsGrid} accessibilityRole="summary">
-      {(tiles ?? Array.from({ length: 4 }, () => null)).map((stat, i) => (
-        <View
-          key={stat?.label ?? i}
-          style={[
-            styles.statTile,
-            wide ? styles.statTileWide : styles.statTileHalf,
-            { backgroundColor: c.card, borderColor: c.border },
-          ]}>
-          {stat ? (
-            <>
-              <View style={styles.sectionTitle}>
-                <Icon name={stat.icon} size={14} color={c.textMuted} />
-                <Text style={[type.label, { color: c.textMuted }]}>{stat.label}</Text>
-              </View>
-              <Text style={[type.title, type.tabular, { color: stat.color ?? c.text }]} numberOfLines={1}>
-                {stat.value}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Skeleton width={64} height={12} />
-              <Skeleton width={88} height={22} />
-            </>
-          )}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const RECENT_ROWS = 5;
-const BOARD_ROWS = 5;
+const RECENT_ROWS = 3;
+const BOARD_ROWS = 3;
 
 function SectionHeader({ title, icon, seeAllHref }: { title: string; icon?: IconName; seeAllHref?: string }) {
   const c = useAppColors();
@@ -148,17 +98,6 @@ export function RecentResults({
   );
 }
 
-export function HomeTrend({ entries }: { entries: SessionHistoryEntry[] | undefined }) {
-  const c = useAppColors();
-  const router = useRouter();
-  if (!entries || entries.length < 2) return null;
-  return (
-    <View style={[styles.chartCard, { backgroundColor: c.card, borderColor: c.border }]}>
-      <PLChart entries={entries} titlePeriod={`in ${new Date().getFullYear()}`} onOpen={(id) => router.push(`../session/summary/${id}`)} />
-    </View>
-  );
-}
-
 type BoardRow = { playerId: string; name: string; avatarEmoji?: string; totalProfit: number };
 
 export function FriendsBoard({
@@ -221,13 +160,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  chartCard: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    paddingTop: 4,
-    paddingBottom: 16,
-    paddingHorizontal: 12,
-  },
   rank: {
     width: 16,
     textAlign: 'center',
@@ -235,27 +167,7 @@ const styles = StyleSheet.create({
   boardName: {
     flex: 1,
     minWidth: 0,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.sm,
-  },
-  statTile: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingVertical: space.md,
-    paddingHorizontal: space.lg,
-    gap: space.xs,
-  },
-  statTileWide: {
-    flex: 1,
-    minWidth: 0,
-  },
-  statTileHalf: {
-    flexBasis: '48%',
-    flexGrow: 1,
-  },
+  },
   section: {
     gap: space.sm,
   },

@@ -21,7 +21,7 @@ export function SearchInput({ value, onChangeText, ...inputProps }: Props) {
         style={[styles.input, { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.text }]}
       />
       <View style={[styles.leading, pointer.none]}>
-        <Icon name="search" size={18} color={c.textMuted} importantForAccessibility="no" />
+        <Icon name="search" size={16} color={c.textMuted} importantForAccessibility="no" />
       </View>
       {value ? (
         <Animated.View entering={fadeIn} exiting={fadeOut} style={styles.clear}>
@@ -48,12 +48,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
-    minHeight: 48,
+    minHeight: 44,
     borderRadius: 9,
     borderWidth: 1,
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingLeft: 42,
+    fontSize: 15,
+    paddingVertical: 10,
+    paddingLeft: 38,
     paddingRight: 48,
   },
   clearDot: {
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   leading: {
     position: 'absolute',
-    left: 14,
+    left: 13,
   },
   clear: {
     position: 'absolute',

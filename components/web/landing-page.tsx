@@ -395,7 +395,7 @@ function Bento({ c, isWide, signal }: { c: AppColors; isWide: boolean; signal: S
             Your profit over time, every session one tap away. Drag or tap along the line to read any night.
           </Text>
           <View style={[styles.chart, { borderTopColor: signal.rule }]}>
-            <PLChart entries={HISTORY} isCountSpelledOut />
+            <PLChart entries={HISTORY} isTotalShown />
           </View>
         </Reveal>
         <Reveal

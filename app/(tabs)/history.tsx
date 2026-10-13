@@ -7,6 +7,7 @@ import { MetaLine, SessionTitle } from '@/components/meta-line';
 import { usePageLayout } from '@/hooks/use-page-layout';
 import { useAppColors } from '@/lib/app-theme';
 import { pointer, pressBg, text } from '@/lib/ui';
+import { radius, space } from '@/lib/spacing';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency,
@@ -16,7 +17,14 @@ import {
 } from '@/lib/currency-format';
 import { formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
 import { appAlert } from '@/lib/app-alert';
-import { deleteSession, getCachedSessionHistory, getSessionHistoryPage, HISTORY_TAB_PAGE_SIZE } from '@/lib/firestore';
+import {
+  deleteSession,
+  getCachedSessionHistory,
+  getPlayerAppStatistics,
+  getSessionHistoryPage,
+  HISTORY_TAB_PAGE_SIZE,
+  type PlayerAppStatistics,
+} from '@/lib/firestore';
 import type { SessionRecord } from '@/types';
 import { Icon, type IconName } from '@/components/icon';
 import { SearchInput } from '@/components/search-input';
@@ -36,6 +44,7 @@ import {
 import { userMessage } from '@/lib/user-message';
 import { EmptyState } from '@/components/empty-state';
 import { PLChart } from '@/components/pl-chart';
+import { StatsSheet } from '@/components/stats-body';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
 import { HistoryFilterSheet } from '@/components/history-filter-sheet';
 import {
@@ -50,7 +59,7 @@ import {
 import {
   Animated as Motion,
   PressableScale,
-  layoutTransition,
+  fadeIn,
   fadeOut,
   listItemEntering,
   webSafe,
@@ -96,6 +105,7 @@ function mergeHistoryPages(prev: HistoryEntry[], next: HistoryEntry[]): HistoryE
 }
 
 const CHART_TO_LIST_GAP = 16;
+const CHIP_ROW_GAP = 14;
 const NARROW_SUMMARY_WIDTH = 380;
 const SORT_TRIGGER_ID = 'history-sort-trigger';
 const SORT_MENU_ID = 'history-sort-menu';
@@ -210,14 +220,27 @@ export default function HistoryScreen() {
     }
   }, [playerProfile]);
 
+  const [lifetime, setLifetime] = useState<PlayerAppStatistics | null>(null);
+  const playerId = playerProfile?.id;
   useFocusEffect(
     useCallback(() => {
       if (!hasLoadedRef.current) setLoading(true);
       void loadHistory();
+      let cancelled = false;
+      if (playerId) {
+        getPlayerAppStatistics(playerId)
+          .then((data) => {
+            if (!cancelled) setLifetime(data);
+          })
+          .catch(() => {
+            if (!cancelled) setLifetime(null);
+          });
+      }
       return () => {
+        cancelled = true;
         loadGenerationRef.current += 1;
       };
-    }, [loadHistory]),
+    }, [loadHistory, playerId]),
   );
 
   const locationOptions = useMemo(() => {
@@ -233,6 +256,8 @@ export default function HistoryScreen() {
     return locationOptions.filter((name) => name.toLowerCase().includes(query));
   }, [locationOptions, locationSearch]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [edges, setEdges] = useState({ top: false, bottom: false });
   const scrollYRef = useRef(0);
   const listHeightRef = useRef(0);
@@ -243,6 +268,11 @@ export default function HistoryScreen() {
     setEdges((prev) => (prev.top === top && prev.bottom === bottom ? prev : { top, bottom }));
   }, []);
   const isSearching = searchQuery.trim().length > 0;
+  const showSearch = searchOpen || searchQuery.length > 0;
+  const toggleSearch = () => {
+    if (showSearch) setSearchQuery('');
+    setSearchOpen(!showSearch);
+  };
   const filteredHistory = useMemo(
     () => filterEntries(history, filters).filter((e) => matchesSearch(e, searchQuery)),
     [filters, history, searchQuery],
@@ -266,10 +296,16 @@ export default function HistoryScreen() {
     return next;
   }, [filteredHistory, sortBy, sortDirection]);
 
-  const totalProfit = filteredHistory.reduce((s, h) => s + h.profit, 0);
-  const totalDurationMs = filteredHistory.reduce((sum, h) => sum + getSessionDurationMs(h), 0);
-  const totalHoursPlayed = totalDurationMs / 3_600_000;
   const hasActiveFilters = countActiveFilters(filters) > 0;
+  const useLifetime = Boolean(lifetime && !hasActiveFilters && !isSearching && hasMoreHistory);
+  const totalProfit = useLifetime && lifetime ? lifetime.totalProfit : filteredHistory.reduce((s, h) => s + h.profit, 0);
+  const totalDurationMs =
+    useLifetime && lifetime
+      ? lifetime.totalPlayTimeMs
+      : filteredHistory.reduce((sum, h) => sum + getSessionDurationMs(h), 0);
+  const totalHoursPlayed = totalDurationMs / 3_600_000;
+  const sessionCount = useLifetime && lifetime ? lifetime.finishedSessions : filteredHistory.length;
+  const isLoadingRest = hasMoreHistory && !useLifetime;
   const hasNonDateFilters = countActiveFilters({ ...filters, startDate: '', endDate: '' }) > 0;
   const allLocationsSelected =
     draftFilters.locations === null ||
@@ -282,6 +318,7 @@ export default function HistoryScreen() {
 
   function applyFilters() {
     setFilters(draftFilters);
+    if (countActiveFilters(draftFilters) > 0 && hasMoreHistory) void loadRemainingHistory();
     setShowFilterModal(false);
     setShowLocationModal(false);
   }
@@ -303,7 +340,12 @@ export default function HistoryScreen() {
     [router],
   );
 
-  const years = useMemo(() => sessionYears(history), [history]);
+  const years = useMemo(() => {
+    const first = lifetime?.firstSessionDate?.getFullYear();
+    const last = lifetime?.lastSessionDate?.getFullYear();
+    const span = first && last ? Array.from({ length: last - first + 1 }, (_, i) => first + i) : [];
+    return [...new Set([...sessionYears(history), ...span])].sort((a, b) => b - a);
+  }, [history, lifetime]);
   const selectedYear = useMemo(() => {
     const today = new Date();
     return (
@@ -314,11 +356,16 @@ export default function HistoryScreen() {
     );
   }, [years, filters.startDate, filters.endDate]);
   const hasDateFilter = Boolean(filters.startDate || filters.endDate);
-  const selectPeriod = useCallback((year: number | null) => {
-    const r = year === null ? { start: '', end: '' } : yearRange(year, new Date());
-    setFilters((prev) => ({ ...prev, startDate: r.start, endDate: r.end }));
-  }, []);
+  const selectPeriod = useCallback(
+    (year: number | null) => {
+      const r = year === null ? { start: '', end: '' } : yearRange(year, new Date());
+      setFilters((prev) => ({ ...prev, startDate: r.start, endDate: r.end }));
+      if (year !== null && hasMoreHistory) void loadRemainingHistory();
+    },
+    [hasMoreHistory, loadRemainingHistory],
+  );
   const titlePeriod = selectedYear ? `in ${selectedYear}` : hasDateFilter ? 'in selected dates' : undefined;
+  const chartPeriod = useLifetime ? `(last ${history.length})` : titlePeriod;
 
   const chartHeader = useMemo(
     () => (
@@ -328,15 +375,15 @@ export default function HistoryScreen() {
             <View
               style={[
                 styles.chartCard,
-                { backgroundColor: c.card, borderColor: c.border, marginBottom: CHART_TO_LIST_GAP },
+                { backgroundColor: c.card, borderColor: c.border },
               ]}>
-              <PLChart entries={filteredHistory} titlePeriod={titlePeriod} onOpen={openSessionSummary} />
+              <PLChart entries={filteredHistory} titlePeriod={chartPeriod} onOpen={openSessionSummary} />
             </View>
           ) : null}
         </>
       )
     ),
-    [filteredHistory, isSearching, titlePeriod, c.card, c.border, openSessionSummary],
+    [filteredHistory, isSearching, chartPeriod, c.card, c.border, openSessionSummary],
   );
 
   const confirmDeleteSession = useCallback(
@@ -364,6 +411,69 @@ export default function HistoryScreen() {
       );
     },
     [loadHistory],
+  );
+
+  const summary = (
+    <View style={styles.summaryRow}>
+      <View
+        style={[
+          styles.summaryCard,
+          styles.summaryCardHalf,
+          { backgroundColor: c.card, borderColor: c.borderAccent },
+        ]}>
+        <Text style={[styles.summaryLabel, { color: c.textMuted }]}>
+          {titlePeriod ? `Profit/loss ${titlePeriod}` : 'Lifetime profit/loss'}
+        </Text>
+        {loading ? (
+          <SummaryValueSkeleton valueWidth={96} metaWidth={70} />
+        ) : (
+          <>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={[
+                styles.summaryValue,
+                narrowSummary && styles.summaryValueNarrow,
+                { color: totalProfit >= 0 ? c.profit : c.loss },
+              ]}>
+              {formatLifetimeTotal(totalProfit)}
+            </Text>
+            <Text style={[styles.summaryMeta, { color: c.textHint }]}>
+              {sessionCount} session{sessionCount !== 1 ? 's' : ''}
+              {hasNonDateFilters ? ' (filtered)' : ''}
+            </Text>
+          </>
+        )}
+      </View>
+      <View style={[styles.summaryCard, styles.summaryCardHalf, { backgroundColor: c.card, borderColor: c.border }]}>
+        <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Total played</Text>
+        {loading ? (
+          <SummaryValueSkeleton valueWidth={64} metaWidth={110} />
+        ) : (
+          <>
+            <Text style={[styles.summaryValue, narrowSummary && styles.summaryValueNarrow, { color: c.text }]}>
+              {totalHoursPlayed.toFixed(1)}h
+            </Text>
+            <Text style={[styles.summaryMeta, { color: c.textHint }]}>
+              {isLoadingRest ? 'Loading older sessions…' : titlePeriod ? `In ${titlePeriod.slice(3)}` : 'Across all sessions'}
+            </Text>
+          </>
+        )}
+      </View>
+    </View>
+  );
+
+  const statsLink = (
+    <PressableScale
+      pressedScale={0.985}
+      onPress={() => setShowStats(true)}
+      accessibilityRole="button"
+      accessibilityLabel="All statistics"
+      style={(state) => [styles.statsLink, { borderColor: c.border }, pressBg(c, state, c.card)]}>
+      <Icon name="bar-chart" size={18} color={c.textMuted} importantForAccessibility="no" />
+      <Text style={[styles.statsLinkLabel, { color: c.text }]}>All statistics</Text>
+      <Icon name="chevron-right" size={18} color={c.textMuted} importantForAccessibility="no" />
+    </PressableScale>
   );
 
   return (
@@ -394,6 +504,22 @@ export default function HistoryScreen() {
           <Text style={[styles.title, { color: c.text }]}>History</Text>
         </View>
         <View style={styles.headerActions}>
+          {history.length > 0 ? (
+            <PressableScale
+              pressedScale={0.92}
+              style={[
+                styles.filterButton,
+                showSearch
+                  ? { backgroundColor: c.accentBg, borderColor: c.accentBorder }
+                  : { backgroundColor: c.card, borderColor: c.inputBorder },
+              ]}
+              onPress={toggleSearch}
+              accessibilityRole="button"
+              accessibilityLabel={showSearch ? 'Close search' : 'Search sessions'}
+              accessibilityState={{ expanded: showSearch }}>
+              <Icon name="search" size={20} color={showSearch ? c.accentText : c.text} />
+            </PressableScale>
+          ) : null}
           <View style={styles.sortWrap}>
             <PressableScale
               pressedScale={0.92}
@@ -517,70 +643,26 @@ export default function HistoryScreen() {
         </View>
       </View>
 
-      <View style={styles.summaryRow}>
-        <View
-          style={[
-            styles.summaryCard,
-            styles.summaryCardHalf,
-            { backgroundColor: c.card, borderColor: c.borderAccent },
-          ]}>
-          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>
-            {titlePeriod ? `Profit/loss ${titlePeriod}` : 'Lifetime profit/loss'}
-          </Text>
-          {loading ? (
-            <SummaryValueSkeleton valueWidth={96} metaWidth={70} />
-          ) : (
-            <>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[
-                  styles.summaryValue,
-                  narrowSummary && styles.summaryValueNarrow,
-                  { color: totalProfit >= 0 ? c.profit : c.loss },
-                ]}>
-                {formatLifetimeTotal(totalProfit)}
-              </Text>
-              <Text style={[styles.summaryMeta, { color: c.textHint }]}>
-                {filteredHistory.length} session{filteredHistory.length !== 1 ? 's' : ''}
-                {hasNonDateFilters ? ' (filtered)' : ''}
-                {hasMoreHistory ? ` · ${history.length} loaded` : ''}
-              </Text>
-            </>
-          )}
-        </View>
-        <View style={[styles.summaryCard, styles.summaryCardHalf, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={[styles.summaryLabel, { color: c.textMuted }]}>Total played</Text>
-          {loading ? (
-            <SummaryValueSkeleton valueWidth={64} metaWidth={110} />
-          ) : (
-            <>
-              <Text style={[styles.summaryValue, narrowSummary && styles.summaryValueNarrow, { color: c.text }]}>
-                {totalHoursPlayed.toFixed(1)}h
-              </Text>
-              <Text style={[styles.summaryMeta, { color: c.textHint }]}>
-                {hasMoreHistory ? 'Among loaded sessions' : titlePeriod ? `In ${titlePeriod.slice(3)}` : 'Across all sessions'}
-              </Text>
-            </>
-          )}
-        </View>
-      </View>
-
       {error ? <Text style={[styles.historyMeta, { color: c.loss }]}>{error}</Text> : null}
 
-      {history.length > 0 ? (
-        <View style={styles.quickFilters}>
-          <SearchInput
-            placeholder="Search place, date or stakes"
-            accessibilityLabel="Search sessions by place, date or stakes"
-            autoCorrect={false}
-            autoComplete="off"
-            value={searchQuery}
-            onChangeText={(t) => {
-              setSearchQuery(t);
-              if (t.trim() && hasMoreHistory) void loadRemainingHistory();
-            }}
-          />
+      {history.length > 0 && (showSearch || years.length >= 2) ? (
+        <View style={[styles.quickFilters, { marginVertical: CHIP_ROW_GAP - layout.sectionGap }]}>
+          {showSearch ? (
+            <Motion.View entering={fadeIn} exiting={fadeOut}>
+              <SearchInput
+                autoFocus={searchOpen && !searchQuery}
+                placeholder="Search place, date or stakes"
+                accessibilityLabel="Search sessions by place, date or stakes"
+                autoCorrect={false}
+                autoComplete="off"
+                value={searchQuery}
+                onChangeText={(t) => {
+                  setSearchQuery(t);
+                  if (t.trim() && hasMoreHistory) void loadRemainingHistory();
+                }}
+              />
+            </Motion.View>
+          ) : null}
         {years.length >= 2 || isSearching ? (
           <View style={styles.periodBar}>
             {years.length >= 2 ? (
@@ -629,7 +711,10 @@ export default function HistoryScreen() {
       ) : null}
 
       {loading ? (
-        <HistorySkeleton />
+        <View style={styles.loadingStack}>
+          {summary}
+          <HistorySkeleton />
+        </View>
       ) : filteredHistory.length === 0 ? (
         history.length === 0 ? (
           <EmptyState
@@ -672,7 +757,6 @@ export default function HistoryScreen() {
           <Motion.FlatList
             data={sortedHistory}
             keyExtractor={(item) => item.id}
-            itemLayoutAnimation={layoutTransition}
             style={styles.list}
             onScroll={(e) => {
               scrollYRef.current = e.nativeEvent.contentOffset.y;
@@ -698,7 +782,13 @@ export default function HistoryScreen() {
                 />
               )
             }
-            ListHeaderComponent={chartHeader}
+            ListHeaderComponent={
+              <View style={styles.listHeader}>
+                {summary}
+                {statsLink}
+                {chartHeader}
+              </View>
+            }
             ListFooterComponent={
               hasMoreHistory ? (
                 <View style={styles.historyPaginationFooter}>
@@ -751,6 +841,8 @@ export default function HistoryScreen() {
           ) : null}
         </View>
       )}
+
+      <StatsSheet playerId={playerProfile?.id ?? null} visible={showStats} onClose={() => setShowStats(false)} />
 
       <HistoryFilterSheet
         visible={showFilterModal}
@@ -902,11 +994,6 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
         textStyle={[styles.historyLabel, { color: c.text }]}
         style={styles.historyTitleShrink}
       />
-      {isHost ? (
-        <View style={[styles.roleBadge, { backgroundColor: c.badge.host }]}>
-          <Text style={styles.roleBadgeText}>Host</Text>
-        </View>
-      ) : null}
     </View>
   );
   const metaLine = (
@@ -979,9 +1066,6 @@ function HistoryRow({ item, isHost, isFirst, isLast, entering, onOpen, onRemove 
                 <Text style={[styles.historyProfit, { color: profitColor }]}>{formatSignedCurrency(item.profit)}</Text>
               </View>
               {metaLine}
-              <Text style={[styles.historyDetail, { color: c.textHint }]}>
-                Buy-in: {formatCurrency(item.totalBuyIn)} Cash-out: {formatCurrency(item.cashOut)}
-              </Text>
             </>
           )}
         </PressableScale>
@@ -1198,6 +1282,27 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 12,
   },
+  listHeader: {
+    gap: space.md,
+    marginBottom: CHART_TO_LIST_GAP,
+  },
+  loadingStack: {
+    flex: 1,
+    gap: space.md,
+  },
+  statsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 48,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  statsLinkLabel: {
+    ...text.rowTitle,
+    flex: 1,
+  },
   summaryRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1357,22 +1462,8 @@ const styles = StyleSheet.create({
     ...text.rowTitle,
     flexShrink: 1,
   },
-  roleBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  roleBadgeText: {
-    ...text.label,
-    color: '#fff',
-    fontWeight: '600',
-  },
   historyProfit: text.amount,
   historyMeta: text.rowMeta,
-  historyDetail: {
-    ...text.rowMeta,
-    fontVariant: ['tabular-nums'],
-  },
   dropdownOption: {
     flexDirection: 'row',
     alignItems: 'center',

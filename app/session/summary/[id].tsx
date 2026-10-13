@@ -9,7 +9,7 @@ import { usePageLayout } from '@/hooks/use-page-layout';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useAppColors } from '@/lib/app-theme';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatSessionBlindsForDisplay, formatSignedCurrency } from '@/lib/currency-format';
+import { formatCurrency, formatCurrencyShort, formatSessionBlindsForDisplay, formatSignedCurrency } from '@/lib/currency-format';
 import { formatSessionDay, formatSessionTime, formatSessionTitle } from '@/components/session/session-title';
 import { radius, space } from '@/lib/spacing';
 import { text } from '@/lib/ui';
@@ -79,12 +79,11 @@ type ResultRowProps = {
   isEarly: boolean;
   avatar: string;
   medal: string | null;
-  barColor: string;
   celebrate: boolean;
   c: AppColors;
 };
 
-function ResultRow({ item, index, isMe, isEarly, avatar, medal, barColor, celebrate, c }: ResultRowProps) {
+function ResultRow({ item, index, isMe, isEarly, avatar, medal, celebrate, c }: ResultRowProps) {
   const reduceMotion = useReducedMotion();
   const delay = celebrationRowDelay(index);
   const [counting, setCounting] = useState(!celebrate || reduceMotion);
@@ -109,61 +108,38 @@ function ResultRow({ item, index, isMe, isEarly, avatar, medal, barColor, celebr
       ]
         .filter(Boolean)
         .join(', ')}
-      style={[
-        styles.resultRow,
-        { backgroundColor: c.card, borderColor: c.border },
-        index === 0 && { borderColor: c.accentBorder },
-      ]}>
-      {barColor !== 'transparent' ? (
-        <View style={[styles.rankBar, { backgroundColor: barColor }]} />
-      ) : (
-        <View style={styles.rankBarPlaceholder} />
-      )}
-      <View style={styles.resultBody}>
-        <View style={styles.resultTop}>
-          <View style={styles.resultLeft}>
-            {index === 0 && medal ? (
-              <View style={[styles.medal, { backgroundColor: `${medal}26`, borderColor: medal }]}>
-                <Icon name="crown-outline" size={16} color={medal} weight="fill" />
-              </View>
-            ) : null}
-            <PlayerAvatar value={avatar} size={32} />
-            <Text style={[text.rowTitle, styles.resultName, { color: c.text }]} numberOfLines={1}>
-              {item.playerName}
-            </Text>
-            <View style={styles.badgesRow}>
-              {isMe && (
-                <View style={[styles.youBadge, { backgroundColor: c.badge.you }]}>
-                  <Text style={[text.micro, styles.badgeText]}>YOU</Text>
-                </View>
-              )}
-              {isEarly && (
-                <View style={[styles.earlyBadge, { backgroundColor: c.badge.cashedOut }]}>
-                  <Text style={[text.micro, styles.badgeText]}>Early</Text>
-                </View>
-              )}
-            </View>
-          </View>
-          <Text style={[text.heading, styles.resultProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
-            {formatSignedCurrency(shownProfit)}
-          </Text>
-        </View>
-        <View style={styles.amountChips}>
-          <View style={[styles.amountChip, { backgroundColor: c.chipMinusBg, borderColor: c.border }]}>
-            <Icon name="money-in" size={12} color={c.textMuted} />
-            <Text style={[text.micro, { color: c.textMuted }]}>In</Text>
-            <Text style={[text.label, styles.amountChipValue, { color: c.text }]}>
-              {formatCurrency(item.totalBuyIn)}
-            </Text>
-          </View>
-          <Icon name="arrow-right" size={14} color={c.textHint} />
-          <View style={[styles.amountChip, { backgroundColor: c.chipPlusBg, borderColor: c.border }]}>
-            <Icon name="money-out" size={12} color={c.textMuted} />
-            <Text style={[text.micro, { color: c.textMuted }]}>Out</Text>
-            <Text style={[text.label, styles.amountChipValue, { color: c.text }]}>{formatCurrency(item.cashOut)}</Text>
-          </View>
-        </View>
+      style={[styles.resultRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.border }]}>
+      <View style={styles.rankSlot}>
+        {index === 0 && medal ? (
+          <Icon name="crown-outline" size={18} color={medal} weight="fill" />
+        ) : (
+          <Text style={[text.label, text.tabular, { color: c.textMuted }]}>{index + 1}</Text>
+        )}
       </View>
+      <PlayerAvatar value={avatar} size={32} />
+      <View style={styles.resultBody}>
+        <View style={styles.resultNameRow}>
+          <Text style={[text.rowTitle, styles.resultName, { color: c.text }]} numberOfLines={1}>
+            {item.playerName}
+          </Text>
+          {isMe && (
+            <View style={[styles.badge, { backgroundColor: c.accentBg }]}>
+              <Text style={[text.micro, styles.badgeLabel, { color: c.accentText }]}>You</Text>
+            </View>
+          )}
+          {isEarly && (
+            <View style={[styles.badge, { backgroundColor: c.badge.cashedOut }]}>
+              <Text style={[text.micro, styles.badgeLabel, styles.badgeOnColor]}>Early</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[text.rowMeta, text.tabular, { color: c.textMuted }]} numberOfLines={1}>
+          In {formatCurrencyShort(item.totalBuyIn)} → Out {formatCurrencyShort(item.cashOut)}
+        </Text>
+      </View>
+      <Text style={[text.amount, styles.resultProfit, { color: item.profit >= 0 ? c.profit : c.loss }]}>
+        {formatSignedCurrency(shownProfit)}
+      </Text>
     </View>
   );
 
@@ -281,7 +257,7 @@ export default function SessionSummaryScreen() {
   const locationText = sessionLocation?.trim() ? sessionLocation.trim() : '—';
   const locationCell = (
     <>
-      <View style={[styles.metaIconWrapSmall, { backgroundColor: c.accentBg }]}>
+      <View style={[styles.metaIconWrapSmall, { backgroundColor: c.greenBg }]}>
         <Icon name="map-marker-outline" size={16} color={c.green} />
       </View>
       <View style={styles.metaItemText}>
@@ -527,8 +503,6 @@ export default function SessionSummaryScreen() {
     );
   }
 
-  const rankBarColor = (rank: number) => medalColor(rank, c, isDark) ?? 'transparent';
-
   const settlementEntering = celebrate
     ? FadeIn.duration(260).delay(celebrationRowDelay(results.length)).reduceMotion(ReduceMotion.System)
     : fadeIn;
@@ -552,6 +526,7 @@ export default function SessionSummaryScreen() {
               <Text style={[text.label, isMd && styles.pageTimeWide, { color: c.textMuted }]} numberOfLines={1}>
                 {formatSessionTime(sessionDate)}
                 {sessionFinishedAt ? ` – ${formatSessionTime(sessionFinishedAt)}` : ''}
+                {durationText && durationText !== '—' ? ` · ${durationText}` : ''}
               </Text>
             </View>
           </View>
@@ -560,6 +535,8 @@ export default function SessionSummaryScreen() {
           <View style={styles.metaGrid}>
             <View style={styles.metaGridRow}>
               <View style={styles.metaGridCell}>{locationCell}</View>
+            </View>
+            <View style={styles.metaGridRow}>
               <View style={styles.metaGridCell}>
                 <View style={[styles.metaIconWrapSmall, { backgroundColor: c.yellowBg }]}>
                   <Icon name="crown-outline" size={16} color={c.yellow} />
@@ -568,19 +545,6 @@ export default function SessionSummaryScreen() {
                   <Text style={[text.label, { color: c.textMuted }]}>Host</Text>
                   <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
                     {sessionHostName?.trim() ? sessionHostName.trim() : '—'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.metaGridRow}>
-              <View style={styles.metaGridCell}>
-                <View style={[styles.metaIconWrapSmall, { backgroundColor: c.cardAlt }]}>
-                  <Icon name="clock-outline" size={16} color={c.textSecondary} />
-                </View>
-                <View style={styles.metaItemText}>
-                  <Text style={[text.label, { color: c.textMuted }]}>Duration</Text>
-                  <Text style={[text.rowTitle, { color: c.text }]} numberOfLines={1}>
-                    {durationText}
                   </Text>
                 </View>
               </View>
@@ -608,20 +572,21 @@ export default function SessionSummaryScreen() {
             <Icon name="trophy-outline" size={sectionIconSize} color={c.accentText} />
             <Text style={[sectionTitleStyle, { color: c.text }]}>Standings</Text>
           </View>
-          {results.map((item, index) => (
-            <ResultRow
-              key={item.playerId}
-              item={item}
-              index={index}
-              isMe={Boolean(user?.uid && item.playerId === user.uid)}
-              isEarly={earlyPlayerIds.has(item.playerId)}
-              avatar={getAvatarEmoji(item.playerId, playerProfile, friendAvatarMap)}
-              medal={medalColor(index, c, isDark)}
-              barColor={rankBarColor(index)}
-              celebrate={celebrate}
-              c={c}
-            />
-          ))}
+          <View style={[styles.resultsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            {results.map((item, index) => (
+              <ResultRow
+                key={item.playerId}
+                item={item}
+                index={index}
+                isMe={Boolean(user?.uid && item.playerId === user.uid)}
+                isEarly={earlyPlayerIds.has(item.playerId)}
+                avatar={getAvatarEmoji(item.playerId, playerProfile, friendAvatarMap)}
+                medal={medalColor(index, c, isDark)}
+                celebrate={celebrate}
+                c={c}
+              />
+            ))}
+          </View>
         </View>
 
         <Animated.View entering={settlementEntering} style={styles.settlementBlock}>
@@ -854,86 +819,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginBottom: 4,
   },
-  resultRow: {
-    flexDirection: 'row',
+  resultsCard: {
     borderRadius: 14,
     borderWidth: 1,
     overflow: 'hidden',
   },
-  rankBar: {
-    width: 4,
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 64,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
-  rankBarPlaceholder: {
-    width: 4,
+  rankSlot: {
+    width: 20,
+    alignItems: 'center',
+  },
+  resultNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 0,
+  },
+  badge: {
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeLabel: {
+    fontWeight: '700',
+  },
+  badgeOnColor: {
+    color: '#fff',
   },
   resultBody: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 10,
     minWidth: 0,
-  },
-  resultTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  resultLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    minWidth: 0,
-  },
-  medal: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 2,
   },
   resultName: {
     flexShrink: 1,
   },
-  badgesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 5,
-  },
-  youBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  earlyBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
   resultProfit: {
     fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  amountChips: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  amountChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  amountChipValue: {
-    fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
   settlementCard: {
@@ -976,11 +905,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: 'center',
     gap: 8,
-  },
-  badgeText: {
-    color: '#fff',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
   },
   centered: {
     textAlign: 'center',

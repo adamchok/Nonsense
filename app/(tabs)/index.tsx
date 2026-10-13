@@ -9,13 +9,11 @@ import { formatSessionDay, formatSessionTime, formatSessionTitle } from '@/compo
 import {
   getBuyIns,
   getFriendLeaderboard,
-  getPlayerAppStatistics,
   getRecentSessionsForPlayer,
   getSessionHistoryPage,
-  type PlayerAppStatistics,
   type SessionHistoryEntry,
 } from '@/lib/firestore';
-import { FriendsBoard, HomeStats, HomeTrend, RecentResults } from '@/components/home-overview';
+import { FriendsBoard, RecentResults } from '@/components/home-overview';
 import type { SessionRecord } from '@/types';
 import { Icon, type IconName } from '@/components/icon';
 import { Skeleton, SkeletonGroup } from '@/components/skeleton';
@@ -52,21 +50,7 @@ import {
   listItemEntering,
 } from '@/components/motion';
 
-const RECENT_RESULTS_COUNT = 30;
-const YEAR_PAGE_SIZE = 50;
-
-async function loadYearToDate(playerId: string): Promise<{ loaded: SessionHistoryEntry[]; year: SessionHistoryEntry[] }> {
-  const yearStart = new Date(new Date().getFullYear(), 0, 1);
-  const loaded: SessionHistoryEntry[] = [];
-  let cursor: Parameters<typeof getSessionHistoryPage>[2] = null;
-  do {
-    const page = await getSessionHistoryPage(playerId, YEAR_PAGE_SIZE, cursor);
-    loaded.push(...page.entries);
-    const oldest = page.entries[page.entries.length - 1];
-    cursor = page.hasMore && oldest && oldest.date >= yearStart ? page.lastDoc : null;
-  } while (cursor);
-  return { loaded, year: loaded.filter((e) => e.date >= yearStart) };
-}
+const RECENT_RESULTS_COUNT = 3;
 const COMPACT_ROW_WIDTH = 480;
 const SHORT_CTA_WIDTH = 380;
 const PHONE_TOP_EXTRA = 16;
@@ -89,23 +73,18 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [stats, setStats] = useState<PlayerAppStatistics | null | undefined>(undefined);
   const [recent, setRecent] = useState<SessionHistoryEntry[] | undefined>(undefined);
-  const [yearEntries, setYearEntries] = useState<SessionHistoryEntry[] | undefined>(undefined);
   const [board, setBoard] = useState<Awaited<ReturnType<typeof getFriendLeaderboard>> | undefined>(undefined);
 
   const loadOverview = useCallback(
     async (opts?: { signal?: AbortSignal; force?: boolean }) => {
       if (!playerProfile) return;
-      const [statsResult, recentResult, boardResult] = await Promise.allSettled([
-        getPlayerAppStatistics(playerProfile.id, opts?.force),
-        loadYearToDate(playerProfile.id),
+      const [recentResult, boardResult] = await Promise.allSettled([
+        getSessionHistoryPage(playerProfile.id, RECENT_RESULTS_COUNT, null),
         getFriendLeaderboard(playerProfile.id, opts?.force),
       ]);
       if (opts?.signal?.aborted) return;
-      setStats(statsResult.status === 'fulfilled' ? statsResult.value : null);
-      setRecent(recentResult.status === 'fulfilled' ? recentResult.value.loaded.slice(0, RECENT_RESULTS_COUNT) : []);
-      setYearEntries(recentResult.status === 'fulfilled' ? recentResult.value.year : []);
+      setRecent(recentResult.status === 'fulfilled' ? recentResult.value.entries : []);
       setBoard(boardResult.status === 'fulfilled' ? boardResult.value : []);
     },
     [playerProfile],
@@ -251,8 +230,6 @@ export default function HomeScreen() {
       </View>
 
 
-      {playerProfile ? <HomeStats stats={stats} wide={isMd} /> : null}
-
       {error ? <Text style={[type.label, { color: c.loss }]}>{error}</Text> : null}
 
       <View style={styles.section}>
@@ -369,13 +346,10 @@ export default function HomeScreen() {
       </View>
 
       {playerProfile ? (
-        <>
-          <HomeTrend entries={yearEntries} />
-          <View style={isMd ? styles.twoCol : styles.stack}>
-            <RecentResults entries={recent} style={isMd && styles.col} />
-            <FriendsBoard rows={board} myId={playerProfile.id} style={isMd && styles.col} />
-          </View>
-        </>
+        <View style={isMd ? styles.twoCol : styles.stack}>
+          <RecentResults entries={recent} style={isMd && styles.col} />
+          <FriendsBoard rows={board} myId={playerProfile.id} style={isMd && styles.col} />
+        </View>
       ) : null}
     </ScrollView>
   );

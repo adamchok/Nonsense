@@ -39,6 +39,7 @@ export interface AppColors {
   yellowBorder: string;
 
   green: string;
+  greenBg: string;
 
   badge: {
     host: string;
@@ -116,6 +117,7 @@ const dark: AppColors = {
   yellowBorder: '#6b5520',
 
   green: '#279c68',
+  greenBg: '#12301f',
 
   badge: {
     host: '#6b5520',
@@ -193,6 +195,7 @@ const light: AppColors = {
   yellowBorder: '#e9c77a',
 
   green: '#279c68',
+  greenBg: '#dcfce7',
 
   badge: {
     host: '#8a5a00',

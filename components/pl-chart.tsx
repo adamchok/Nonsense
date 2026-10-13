@@ -4,7 +4,7 @@ import { MetaLine } from '@/components/meta-line';
 import { PressableScale } from '@/components/motion';
 import { useAppColors, type AppColors } from '@/lib/app-theme';
 import { formatSignedCurrency, formatTightCompactNumber } from '@/lib/currency-format';
-import { formatDateDMY } from '@/lib/date-format';
+import { formatDate } from '@/lib/date-format';
 import * as Haptics from 'expo-haptics';
 import { memo, useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
@@ -119,12 +119,12 @@ export const PLChart = memo(function PLChart({
   entries,
   onOpen,
   titlePeriod,
-  isCountSpelledOut = false,
+  isTotalShown = false,
 }: {
   entries: readonly Entry[];
   onOpen?: (id: string) => void;
   titlePeriod?: string;
-  isCountSpelledOut?: boolean;
+  isTotalShown?: boolean;
 }) {
   const c = useAppColors();
   const reduceMotion = useReducedMotion();
@@ -302,7 +302,7 @@ export const PLChart = memo(function PLChart({
       </Text>
       <MetaLine
         textStyle={[styles.headerHint, { color: c.textMuted }]}
-        parts={[formatDateDMY(selected.date), secondaryLabel]}
+        parts={[formatDate(selected.date), secondaryLabel]}
       />
     </View>
   );
@@ -345,10 +345,7 @@ export const PLChart = memo(function PLChart({
           <View style={styles.titleWithIcon}>
             <Icon name={mode === 'line' ? 'trend-up' : 'bar-chart'} size={18} color={c.textMuted} />
             <Text style={[styles.headerLabel, styles.headerLabelShrink, { color: c.text }]}>
-              {titlePeriod ? `${current.title} ${titlePeriod}` : current.title}{' '}
-              <Text style={[styles.headerCount, { color: c.textMuted }]} accessibilityLabel={countLabel}>
-                ({isCountSpelledOut ? countLabel : data.length})
-              </Text>
+              {titlePeriod ? `${current.title} ${titlePeriod}` : current.title}
             </Text>
           </View>
           {isCompact ? null : modeToggle}
@@ -363,7 +360,7 @@ export const PLChart = memo(function PLChart({
                   pressedScale={0.96}
                   onPress={() => onOpen(selected.id)}
                   accessibilityRole="button"
-                  accessibilityLabel={`View session on ${formatDateDMY(selected.date)}`}
+                  accessibilityLabel={`View session on ${formatDate(selected.date)}`}
                   style={(state) => [
                     styles.openBtn,
                     isCompact && styles.openBtnCompact,
@@ -388,9 +385,18 @@ export const PLChart = memo(function PLChart({
             </View>
           ) : (
             <View style={[styles.valueRow, styles.header, styles.valueRowIdle]}>
-              <View style={styles.headerSelectedText}>
-                <Text style={[styles.headerValue, { color: signColor(c, final) }]}>{formatSignedCurrency(final)}</Text>
-              </View>
+              {isTotalShown ? (
+                <View style={styles.headerSelectedText}>
+                  <Text style={[styles.headerValue, { color: signColor(c, final) }]}>{formatSignedCurrency(final)}</Text>
+                </View>
+              ) : (
+                <View style={[styles.headerSelectedText, styles.idleHint]}>
+                  <Icon name="tap" size={14} color={c.textHint} />
+                  <Text style={[styles.caption, { color: c.textHint }]} accessibilityLabel={`${countLabel}. ${current.hint}`}>
+                    {current.hint}
+                  </Text>
+                </View>
+              )}
               {isCompact ? modeToggle : null}
             </View>
           )}
@@ -520,10 +526,6 @@ export const PLChart = memo(function PLChart({
           })}
         </View>
       ) : null}
-      <View style={styles.captionRow}>
-        <Icon name="tap" size={14} color={c.textHint} />
-        <Text style={[styles.caption, { color: c.textHint }]}>{current.hint}</Text>
-      </View>
     </View>
   );
 });
@@ -544,10 +546,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  caption: { fontSize: 12, textAlign: 'center' },
-  dateAxis: { height: 18, marginTop: 6, marginBottom: 14 },
+  caption: { fontSize: 13 },
+  dateAxis: { height: 18, marginTop: 6 },
   dateAxisLabel: { position: 'absolute', top: 0, width: AXIS_LABEL_WIDTH },
-  captionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  idleHint: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   titleWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -608,10 +610,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-  },
-  headerCount: {
-    fontWeight: '400',
-    fontVariant: ['tabular-nums'],
   },
   headerLabelShrink: {
     flexShrink: 1,

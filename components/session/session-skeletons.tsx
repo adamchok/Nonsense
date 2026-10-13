@@ -31,18 +31,17 @@ export function LiveSessionSkeleton({ contentStyle }: LayoutProps) {
     <SkeletonGroup label="Loading session" style={[live.screen, { backgroundColor: c.bg }]}>
       <View style={contentStyle}>
         <View style={live.group}>
-          <LiveHeaderSkeleton />
           <PotSkeleton />
           <View style={live.metaRow}>
-            <MetaCardSkeleton icon="place" label="LOCATION" valueWidth="70%" />
-            <MetaCardSkeleton icon="payments" label="BLINDS" valueWidth="55%" />
+            <MetaCardSkeleton icon="place" label="Location" valueWidth="70%" />
+            <MetaCardSkeleton icon="payments" label="Blinds" valueWidth="55%" />
           </View>
         </View>
 
         <View style={live.ledger}>
           <View style={live.ledgerHeader}>
             <Text style={[type.section, { color: c.textMuted }]} numberOfLines={1}>
-              Buy-In Ledger
+              Buy-in ledger
             </Text>
             <Skeleton width={22} height={10} radius={4} />
           </View>
@@ -59,28 +58,16 @@ export function LiveSessionSkeleton({ contentStyle }: LayoutProps) {
   );
 }
 
-function LiveHeaderSkeleton() {
-  const c = useAppColors();
-  return (
-    <View style={live.header}>
-      <View style={live.headerText}>
-        <Text style={[live.headerLabel, { color: c.textHint }]}>SESSION</Text>
-        <TextBone lineHeight={26} width="70%" />
-      </View>
-      <View style={live.headerActions}>
-        <Skeleton width={44} height={44} radius={22} />
-        <Skeleton width={100} height={44} radius={22} />
-      </View>
-    </View>
-  );
-}
-
 function PotSkeleton() {
   const c = useAppColors();
   return (
     <View style={[live.pot, { backgroundColor: c.card, borderColor: c.borderAccent }]}>
-      <Text style={[live.potLabel, { color: c.accentText }]}>POT</Text>
-      <TextBone lineHeight={26} width={96} />
+      <View style={live.potText}>
+        <Text style={[type.section, { color: c.accentText }]}>Pot</Text>
+        <TextBone lineHeight={40} width={140} />
+        <TextBone lineHeight={18} width={180} />
+      </View>
+      <Skeleton width={104} height={48} radius={24} />
     </View>
   );
 }
@@ -133,20 +120,17 @@ function LedgerRowSkeleton({
 const live = StyleSheet.create({
   screen: { flex: 1, overflow: 'hidden' },
   group: { gap: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  headerText: { flex: 1, minWidth: 0 },
-  headerLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.72, marginBottom: 2 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pot: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     borderRadius: 14,
     borderWidth: 1,
     paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 2,
   },
-  potLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.72 },
+  potText: { flex: 1, minWidth: 0, gap: 4 },
   metaRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   metaCard: {
     flex: 1,
@@ -161,7 +145,7 @@ const live = StyleSheet.create({
   },
   metaText: { flex: 1, gap: 2 },
   metaLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.66 },
+  metaLabel: type.label,
   ledger: { gap: 8 },
   ledgerHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4, minHeight: 32 },
   row: { gap: 12 },
@@ -173,12 +157,9 @@ const live = StyleSheet.create({
 
 type MetaTile = { icon: IconName; label: string; tint: 'accent' | 'yellow' | 'blue' | 'chip'; width: DimensionValue };
 const SUMMARY_META: MetaTile[][] = [
+  [{ icon: 'map-marker-outline', label: 'Location', tint: 'accent', width: '45%' }],
   [
-    { icon: 'map-marker-outline', label: 'Location', tint: 'accent', width: '80%' },
     { icon: 'crown-outline', label: 'Host', tint: 'yellow', width: '65%' },
-  ],
-  [
-    { icon: 'clock-outline', label: 'Duration', tint: 'blue', width: '50%' },
     { icon: 'cash-multiple', label: 'Blinds', tint: 'chip', width: '60%' },
   ],
 ];
@@ -188,6 +169,10 @@ export function SessionSummarySkeleton({ contentStyle }: LayoutProps) {
   return (
     <SkeletonGroup label="Loading summary" style={[summary.screen, { backgroundColor: c.bg }]}>
       <View style={[contentStyle, summary.content]}>
+        <View style={summary.heading}>
+          <TextBone lineHeight={30} width="55%" />
+          <TextBone lineHeight={18} width="65%" />
+        </View>
         <View style={[summary.metaCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <View style={summary.metaGrid}>
             {SUMMARY_META.map((row, r) => (
@@ -205,9 +190,11 @@ export function SessionSummarySkeleton({ contentStyle }: LayoutProps) {
             <Icon name="trophy-outline" size={20} color={c.warning} />
             <Text style={[summary.sectionTitle, { color: c.text }]}>Standings</Text>
           </View>
-          {PLAYER_NAME_WIDTHS.map((nameWidth, i) => (
-            <StandingSkeleton key={i} nameWidth={nameWidth} />
-          ))}
+          <View style={[summary.resultsCard, { backgroundColor: c.card, borderColor: c.border }]}>
+            {PLAYER_NAME_WIDTHS.map((nameWidth, i) => (
+              <StandingSkeleton key={i} nameWidth={nameWidth} isFirst={i === 0} />
+            ))}
+          </View>
         </View>
 
         <View style={summary.block}>
@@ -241,7 +228,7 @@ export function SessionSummarySkeleton({ contentStyle }: LayoutProps) {
 function SummaryMetaTile({ tile }: { tile: MetaTile }) {
   const c = useAppColors();
   const tints = {
-    accent: { wrap: { backgroundColor: c.accentBg }, icon: c.green },
+    accent: { wrap: { backgroundColor: c.greenBg }, icon: c.green },
     yellow: { wrap: { backgroundColor: c.yellowBg }, icon: c.yellow },
     blue: { wrap: { backgroundColor: c.blueBg }, icon: c.blue },
     chip: { wrap: { backgroundColor: c.chipBg, borderColor: c.chipBorder, borderWidth: 1 }, icon: c.chipText },
@@ -260,25 +247,17 @@ function SummaryMetaTile({ tile }: { tile: MetaTile }) {
   );
 }
 
-function StandingSkeleton({ nameWidth }: { nameWidth: DimensionValue }) {
+function StandingSkeleton({ nameWidth, isFirst }: { nameWidth: DimensionValue; isFirst: boolean }) {
   const c = useAppColors();
   return (
-    <View style={[summary.resultRow, { backgroundColor: c.card, borderColor: c.border }]}>
-      <View style={summary.rankBar} />
+    <View style={[summary.resultRow, !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.border }]}>
+      <Skeleton width={14} height={14} radius={7} />
+      <Skeleton width={32} height={32} radius={16} />
       <View style={summary.resultBody}>
-        <View style={summary.resultTop}>
-          <View style={summary.resultLeft}>
-            <Skeleton width={32} height={32} radius={9} />
-            <TextBone lineHeight={20} width={nameWidth} style={summary.flex} />
-          </View>
-          <TextBone lineHeight={22} width={68} />
-        </View>
-        <View style={summary.amountChips}>
-          <Skeleton width={88} height={31} radius={8} />
-          <Icon name="arrow-right" size={14} color={c.textHint} />
-          <Skeleton width={88} height={31} radius={8} />
-        </View>
+        <TextBone lineHeight={20} width={nameWidth} />
+        <TextBone lineHeight={17} width="80%" />
       </View>
+      <TextBone lineHeight={22} width={64} />
     </View>
   );
 }
@@ -293,16 +272,14 @@ const summary = StyleSheet.create({
   metaCell: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   metaIconWrap: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   metaText: { flex: 1, minWidth: 0, gap: 3 },
-  metaLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.66 },
+  metaLabel: type.label,
   block: { gap: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
   sectionTitle: { fontWeight: '600', fontSize: 17, lineHeight: 22 },
-  resultRow: { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-  rankBar: { width: 4 },
-  resultBody: { flex: 1, paddingVertical: 12, paddingHorizontal: 16, gap: 10, minWidth: 0 },
-  resultTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-  resultLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
-  amountChips: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  heading: { gap: 6 },
+  resultsCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingVertical: 10, paddingHorizontal: 14 },
+  resultBody: { flex: 1, minWidth: 0, gap: 4 },
   settlementCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', paddingHorizontal: 16 },
   divider: { height: 1 },
   settlementRow: {

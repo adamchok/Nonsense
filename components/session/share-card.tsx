@@ -98,7 +98,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
                   </Text>
                   {r.playerId === hostId ? (
                     <View style={[styles.hostBadge, { backgroundColor: c.badge.host }]}>
-                      <Text style={[text.micro, styles.hostBadgeText]}>HOST</Text>
+                      <Text style={[text.micro, styles.hostBadgeText]}>Host</Text>
                     </View>
                   ) : null}
                 </View>

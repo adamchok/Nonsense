@@ -57,15 +57,11 @@ export function PotBadge({ total, unit, startedAt, onBuyIn }: Props) {
           rowStyle={styles.valueRow}
         />
         {startedAt ? (
-          <View style={[styles.started, styles.startedRow]}>
-            <View style={styles.startedPart}>
-              <Icon name="clock-outline" size={14} color={c.textMuted} importantForAccessibility="no" />
-              <Text style={[text.label, { color: c.textMuted }]}>Started {formatSessionTime(startedAt)}</Text>
-            </View>
-            <View style={styles.startedPart}>
-              <Icon name="timer" size={14} color={c.textMuted} importantForAccessibility="no" />
-              <Text style={[text.label, { color: c.textMuted }]}>{formatDuration(now - startedAt.getTime())}</Text>
-            </View>
+          <View style={[styles.started, styles.startedPart]}>
+            <Icon name="clock-outline" size={14} color={c.textMuted} importantForAccessibility="no" />
+            <Text style={[text.label, { color: c.textMuted }]} numberOfLines={1}>
+              Started {formatSessionTime(startedAt)} · {formatDuration(now - startedAt.getTime())}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -76,7 +72,7 @@ export function PotBadge({ total, unit, startedAt, onBuyIn }: Props) {
           accessibilityLabel="Add buy-in"
           style={({ pressed }) => [styles.buyIn, { backgroundColor: c.accent, opacity: pressed ? 0.9 : 1 }]}>
           <Icon name="add" size={18} color={c.onAccent} importantForAccessibility="no" />
-          <Text style={[text.button, { color: c.onAccent }]}>Buy-In</Text>
+          <Text style={[text.button, { color: c.onAccent }]}>Buy-in</Text>
         </PressableScale>
       ) : null}
     </Animated.View>
@@ -106,12 +102,6 @@ const styles = StyleSheet.create({
   },
   started: {
     marginTop: space.xs,
-  },
-  startedRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: 12,
-    rowGap: 2,
   },
   startedPart: {
     flexDirection: 'row',

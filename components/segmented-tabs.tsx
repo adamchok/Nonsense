@@ -9,7 +9,8 @@ import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reani
 export type SegmentedTab<K extends string> = { key: K; label: string; icon: IconName };
 
 const TRACK_BORDER = 1;
-const NARROW_WIDTH = 380;
+const COMPACT_WIDTH = 380;
+const TINY_WIDTH = 340;
 
 const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown']);
 const PREV_KEYS = new Set(['ArrowLeft', 'ArrowUp']);
@@ -38,7 +39,9 @@ type Props<K extends string> = {
 
 export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant = 'tabs' }: Props<K>) {
   const isRadio = variant === 'radio';
-  const isNarrow = useWindowDimensions().width < NARROW_WIDTH;
+  const screenWidth = useWindowDimensions().width;
+  const isCompact = screenWidth < COMPACT_WIDTH;
+  const isTiny = screenWidth < TINY_WIDTH;
   const c = useAppColors();
   const [layouts, setLayouts] = useState<Partial<Record<K, LayoutRectangle>>>({});
   const x = useSharedValue(0);
@@ -112,8 +115,14 @@ export function SegmentedTabs<K extends string>({ tabs, value, onChange, variant
             accessibilityLabel={tab.label}
             onPress={() => onChange(tab.key)}
             {...webRadioProps}
-            style={[styles.tab, selected && !selectedLayout && { backgroundColor: c.accentBg, borderColor: c.accentBorder }]}>
-            {isNarrow ? null : <Icon name={tab.icon} size={18} color={color} weight={selected ? 'fill' : 'regular'} />}
+            style={[
+              styles.tab,
+              isCompact && styles.tabCompact,
+              selected && !selectedLayout && { backgroundColor: c.accentBg, borderColor: c.accentBorder },
+            ]}>
+            {isTiny ? null : (
+              <Icon name={tab.icon} size={isCompact ? 14 : 18} color={color} weight={selected ? 'fill' : 'regular'} />
+            )}
             <Text style={[styles.label, { color }]} numberOfLines={1}>
               {tab.label}
             </Text>
@@ -152,6 +161,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'transparent',
+  },
+  tabCompact: {
+    gap: 4,
+    paddingHorizontal: 6,
   },
   label: {
     fontSize: 14,
