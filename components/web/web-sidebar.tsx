@@ -3,6 +3,7 @@ import { PlatformPressable } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Link, usePathname, useRouter, type Href } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Easing,
   ReduceMotion,
@@ -29,6 +30,9 @@ const AVATAR_SIZE = 32;
 const DEFAULT_AVATAR = '🙂';
 const ITEM_GAP = 2;
 const COLLAPSED_WIDTH = 72;
+const SIDEBAR_PAD_TOP = 20;
+const SIDEBAR_PAD_BOTTOM = 12;
+const SIDEBAR_PAD_X = 14;
 const COLLAPSE_STORAGE_KEY = 'nonsense.sidebarCollapsed';
 const COLLAPSE_TIMING = { duration: 220, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System };
 
@@ -79,6 +83,7 @@ function withAlpha(hex: string, alpha: number): string {
 export function WebSidebar() {
   const c = useAppColors();
   const scheme = useResolvedColorScheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
   const activeIndex = activeIndexFor(pathname);
@@ -117,7 +122,16 @@ export function WebSidebar() {
 
   return (
     <Animated.View
-      style={[styles.sidebar, { backgroundColor: c.card, borderRightColor: c.border }, widthStyle]}
+      style={[
+        styles.sidebar,
+        {
+          backgroundColor: c.card,
+          borderRightColor: c.border,
+          paddingTop: SIDEBAR_PAD_TOP + insets.top,
+          paddingLeft: SIDEBAR_PAD_X + insets.left,
+        },
+        widthStyle,
+      ]}
       role="navigation"
       aria-label="App">
       <Link href="/" asChild>
@@ -289,9 +303,8 @@ const styles = StyleSheet.create({
     width: sidebarWidth,
     height: '100%',
     borderRightWidth: 1,
-    paddingTop: 20,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
+    paddingHorizontal: SIDEBAR_PAD_X,
+    paddingBottom: SIDEBAR_PAD_BOTTOM,
     overflow: 'hidden',
   },
   brand: {

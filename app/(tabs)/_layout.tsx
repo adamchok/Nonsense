@@ -17,7 +17,7 @@ const WIDE_TAB_ROUTES = new Set(['index', 'history', 'friends']);
 
 export default function TabLayout() {
   const c = useAppColors();
-  const { isMd } = useBreakpoint();
+  const { isMd, hasSidebarNav } = useBreakpoint();
   const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const { isReady, user, isAnonymous } = useAuth();
@@ -50,7 +50,8 @@ export default function TabLayout() {
         screenOptions={{
           ...screenOptions,
           tabBarStyle: { ...tabBarColors, paddingTop: 8, height: 53 + insets.bottom },
-        }}>
+        }}
+        tabBar={(props) => (hasSidebarNav ? null : <BottomTabBar {...props} />)}>
         {tabScreens}
       </Tabs>
     );

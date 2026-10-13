@@ -46,9 +46,9 @@ function RootNavigator() {
   const { resolvedColorScheme } = useThemePreference();
   const pathname = usePathname();
   const hasSignedInHint = useSyncExternalStore(subscribeNoop, readSignedInHint, getServerHint);
-  const { isMd } = useBreakpoint();
+  const { hasSidebarNav } = useBreakpoint();
   const c = useAppColors();
-  const showSidebar = IS_WEB && isMd && isSignedIn && !isPublicOrAuthPath(pathname);
+  const showSidebar = hasSidebarNav && isSignedIn && !isPublicOrAuthPath(pathname);
 
   useEffect(() => {
     if (!isReady) return;

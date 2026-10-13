@@ -60,10 +60,9 @@ export default function HomeScreen() {
   const c = useAppColors();
   const layout = usePageLayout(40);
   const router = useRouter();
-  const { isMd, width } = useBreakpoint();
+  const { isMd, hasSidebarNav: hasSidebar, width } = useBreakpoint();
   const compactRows = width < COMPACT_ROW_WIDTH;
   const shortCta = width < SHORT_CTA_WIDTH;
-  const hasSidebar = Platform.OS === 'web' && isMd;
   const { playerProfile } = useAuth();
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [sessionMetaById, setSessionMetaById] = useState<Record<string, { playerCount: number; totalBuyIns: number }>>(
