@@ -4,6 +4,7 @@ import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import {
   arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -39,7 +40,7 @@ after(async () => {
 
 const sid = () => nextSessionId('sessions');
 
-test('host can create a session with participant rows and initial buy-ins in one batch', async () => {
+test('host can create a session, then add each initial player in its own batch', async () => {
   const db = dbAs(env, HOST);
   const sessionRef = doc(collection(db, 'sessions'));
   const batch = writeBatch(db);
@@ -52,22 +53,35 @@ test('host can create a session with participant rows and initial buy-ins in one
     bigBlind: 2,
     amountUnit: 'cash',
     dollarsPerChip: null,
-    participantIds: [HOST, PLAYER],
+    participantIds: [HOST],
   });
-  for (const uid of [HOST, PLAYER]) {
-    batch.set(
-      doc(db, 'sessions', sessionRef.id, 'session_participants', uid),
-      { playerId: uid, playerName: uid, joinedAt: serverTimestamp() },
-      { merge: true }
-    );
-  }
+  batch.set(
+    doc(db, 'sessions', sessionRef.id, 'session_participants', HOST),
+    { playerId: HOST, playerName: HOST, joinedAt: serverTimestamp() },
+    { merge: true }
+  );
   batch.set(doc(collection(db, 'sessions', sessionRef.id, 'buy_ins')), {
+    playerId: HOST,
+    playerName: 'Host',
+    amount: 50,
+    createdAt: serverTimestamp(),
+  });
+  await assertSucceeds(batch.commit());
+
+  const playerBatch = writeBatch(db);
+  playerBatch.set(doc(collection(db, 'sessions', sessionRef.id, 'buy_ins')), {
     playerId: PLAYER,
     playerName: 'Player',
     amount: 50,
     createdAt: serverTimestamp(),
   });
-  await assertSucceeds(batch.commit());
+  playerBatch.set(
+    doc(db, 'sessions', sessionRef.id, 'session_participants', PLAYER),
+    { playerId: PLAYER, playerName: 'Player', joinedAt: serverTimestamp() },
+    { merge: true }
+  );
+  playerBatch.update(sessionRef, { participantIds: arrayUnion(PLAYER) });
+  await assertSucceeds(playerBatch.commit());
 });
 
 test('cannot create a session hosted by someone else', async () => {

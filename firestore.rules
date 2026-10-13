@@ -10,6 +10,10 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == playerId;
     }
 
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
     function sessionData(sessionId) {
       return get(/databases/$(database)/documents/sessions/$(sessionId)).data;
     }
@@ -65,6 +69,78 @@ service cloud.firestore {
         && d.get('playerResults', {}) is map;
     }
 
+    function withinSessionCaps(d) {
+      return d.get('participantIds', []).size() <= 50
+        && d.get('playerResults', {}).size() <= 50;
+    }
+
+    function doesNotGrowPastCap(field, empty) {
+      let after = request.resource.data.get(field, empty).size();
+      return after <= 50 || after <= resource.data.get(field, empty).size();
+    }
+
+    function validLocation(v) {
+      return v == null || (v is string && v.size() <= 100);
+    }
+
+    function validAvatar(v) {
+      return v == null || (v is string && v.size() <= 32);
+    }
+
+    function validPlayerId(v) {
+      return v is string && v.size() > 0 && v.size() <= 128;
+    }
+
+    function allowedParticipant(hostId, pid, groupId) {
+      return validPlayerId(pid)
+        && (
+          pid == hostId
+          || exists(/databases/$(database)/documents/players/$(hostId)/friends/$(pid))
+          || !exists(/databases/$(database)/documents/players/$(pid))
+          || (groupId is string && groupMemberConsents(hostId, pid, groupId))
+        );
+    }
+
+    function groupMemberConsents(hostId, pid, groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId))
+        && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(pid))
+        && exists(/databases/$(database)/documents/players/$(hostId)/group_memberships/$(groupId))
+        && get(/databases/$(database)/documents/players/$(pid)/group_memberships/$(groupId)).data.get('ownerId', null)
+          == groupData(groupId).ownerId;
+    }
+
+    function participantIdsChangeOk() {
+      let before = resource.data.get('participantIds', []);
+      let after = request.resource.data.get('participantIds', []);
+      let added = after.toSet().difference(before.toSet());
+      return added.size() == 0
+        || (
+          added.size() == 1
+          && after.size() == before.size() + 1
+          && added.hasAll([after[after.size() - 1]])
+          && allowedParticipant(resource.data.hostId, after[after.size() - 1], resource.data.get('groupId', null))
+        );
+    }
+
+    function playerResultsOk() {
+      let added = request.resource.data.get('playerResults', {}).keys().toSet()
+        .difference(resource.data.get('playerResults', {}).keys().toSet());
+      return !('participantIds' in resource.data)
+        || added.difference(request.resource.data.participantIds.toSet())
+          .difference([resource.data.hostId].toSet()).size() == 0;
+    }
+
+    function keepsParticipantIds() {
+      return !('participantIds' in resource.data) || 'participantIds' in request.resource.data;
+    }
+
+    function inSessionAfter(sessionId, pid) {
+      let s = getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return pid == s.hostId
+        || !('participantIds' in s)
+        || pid in s.participantIds;
+    }
+
     function friendDocMatchesProfile(describedId) {
       return request.resource.data.name
           == get(/databases/$(database)/documents/players/$(describedId)).data.name
@@ -80,6 +156,77 @@ service cloud.firestore {
 
     function validName(v) {
       return v is string && v.size() > 0 && v.size() <= 64;
+    }
+
+    function validRequestDoc(d) {
+      return d.keys().hasOnly(['name', 'avatarEmoji', 'createdAt'])
+        && validName(d.name)
+        && validAvatar(d.get('avatarEmoji', null))
+        && (d.get('createdAt', null) == null || d.createdAt is timestamp);
+    }
+
+    function groupData(groupId) {
+      return get(/databases/$(database)/documents/groups/$(groupId)).data;
+    }
+
+    function isGroupOwner(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId))
+        && groupData(groupId).ownerId == request.auth.uid;
+    }
+
+    function validMembershipFields(d, keys, playerId) {
+      return (!keys.hasAny(['name']) || validName(d.name))
+        && (!keys.hasAny(['memberCount']) || (d.memberCount is int && d.memberCount >= 0))
+        && (!keys.hasAny(['role']) || d.role == (playerId == request.auth.uid ? 'owner' : 'member'))
+        && (!keys.hasAny(['groupCreatedAt']) || d.groupCreatedAt == null || d.groupCreatedAt is timestamp)
+        && (!keys.hasAny(['joinedAt']) || d.joinedAt == null || d.joinedAt is timestamp);
+    }
+
+    function validNewMembership(playerId) {
+      let d = request.resource.data;
+      return d.keys().hasAll(['name', 'memberCount', 'ownerId', 'role'])
+        && d.keys().hasOnly(['name', 'memberCount', 'ownerId', 'role', 'groupCreatedAt', 'joinedAt'])
+        && d.ownerId == request.auth.uid
+        && validMembershipFields(d, d.keys(), playerId);
+    }
+
+    function validMembershipChange(playerId) {
+      return resource.data.get('ownerId', null) == request.auth.uid
+        && changedKeys().hasOnly(['name', 'memberCount', 'role', 'groupCreatedAt'])
+        && validMembershipFields(request.resource.data, changedKeys(), playerId);
+    }
+
+    function holdsMembershipOf(groupId, ownerId) {
+      return get(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId)).data
+        .get('ownerId', null) == ownerId;
+    }
+
+    function profileKeys() {
+      return ['name', 'anonymousUid', 'refCode', 'avatarEmoji', 'createdAt', 'termsVersion', 'termsAcceptedAt'];
+    }
+
+    function validProfileFields(d, keys) {
+      return (!keys.hasAny(['avatarEmoji']) || validAvatar(d.avatarEmoji))
+        && (!keys.hasAny(['createdAt']) || d.createdAt is timestamp)
+        && (!keys.hasAny(['termsVersion']) || (d.termsVersion is string && d.termsVersion.size() > 0 && d.termsVersion.size() <= 32))
+        && (!keys.hasAny(['termsAcceptedAt']) || d.termsAcceptedAt is timestamp);
+    }
+
+    function validGroupMemberCount(v) {
+      return v is int && v >= 0 && v <= 500;
+    }
+
+    function canBeGroupMember(memberId, isRegistered) {
+      return memberId == request.auth.uid
+        || exists(/databases/$(database)/documents/players/$(request.auth.uid)/friends/$(memberId))
+        || (isRegistered == false
+          && !exists(/databases/$(database)/documents/players/$(memberId)));
+    }
+
+    function validMemberValues(d) {
+      return validName(d.name)
+        && d.isRegistered is bool
+        && validAvatar(d.get('avatarEmoji', null));
     }
 
     function validNewGuestLink(linkId) {
@@ -118,17 +265,17 @@ service cloud.firestore {
 
       allow create: if isPlayerOwner(playerId)
         && request.resource.data.keys().hasAll(['name', 'anonymousUid'])
+        && request.resource.data.keys().hasOnly(profileKeys())
         && request.resource.data.anonymousUid == playerId
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 64
+        && validName(request.resource.data.name)
+        && validProfileFields(request.resource.data, request.resource.data.keys())
         && refCodeReserved(playerId);
 
       allow update: if isPlayerOwner(playerId)
         && request.resource.data.anonymousUid == playerId
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 64
+        && validName(request.resource.data.name)
+        && changedKeys().hasOnly(profileKeys().removeAll(['createdAt']))
+        && validProfileFields(request.resource.data, changedKeys())
         && (
           (resource.data.keys().hasAny(['refCode'])
             && request.resource.data.refCode == resource.data.refCode)
@@ -140,9 +287,13 @@ service cloud.firestore {
         allow create: if signedIn()
           && (request.auth.uid == playerId || request.auth.uid == friendId)
           && exists(/databases/$(database)/documents/players/$(request.auth.uid)/friend_requests/$(request.auth.uid == playerId ? friendId : playerId))
+          && !existsAfter(/databases/$(database)/documents/players/$(request.auth.uid)/friend_requests/$(request.auth.uid == playerId ? friendId : playerId))
+          && request.resource.data.keys().hasOnly(['name', 'avatarEmoji', 'addedAt'])
+          && (request.resource.data.get('addedAt', null) == null || request.resource.data.addedAt is timestamp)
           && friendDocMatchesProfile(friendId);
         allow update: if signedIn()
           && request.auth.uid == friendId
+          && changedKeys().hasOnly(['name', 'avatarEmoji'])
           && friendDocMatchesProfile(friendId);
         allow delete: if signedIn()
           && (request.auth.uid == playerId || request.auth.uid == friendId);
@@ -153,6 +304,7 @@ service cloud.firestore {
         allow create: if signedIn()
           && request.auth.uid == senderId
           && senderId != playerId
+          && validRequestDoc(request.resource.data)
           && request.resource.data.name
             == get(/databases/$(database)/documents/players/$(senderId)).data.name;
         allow delete: if signedIn()
@@ -163,9 +315,14 @@ service cloud.firestore {
         allow read: if isPlayerOwner(playerId);
         allow create: if signedIn()
           && request.auth.uid == playerId
-          && receiverId != playerId;
+          && receiverId != playerId
+          && validRequestDoc(request.resource.data);
         allow delete: if signedIn()
-          && (request.auth.uid == playerId || request.auth.uid == receiverId);
+          && (
+            request.auth.uid == playerId
+            || (request.auth.uid == receiverId
+              && !existsAfter(/databases/$(database)/documents/players/$(receiverId)/friend_requests/$(playerId)))
+          );
       }
 
       match /saved_locations/{locationId} {
@@ -175,28 +332,20 @@ service cloud.firestore {
       match /group_memberships/{groupId} {
         allow read: if isPlayerOwner(playerId);
         allow create: if signedIn()
-          && exists(/databases/$(database)/documents/groups/$(groupId))
+          && isGroupOwner(groupId)
+          && validNewMembership(playerId)
           && (
-            (
-              request.auth.uid == playerId
-              && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == playerId
+            playerId == request.auth.uid
+            || (
+              getAfter(/databases/$(database)/documents/groups/$(groupId)/members/$(playerId)).data.isRegistered == true
+              && exists(/databases/$(database)/documents/players/$(request.auth.uid)/friends/$(playerId))
             )
-            || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
           );
         allow update: if signedIn()
-          && (
-            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
-            || (
-              request.auth.uid == playerId
-              && request.resource.data.role == resource.data.role
-              && request.resource.data.ownerId == resource.data.ownerId
-            )
-          );
+          && isGroupOwner(groupId)
+          && validMembershipChange(playerId);
         allow delete: if signedIn()
-          && (
-            request.auth.uid == playerId
-            || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
-          );
+          && (request.auth.uid == playerId || isGroupOwner(groupId));
       }
     }
 
@@ -204,51 +353,72 @@ service cloud.firestore {
       allow read: if signedIn()
         && (
           resource.data.ownerId == request.auth.uid
-          || exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId))
+          || holdsMembershipOf(groupId, resource.data.ownerId)
         );
 
       allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['name', 'ownerId', 'memberCount', 'createdAt'])
         && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.name is string
-        && request.resource.data.memberCount is int;
+        && validName(request.resource.data.name)
+        && request.resource.data.memberCount == 0
+        && (request.resource.data.get('createdAt', null) == null
+          || request.resource.data.createdAt is timestamp);
 
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
 
       allow update: if signedIn()
         && (
-          resource.data.ownerId == request.auth.uid
+          (
+            resource.data.ownerId == request.auth.uid
+            && changedKeys().hasOnly(['name', 'memberCount'])
+            && (!changedKeys().hasAny(['name']) || validName(request.resource.data.name))
+            && (!changedKeys().hasAny(['memberCount']) || validGroupMemberCount(request.resource.data.memberCount))
+          )
           || (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
-            && request.resource.data.memberCount == resource.data.memberCount - 1
-            && request.resource.data.memberCount >= 0
-            && exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId))
+            resource.data.ownerId != request.auth.uid
+            && changedKeys().hasOnly(['memberCount'])
+            && (
+              (resource.data.get('memberCount', 0) > 0
+                && request.resource.data.get('memberCount', 0) == resource.data.get('memberCount', 0) - 1)
+              || (resource.data.get('memberCount', 0) <= 0
+                && request.resource.data.get('memberCount', 0) == resource.data.get('memberCount', 0))
+            )
+            && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))
+            && !existsAfter(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))
           )
         );
 
       match /members/{memberId} {
         allow read: if signedIn()
+          && exists(/databases/$(database)/documents/groups/$(groupId))
           && (
-            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
-            || exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(groupId))
+            groupData(groupId).ownerId == request.auth.uid
+            || holdsMembershipOf(groupId, groupData(groupId).ownerId)
           );
 
         allow create: if signedIn()
-          && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid;
+          && isGroupOwner(groupId)
+          && request.resource.data.keys().hasOnly(['name', 'isRegistered', 'avatarEmoji'])
+          && validMemberValues(request.resource.data)
+          && canBeGroupMember(memberId, request.resource.data.isRegistered);
 
         allow delete: if signedIn()
-          && (
-            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
-            || (
-              memberId == request.auth.uid
-              && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId != request.auth.uid
-            )
-          );
+          && exists(/databases/$(database)/documents/groups/$(groupId))
+          && (groupData(groupId).ownerId == request.auth.uid || memberId == request.auth.uid);
 
         allow update: if signedIn()
           && (
-            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+            (
+              isGroupOwner(groupId)
+              && changedKeys().hasOnly(['name', 'isRegistered', 'avatarEmoji'])
+              && validMemberValues(request.resource.data)
+              && (request.resource.data.isRegistered == resource.data.get('isRegistered', false)
+                || canBeGroupMember(memberId, request.resource.data.isRegistered))
+            )
             || (
               memberId == request.auth.uid
+              && changedKeys().hasOnly(['name', 'avatarEmoji'])
+              && validAvatar(request.resource.data.get('avatarEmoji', null))
               && request.resource.data.isRegistered == resource.data.isRegistered
               && request.resource.data.name
                 == get(/databases/$(database)/documents/players/$(request.auth.uid)).data.name
@@ -261,6 +431,7 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if false;
       allow create: if signedIn()
+        && code.matches('^[A-HJ-NP-Z2-9]{6}$')
         && request.resource.data.keys().hasOnly(['playerId'])
         && request.resource.data.playerId == request.auth.uid;
       allow update, delete: if false;
@@ -276,14 +447,30 @@ service cloud.firestore {
         );
 
       allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['hostId', 'date', 'location', 'status', 'smallBlind', 'bigBlind',
+          'amountUnit', 'dollarsPerChip', 'participantIds', 'groupId'])
         && request.resource.data.hostId == request.auth.uid
         && request.resource.data.status == 'active'
-        && validSessionShape(request.resource.data);
+        && request.resource.data.participantIds == [request.auth.uid]
+        && request.resource.data.get('date', request.time) is timestamp
+        && validLocation(request.resource.data.get('location', null))
+        && validSessionShape(request.resource.data)
+        && withinSessionCaps(request.resource.data)
+        && (request.resource.data.get('groupId', null) == null
+          || (validPlayerId(request.resource.data.groupId)
+            && exists(/databases/$(database)/documents/players/$(request.auth.uid)/group_memberships/$(request.resource.data.groupId))));
 
       allow update: if isSessionHost(sessionId)
-        && request.resource.data.hostId == resource.data.hostId
+        && changedKeys().hasOnly(['location', 'smallBlind', 'bigBlind',
+          'dollarsPerChip', 'participantIds', 'status', 'finishedAt', 'playerResults'])
         && validSessionShape(request.resource.data)
-        && !(resource.data.status == 'finished' && request.resource.data.status == 'active');
+        && doesNotGrowPastCap('participantIds', [])
+        && doesNotGrowPastCap('playerResults', {})
+        && !(resource.data.status == 'finished' && request.resource.data.status == 'active')
+        && (!changedKeys().hasAny(['location']) || validLocation(request.resource.data.location))
+        && keepsParticipantIds()
+        && participantIdsChangeOk()
+        && playerResultsOk();
 
       allow delete: if isSessionHost(sessionId);
 
@@ -291,9 +478,11 @@ service cloud.firestore {
         allow read: if canReadSession(sessionId);
         allow create: if isSessionHostAfter(sessionId)
           && sessionActiveAfter(sessionId)
+          && request.resource.data.keys().hasOnly(['playerId', 'playerName', 'amount', 'createdAt'])
           && validAmount(request.resource.data.amount)
-          && request.resource.data.playerId is string
-          && request.resource.data.playerName is string;
+          && validPlayerId(request.resource.data.playerId)
+          && validName(request.resource.data.playerName)
+          && inSessionAfter(sessionId, request.resource.data.playerId);
         allow update: if false;
         allow delete: if isSessionHost(sessionId);
       }
@@ -302,7 +491,10 @@ service cloud.firestore {
         allow read: if canReadSession(sessionId);
         allow create, update: if isSessionHost(sessionId)
           && sessionActiveAfter(sessionId)
-          && validNonNegativeAmount(request.resource.data.amount);
+          && request.resource.data.keys().hasOnly(['playerName', 'amount', 'cashedOutAt'])
+          && validName(request.resource.data.playerName)
+          && validNonNegativeAmount(request.resource.data.amount)
+          && inSessionAfter(sessionId, cashOutPlayerId);
         allow delete: if isSessionHost(sessionId);
       }
 
@@ -310,17 +502,27 @@ service cloud.firestore {
         allow read: if canReadSession(sessionId);
         allow create, update: if isSessionHost(sessionId)
           && sessionData(sessionId).status == 'active'
-          && request.resource.data.playerName is string
+          && request.resource.data.keys().hasOnly(['playerName', 'totalBuyIn', 'cashOut', 'profit', 'settledAt'])
+          && validName(request.resource.data.playerName)
           && validNonNegativeAmount(request.resource.data.totalBuyIn)
           && validNonNegativeAmount(request.resource.data.cashOut)
-          && validSignedAmount(request.resource.data.profit);
+          && validSignedAmount(request.resource.data.profit)
+          && inSessionAfter(sessionId, resultPlayerId);
         allow delete: if isSessionHost(sessionId);
       }
 
       match /session_participants/{participantId} {
         allow read: if signedIn()
           && (participantId == request.auth.uid || canReadSession(sessionId));
-        allow create, update: if isSessionHostAfter(sessionId);
+        allow create: if isSessionHostAfter(sessionId)
+          && request.resource.data.keys().hasOnly(['playerId', 'playerName', 'joinedAt'])
+          && request.resource.data.playerId == participantId
+          && validName(request.resource.data.playerName)
+          && participantId in getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.get('participantIds', []);
+        allow update: if isSessionHostAfter(sessionId)
+          && changedKeys().hasOnly(['playerId', 'playerName', 'joinedAt'])
+          && request.resource.data.playerId == participantId
+          && validName(request.resource.data.playerName);
         allow delete: if isSessionHost(sessionId);
       }
     }
@@ -335,7 +537,7 @@ service cloud.firestore {
         && resource.data.targetId == request.auth.uid
         && resource.data.status == 'pending'
         && request.resource.data.status == 'accepted'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
+        && changedKeys().hasOnly(['status', 'acceptedAt'])
         && request.resource.data.acceptedAt == request.time;
 
       allow delete: if signedIn()
